@@ -19,19 +19,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    getPerfil().then(p => {
-      setPerfil(p)
-      setLoading(false)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'SIGNED_IN') {
-        const p = await getPerfil()
-        setPerfil(p)
-      } else if (event === 'SIGNED_OUT') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Não usar await direto no callback (deadlock conhecido do supabase-js);
+      // dispara a carga do perfil fora do handler
+      if (event === 'SIGNED_OUT' || !session) {
         setPerfil(null)
+        setLoading(false)
+        return
       }
-      setLoading(false)
+      getPerfil().then(p => {
+        setPerfil(p)
+        setLoading(false)
+      })
     })
 
     return () => subscription.unsubscribe()

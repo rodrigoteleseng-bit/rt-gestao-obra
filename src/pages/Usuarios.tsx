@@ -23,6 +23,14 @@ export default function Usuarios() {
   const [modulosEdit, setModulosEdit] = useState<ModuloApp[]>([])
   const [loading, setLoading] = useState(false)
 
+  const [convidando, setConvidando] = useState(false)
+  const [convNome, setConvNome] = useState('')
+  const [convEmail, setConvEmail] = useState('')
+  const [convPapel, setConvPapel] = useState<'equipe' | 'cliente'>('equipe')
+  const [convModulos, setConvModulos] = useState<ModuloApp[]>([])
+  const [convErro, setConvErro] = useState('')
+  const [convOk, setConvOk] = useState('')
+
   useEffect(() => {
     if (meuPerfil?.papel !== 'admin') {
       navigate('/dashboard')
@@ -47,6 +55,38 @@ export default function Usuarios() {
     )
   }
 
+  function toggleConvModulo(m: ModuloApp) {
+    setConvModulos(prev =>
+      prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]
+    )
+  }
+
+  async function enviarConvite(e: React.FormEvent) {
+    e.preventDefault()
+    setConvErro('')
+    setConvOk('')
+    setLoading(true)
+    const { data, error } = await supabase.functions.invoke('convidar-usuario', {
+      body: {
+        nome: convNome,
+        email: convEmail,
+        papel: convPapel,
+        modulos: convPapel === 'equipe' ? convModulos : [],
+        redirect_to: `${window.location.origin}/nova-senha`,
+      },
+    })
+    setLoading(false)
+    if (error || data?.error) {
+      setConvErro(data?.error ?? 'Falha ao enviar o convite. Tente novamente.')
+      return
+    }
+    setConvOk(`Convite enviado para ${convEmail}.`)
+    setConvNome('')
+    setConvEmail('')
+    setConvModulos([])
+    carregarUsuarios()
+  }
+
   async function salvarModulos(userId: string) {
     setLoading(true)
     await supabase
@@ -66,8 +106,84 @@ export default function Usuarios() {
 
   return (
     <div className={styles.page}>
-      <h1>Usuários</h1>
-      <p className={styles.sub}>Gerencie os membros da equipe e seus módulos de acesso.</p>
+      <div className={styles.header}>
+        <div>
+          <h1>Usuários</h1>
+          <p className={styles.sub}>Gerencie os membros da equipe e seus módulos de acesso.</p>
+        </div>
+        <button
+          className={styles.btnConvidar}
+          onClick={() => { setConvidando(!convidando); setConvErro(''); setConvOk('') }}
+        >
+          {convidando ? 'Fechar' : '+ Convidar usuário'}
+        </button>
+      </div>
+
+      {convidando && (
+        <form onSubmit={enviarConvite} className={styles.formConvite}>
+          <div className={styles.campoConv}>
+            <label htmlFor="conv-nome">Nome completo</label>
+            <input
+              id="conv-nome"
+              type="text"
+              value={convNome}
+              onChange={e => setConvNome(e.target.value)}
+              required
+              placeholder="Nome do colaborador"
+            />
+          </div>
+          <div className={styles.campoConv}>
+            <label htmlFor="conv-email">E-mail</label>
+            <input
+              id="conv-email"
+              type="email"
+              value={convEmail}
+              onChange={e => setConvEmail(e.target.value)}
+              required
+              placeholder="email@exemplo.com"
+            />
+          </div>
+          <div className={styles.campoConv}>
+            <label htmlFor="conv-papel">Papel</label>
+            <select
+              id="conv-papel"
+              value={convPapel}
+              onChange={e => setConvPapel(e.target.value as 'equipe' | 'cliente')}
+            >
+              <option value="equipe">Equipe</option>
+              <option value="cliente">Cliente (somente leitura)</option>
+            </select>
+          </div>
+
+          {convPapel === 'equipe' && (
+            <div className={styles.campoConv}>
+              <label>Módulos permitidos</label>
+              <div className={styles.checkGrid}>
+                {TODOS_MODULOS.map(m => (
+                  <label key={m} className={styles.checkItem}>
+                    <input
+                      type="checkbox"
+                      checked={convModulos.includes(m)}
+                      onChange={() => toggleConvModulo(m)}
+                    />
+                    {MODULOS_LABELS[m]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {convErro && <p className={styles.msgErro}>{convErro}</p>}
+          {convOk && <p className={styles.msgOk}>{convOk}</p>}
+
+          <button type="submit" className={styles.btnSalvar} disabled={loading}>
+            {loading ? 'Enviando…' : 'Enviar convite'}
+          </button>
+          <p className={styles.dicaConvite}>
+            O convidado recebe um e-mail com link para definir a própria senha.
+          </p>
+        </form>
+      )}
 
       <div className={styles.lista}>
         {usuarios.map(u => (

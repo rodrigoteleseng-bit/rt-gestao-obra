@@ -14,6 +14,89 @@
   margin-bottom: 24px;
 }
 
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.btnConvidar {
+  background: var(--terracota);
+  color: var(--branco);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.btnConvidar:hover {
+  background: var(--terracota-dark);
+}
+
+.formConvite {
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 20px 16px;
+  margin-bottom: 20px;
+  box-shadow: var(--sombra-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.campoConv {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.campoConv label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cinza-800);
+}
+
+.campoConv input,
+.campoConv select {
+  padding: 9px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  outline: none;
+  background: var(--branco);
+}
+
+.campoConv input:focus,
+.campoConv select:focus {
+  border-color: var(--navy);
+}
+
+.msgErro {
+  font-size: 13px;
+  color: var(--erro);
+  background: #fdf0ef;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.msgOk {
+  font-size: 13px;
+  color: var(--sucesso);
+  background: #edf7f2;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.dicaConvite {
+  font-size: 12px;
+  color: var(--cinza-600);
+}
+
 .lista {
   display: flex;
   flex-direction: column;

@@ -87,6 +87,26 @@ export default function Usuarios() {
     carregarUsuarios()
   }
 
+  async function gerenciarAcesso(u: PerfilUsuario, acao: 'desativar' | 'reativar' | 'excluir_pendente') {
+    const confirmacoes: Record<string, string> = {
+      desativar: `Desativar o acesso de ${u.nome}? O histórico de lançamentos será preservado e o acesso pode ser reativado depois.`,
+      reativar: `Reativar o acesso de ${u.nome}?`,
+      excluir_pendente: `Excluir definitivamente o convite de ${u.nome}? Só é possível se a pessoa nunca acessou o sistema.`,
+    }
+    if (!window.confirm(confirmacoes[acao])) return
+
+    setLoading(true)
+    const { data, error } = await supabase.functions.invoke('gerenciar-usuario', {
+      body: { acao, user_id: u.id },
+    })
+    setLoading(false)
+    if (error || data?.error) {
+      window.alert(data?.error ?? 'Falha na operação. Tente novamente.')
+      return
+    }
+    carregarUsuarios()
+  }
+
   async function salvarModulos(userId: string) {
     setLoading(true)
     await supabase
@@ -196,14 +216,44 @@ export default function Usuarios() {
                 <span className={`${styles.badge} ${styles[`badge_${u.papel}`]}`}>
                   {papelLabel[u.papel]}
                 </span>
+                {!u.ativo && <span className={styles.badgeInativo}>Inativo</span>}
               </div>
               {u.papel !== 'admin' && u.id !== meuPerfil?.id && (
-                <button
-                  className={styles.btnEditar}
-                  onClick={() => editando === u.id ? setEditando(null) : iniciarEdicao(u)}
-                >
-                  {editando === u.id ? 'Cancelar' : 'Editar'}
-                </button>
+                <div className={styles.acoes}>
+                  {u.ativo ? (
+                    <>
+                      <button
+                        className={styles.btnEditar}
+                        onClick={() => editando === u.id ? setEditando(null) : iniciarEdicao(u)}
+                      >
+                        {editando === u.id ? 'Cancelar' : 'Editar'}
+                      </button>
+                      <button
+                        className={styles.btnDesativar}
+                        onClick={() => gerenciarAcesso(u, 'desativar')}
+                        disabled={loading}
+                      >
+                        Desativar
+                      </button>
+                      <button
+                        className={styles.btnExcluir}
+                        onClick={() => gerenciarAcesso(u, 'excluir_pendente')}
+                        disabled={loading}
+                        title="Só para convites nunca acessados"
+                      >
+                        Excluir convite
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className={styles.btnReativar}
+                      onClick={() => gerenciarAcesso(u, 'reativar')}
+                      disabled={loading}
+                    >
+                      Reativar
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 

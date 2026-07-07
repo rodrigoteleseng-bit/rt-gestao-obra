@@ -1,0 +1,179 @@
+.page {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.page h1 {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.sub {
+  color: var(--cinza-600);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--sombra-sm);
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  background: var(--navy);
+  color: var(--branco);
+  font-family: var(--font-titulo);
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.info {
+  flex: 1;
+}
+
+.nome {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--navy);
+}
+
+.email {
+  font-size: 12px;
+  color: var(--cinza-600);
+  margin-top: 2px;
+  margin-bottom: 6px;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: capitalize;
+}
+
+.badge_admin { background: #e8ecf5; color: var(--navy); }
+.badge_equipe { background: #fef0e6; color: var(--terracota-dark); }
+.badge_cliente { background: #edf7f2; color: var(--sucesso); }
+
+.btnEditar {
+  background: none;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cinza-800);
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+
+.btnEditar:hover {
+  border-color: var(--navy);
+  color: var(--navy);
+}
+
+.modulos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.moduloTag {
+  background: var(--cinza-100);
+  color: var(--cinza-800);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--cinza-200);
+}
+
+.moduloTagAdmin {
+  background: #e8ecf5;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.semModulo {
+  font-size: 12px;
+  color: var(--cinza-600);
+  font-style: italic;
+}
+
+.editModulos {
+  border-top: 1px solid var(--cinza-100);
+  padding-top: 12px;
+}
+
+.editLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cinza-800);
+  margin-bottom: 10px;
+}
+
+.checkGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.checkItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.checkItem input {
+  accent-color: var(--terracota);
+  width: 16px;
+  height: 16px;
+}
+
+.btnSalvar {
+  background: var(--navy);
+  color: var(--branco);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.btnSalvar:hover:not(:disabled) {
+  background: var(--navy-light);
+}
+
+.btnSalvar:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}

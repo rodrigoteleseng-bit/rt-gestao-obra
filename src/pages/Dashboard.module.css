@@ -1,0 +1,160 @@
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.boas_vindas {
+  margin-bottom: 24px;
+}
+
+.boas_vindas h1 {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.boas_vindas p {
+  color: var(--cinza-600);
+  font-size: 14px;
+}
+
+/* ── OBRA CARD ── */
+.obraCard {
+  background: var(--navy);
+  color: var(--branco);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+.obraHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.obraLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 4px;
+}
+
+.obraNome {
+  font-family: var(--font-titulo);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.obraEndereco {
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+  margin-top: 4px;
+}
+
+.obraBadge {
+  background: var(--terracota);
+  color: var(--branco);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.obraStats {
+  display: flex;
+  gap: 32px;
+}
+
+.stat {}
+
+.statNum {
+  font-family: var(--font-titulo);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--branco);
+}
+
+.statLabel {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 2px;
+}
+
+/* ── MÓDULOS ── */
+.secaoTitulo {
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 40px;
+}
+
+.card {
+  border-radius: var(--radius-md);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  border: 1.5px solid transparent;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.cardAtivo {
+  background: var(--branco);
+  border-color: var(--cinza-200);
+  box-shadow: var(--sombra-sm);
+  cursor: pointer;
+}
+
+.cardAtivo:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sombra-md);
+}
+
+.cardBloqueado {
+  background: var(--cinza-100);
+  border-color: var(--cinza-200);
+  opacity: 0.55;
+}
+
+.cardIcon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.cardNome {
+  font-family: var(--font-titulo);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--navy);
+}
+
+.cardDesc {
+  font-size: 12px;
+  color: var(--cinza-600);
+  line-height: 1.4;
+}
+
+.cardLock {
+  font-size: 11px;
+  color: var(--cinza-600);
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.versao {
+  font-size: 11px;
+  color: var(--cinza-400);
+  text-align: center;
+  padding-bottom: 16px;
+}

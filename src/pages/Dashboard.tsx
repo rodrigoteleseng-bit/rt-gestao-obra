@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase, type Obra, type Unidade } from '../lib/supabase'
+import { useObra } from '../contexts/ObraContext'
+import { supabase, type Unidade } from '../lib/supabase'
 import styles from './Dashboard.module.css'
 
 const CARDS_MODULOS = [
@@ -14,16 +15,17 @@ const CARDS_MODULOS = [
 
 export default function Dashboard() {
   const { perfil, temModulo } = useAuth()
-  const [obra, setObra] = useState<Obra | null>(null)
+  const { obraAtiva: obra } = useObra()
   const [unidades, setUnidades] = useState<Unidade[]>([])
 
   useEffect(() => {
-    supabase.from('obras').select('*').eq('status', 'ativa').single()
-      .then(({ data }) => setObra(data))
-
-    supabase.from('unidades').select('*').order('ordem')
+    if (!obra) {
+      setUnidades([])
+      return
+    }
+    supabase.from('unidades').select('*').eq('obra_id', obra.id).order('ordem')
       .then(({ data }) => setUnidades(data ?? []))
-  }, [])
+  }, [obra])
 
   const sobrados = unidades.filter(u => u.tipo === 'sobrado')
 

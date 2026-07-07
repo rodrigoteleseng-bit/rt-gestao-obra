@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useObra } from '../contexts/ObraContext'
 import { logout } from '../lib/auth'
 import styles from './Layout.module.css'
 
@@ -16,6 +17,7 @@ const MODULOS = [
 
 export default function Layout() {
   const { perfil, temModulo } = useAuth()
+  const { obras, obraAtiva, selecionarObra } = useObra()
   const navigate = useNavigate()
   const [menuAberto, setMenuAberto] = useState(false)
 
@@ -89,7 +91,20 @@ export default function Layout() {
           >
             ☰
           </button>
-          <span className={styles.obraNome}>Tharsos Imperial</span>
+          {obras.length > 1 ? (
+            <select
+              className={styles.obraSelect}
+              value={obraAtiva?.id ?? ''}
+              onChange={e => selecionarObra(e.target.value)}
+              aria-label="Selecionar obra"
+            >
+              {obras.map(o => (
+                <option key={o.id} value={o.id}>{o.nome}</option>
+              ))}
+            </select>
+          ) : (
+            <span className={styles.obraNome}>{obraAtiva?.nome ?? '—'}</span>
+          )}
         </header>
         <main className={styles.conteudo}>
           <Outlet />

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ObraProvider } from './contexts/ObraContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import NovaSenha from './pages/NovaSenha'
@@ -21,7 +22,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={perfil ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route path="/nova-senha" element={<NovaSenha />} />
-      <Route path="/" element={<RotaProtegida><Layout /></RotaProtegida>}>
+      <Route path="/" element={<RotaProtegida><ObraProvider><Layout /></ObraProvider></RotaProtegida>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="usuarios" element={<Usuarios />} />

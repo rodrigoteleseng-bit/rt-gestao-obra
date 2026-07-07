@@ -203,6 +203,23 @@
   color: var(--navy);
 }
 
+.obraSelect {
+  font-family: var(--font-titulo);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--navy);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  background: var(--branco);
+  outline: none;
+  max-width: 260px;
+}
+
+.obraSelect:focus {
+  border-color: var(--navy);
+}
+
 .conteudo {
   flex: 1;
   padding: 24px 20px;

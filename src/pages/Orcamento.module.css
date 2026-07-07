@@ -1,0 +1,228 @@
+.page {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.page h1 {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.sub {
+  color: var(--cinza-600);
+  font-size: 14px;
+  margin-bottom: 16px;
+  max-width: 560px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.totalObra {
+  background: var(--navy);
+  color: var(--branco);
+  border-radius: var(--radius-md);
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 180px;
+}
+
+.totalLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+}
+
+.totalValor {
+  font-family: var(--font-titulo);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.busca {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  outline: none;
+  background: var(--branco);
+  margin-bottom: 16px;
+}
+
+.busca:focus {
+  border-color: var(--navy);
+}
+
+.carregando,
+.vazio {
+  color: var(--cinza-600);
+  font-size: 14px;
+  padding: 24px 0;
+}
+
+.unidade {
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+  box-shadow: var(--sombra-sm);
+  overflow: hidden;
+}
+
+.unidadeHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.unidadeHeader:hover {
+  background: var(--cinza-100);
+}
+
+.seta {
+  color: var(--terracota);
+  font-size: 12px;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.unidadeNome {
+  font-family: var(--font-titulo);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--navy);
+  flex: 1;
+}
+
+.unidadeTotal {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--navy);
+  white-space: nowrap;
+}
+
+.etapa {
+  border-top: 1px solid var(--cinza-100);
+}
+
+.etapaHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 10px 32px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+
+.etapaHeader:hover {
+  background: var(--cinza-100);
+}
+
+.etapaCodigo {
+  color: var(--cinza-600);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.etapaNome {
+  font-weight: 600;
+  color: var(--cinza-800);
+  flex: 1;
+}
+
+.etapaInfo {
+  color: var(--cinza-600);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.etapaTotal {
+  font-weight: 600;
+  color: var(--cinza-800);
+  white-space: nowrap;
+  min-width: 110px;
+  text-align: right;
+}
+
+.tabelaWrap {
+  overflow-x: auto;
+  padding: 0 16px 12px 32px;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabela th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--cinza-600);
+  padding: 6px 8px;
+  border-bottom: 1.5px solid var(--cinza-200);
+  white-space: nowrap;
+}
+
+.tabela td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--cinza-100);
+  vertical-align: top;
+}
+
+.num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.codigo {
+  color: var(--cinza-600);
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.grupo {
+  display: block;
+  font-size: 11px;
+  color: var(--cinza-600);
+  margin-top: 2px;
+}
+
+.totalCell {
+  font-weight: 600;
+  color: var(--navy);
+}
+
+@media (max-width: 640px) {
+  .etapaInfo {
+    display: none;
+  }
+
+  .tabelaWrap {
+    padding-left: 16px;
+  }
+}

@@ -44,6 +44,20 @@ export interface Etapa {
   id: string
   unidade_id: string
   nome: string
+  codigo: string | null
   ordem: number
   placeholder: boolean
+}
+
+export interface Servico {
+  id: string
+  etapa_id: string
+  codigo: string | null
+  nome: string
+  grupo: string | null
+  und: string | null
+  quant: number | null
+  valor_unit: number | null
+  total: number | null
+  ativo: boolean
 }

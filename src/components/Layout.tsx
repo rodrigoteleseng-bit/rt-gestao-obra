@@ -7,6 +7,7 @@ import styles from './Layout.module.css'
 
 const MODULOS = [
   { key: 'dashboard', label: 'Início', icon: '🏠', path: '/dashboard', sempre: true },
+  { key: 'orcamento', label: 'Orçamento', icon: '📐', path: '/orcamento', sempre: true },
   { key: 'avanco', label: 'Avanço Físico', icon: '📊', path: '/avanco' },
   { key: 'rdo', label: 'RDO', icon: '📋', path: '/rdo' },
   { key: 'financeiro', label: 'Financeiro', icon: '💰', path: '/financeiro' },

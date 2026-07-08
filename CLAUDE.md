@@ -7,6 +7,13 @@
 
 ---
 
+## 0. Estado atual (ler primeiro)
+
+- **Fase 0 (Fundação): concluída e aceita** — detalhes técnicos em `docs/fase0.md` (schema, RLS, auth, edge functions, estrutura do frontend).
+- **Fase 1 (Orçamento): concluída e aceita** — detalhes em `docs/fase1.md` (importação, parsing, tela /orcamento, técnica de reimportação). Pendência transferida: exportação Excel/PDF.
+- **Próxima fase: 2 (Cronograma + Avanço físico).** Rodrigo tem cronograma em MS Project para compartilhar.
+- Ao iniciar trabalho em qualquer fase, ler o `docs/faseN.md` das fases anteriores relevantes em vez de redescobrir o código.
+
 ## 1. Contexto do negócio
 
 - **Empresa:** RT Engenharia — Rodrigo Teles Silva, engenheiro civil, CREA 1018712895 D/GO, Goiânia/GO. [extraído]
@@ -21,9 +28,9 @@
 |---|---|---|
 | `admin` | Rodrigo | Total: configura obra, orçamento, usuários, edita e exclui tudo |
 | `equipe` | 2 a 5 colaboradores de campo/escritório | Lança RDO, avanço, financeiro, almoxarifado, pendências. Não altera orçamento base nem cronograma aprovado |
-| `cliente` | Clientes/investidores | **Somente leitura** de dashboards, Curva S, avanço, RDO e galeria. Nunca vê custos unitários internos, salvo liberação explícita do admin por obra |
+| `cliente` | Clientes/investidores | **Somente leitura** de dashboards, Curva S, avanço, RDO e galeria. **Vê valores em R$ e percentuais** [extraído — confirmado em 07/07/2026] |
 
-[extraído] — os três papéis foram definidos pelo Rodrigo. A restrição de custos ao cliente é [sugestão] pendente de confirmação na Fase 0.
+[extraído] — os três papéis foram definidos pelo Rodrigo. Equipe atual (4 pessoas): Rodrigo (admin), Estagiário (RDO/avanço/pendências), Almoxarife (almoxarifado), Financeiro (compras/notas). Permissões por módulo via checkboxes na tela Usuários.
 
 **Regra dura:** toda permissão é implementada com Row Level Security no banco (Supabase RLS), nunca só na interface.
 
@@ -33,7 +40,7 @@
 - **Frontend:** aplicativo web responsivo **PWA** (instalável no celular, funciona em desktop). React + Vite. [estimado — padrão de mercado para PWA; alternativas serão apresentadas na Fase 0 se relevante]
 - **Fotos:** Supabase Storage, organizadas por obra/unidade/data.
 - **Georreferenciamento:** API de geolocalização do navegador, gravada em cada RDO (lat/long + precisão + timestamp).
-- **Hospedagem do frontend:** [lacuna] — definir na Fase 0 (opções: Vercel, Netlify, Cloudflare Pages — todas com plano gratuito inicial).
+- **Hospedagem do frontend:** Vercel (https://rt-gestao-obra.vercel.app), deploy automático no push para `main`. Domínio próprio: a definir. [extraído]
 - **Migrações de banco:** versionadas no repositório (`/supabase/migrations`), nunca alteração manual direta em produção.
 
 ## 4. Modelo de dados mestre
@@ -113,20 +120,21 @@ Um módulo só é considerado entregue quando:
 - [ ] Dados de teste removidos ou claramente marcados;
 - [ ] Rodrigo testou com dados reais da obra piloto e deu aceite.
 
-## 9. Lacunas a resolver na Fase 0 [lacuna]
+## 9. Lacunas — situação atual
 
-Perguntas que o Claude Code deve fazer ao Rodrigo logo no início:
+Respondidas em 07/07/2026 [extraído]:
 
-1. Planilha de orçamento: enviar o arquivo Excel da obra piloto para mapear a estrutura de importação (abas, colunas, níveis da EAP).
-2. Cliente vê valores? Confirmar se cliente/investidor enxerga custos ou só percentuais físicos e Curva S adimensional.
-3. Quem são os usuários da equipe (nomes/e-mails) e quem lança o quê no dia a dia.
-4. Formato atual do RDO da RT Engenharia (existe modelo? campos obrigatórios? — cruzar com a skill `rt-documentos-obra`).
-5. Hospedagem do frontend (Vercel/Netlify/Cloudflare) e domínio próprio (ex.: app.rtengenharia.com.br) — sim ou não.
-6. Cronograma da obra piloto: existe em planilha/MS Project, ou será construído no app na Fase 2?
-7. Unidades de medição dos empreiteiros (por % de etapa, por serviço, por unidade/sobrado) para a Fase 7.
-8. Cadastro de fornecedores: quais dados guardar (CNPJ, contato, condições de pagamento, histórico de preços?) e se existe base atual de fornecedores/cotações para importar.
+1. ~~Planilha de orçamento~~ — recebida e importada (ver `docs/fase1.md`).
+2. ~~Cliente vê valores?~~ — sim, R$ e percentuais.
+3. ~~Usuários da equipe~~ — 4 pessoas com escopos definidos (ver §2).
+4. ~~Formato do RDO~~ — sem modelo em papel; campos definidos: cabeçalho, horário de início, descrição dos serviços, vínculo à hierarquia, clima por período, acidentes (sim/não + descrição), fotos com GPS/data/hora, observações (com opção por voz), assinatura digital.
+5. ~~Hospedagem~~ — Vercel. Domínio próprio: a definir depois. [lacuna]
+6. ~~Cronograma~~ — existe em MS Project; Rodrigo vai compartilhar o arquivo na Fase 2. [lacuna: arquivo pendente]
+7. ~~Medição de empreiteiros~~ — por % concluída de cada serviço, subdividida por sobrado (ex.: "Alvenaria do Sobrado 03 = 40%").
+8. Cadastro de fornecedores — em aberto; perguntar na Fase 6. [lacuna]
 
 ---
 
+*Versão 1.2 — 07/07/2026 — Fases 0 e 1 concluídas e aceitas; adiciona §0 Estado atual apontando para docs/fase0.md e docs/fase1.md; lacunas do §9 atualizadas com as respostas do Rodrigo; cliente vê valores confirmado; hospedagem Vercel definida.*
 *Versão 1.1 — 07/07/2026 — inclui módulo Compras na Fase 6 (Suprimentos) com conferência tripla cotação x recebimento x NF.*
 *Versão 1.0 — 07/07/2026 — elaborado com base nas definições de Rodrigo Teles Silva em conversa com o Claude. Alterações neste documento exigem aprovação do Rodrigo e atualização do número de versão.*

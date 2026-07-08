@@ -51,6 +51,51 @@ export interface Etapa {
   placeholder: boolean
 }
 
+export interface CronogramaVersao {
+  id: string
+  obra_id: string
+  versao: number
+  nome: string
+  arquivo: string | null
+  vigente: boolean
+}
+
+export interface CronogramaTarefa {
+  id: string
+  obra_id: string
+  unidade_id: string
+  parent_id: string | null
+  uid_project: number
+  outline_number: string | null
+  nivel: number
+  ordem: number
+  nome: string
+  resumo: boolean
+  grupo_ataque: string | null
+  etapa_id: string | null
+  servico_id: string | null
+}
+
+export interface CronogramaPrevisto {
+  id: string
+  tarefa_id: string
+  versao_id: string
+  inicio: string
+  fim: string
+  duracao_horas: number | null
+}
+
+export interface AvancoFisico {
+  id: string
+  tarefa_id: string
+  data_referencia: string
+  percentual: number
+  observacao: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
 export interface Servico {
   id: string
   etapa_id: string

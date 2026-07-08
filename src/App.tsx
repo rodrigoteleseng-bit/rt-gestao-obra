@@ -7,6 +7,8 @@ import NovaSenha from './pages/NovaSenha'
 import Dashboard from './pages/Dashboard'
 import Usuarios from './pages/Usuarios'
 import Orcamento from './pages/Orcamento'
+import Cronograma from './pages/Cronograma'
+import Avanco from './pages/Avanco'
 import EmConstrucao from './pages/EmConstrucao'
 
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -28,7 +30,8 @@ function AppRoutes() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="usuarios" element={<Usuarios />} />
         <Route path="orcamento" element={<Orcamento />} />
-        <Route path="avanco" element={<EmConstrucao modulo="Avanço Físico" fase={2} />} />
+        <Route path="cronograma" element={<Cronograma />} />
+        <Route path="avanco" element={<Avanco />} />
         <Route path="rdo" element={<EmConstrucao modulo="RDO" fase={4} />} />
         <Route path="financeiro" element={<EmConstrucao modulo="Financeiro" fase={3} />} />
         <Route path="compras" element={<EmConstrucao modulo="Compras" fase={6} />} />

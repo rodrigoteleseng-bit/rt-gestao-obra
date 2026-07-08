@@ -14,6 +14,12 @@ const MODULOS = [
   { key: 'compras', label: 'Compras', icon: '🛒', path: '/compras' },
   { key: 'almoxarifado', label: 'Almoxarifado', icon: '📦', path: '/almoxarifado' },
   { key: 'pendencias', label: 'Pendências', icon: '⚠️', path: '/pendencias' },
+  { key: 'medicoes', label: 'Medições', icon: '📏', path: '/medicoes' },
+  { key: 'contratos', label: 'Contratos', icon: '📝', path: '/contratos' },
+  { key: 'fvs', label: 'Qualidade (FVS)', icon: '✅', path: '/fvs' },
+  { key: 'galeria', label: 'Galeria', icon: '🖼️', path: '/galeria' },
+  { key: 'efetivo', label: 'Efetivo', icon: '👷', path: '/efetivo' },
+  { key: 'alertas', label: 'Alertas', icon: '🔔', path: '/alertas' },
 ]
 
 export default function Layout() {

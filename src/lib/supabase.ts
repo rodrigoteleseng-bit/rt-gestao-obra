@@ -6,7 +6,9 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 export const supabase = createClient(url, key)
 
 export type PapelUsuario = 'admin' | 'equipe' | 'cliente'
-export type ModuloApp = 'rdo' | 'avanco' | 'pendencias' | 'almoxarifado' | 'financeiro' | 'compras'
+export type ModuloApp =
+  | 'rdo' | 'avanco' | 'pendencias' | 'almoxarifado' | 'financeiro' | 'compras'
+  | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas'
 export type StatusObra = 'ativa' | 'pausada' | 'concluida' | 'arquivada'
 export type TipoUnidade = 'sobrado' | 'portaria' | 'area_comum' | 'canteiro' | 'outro'
 

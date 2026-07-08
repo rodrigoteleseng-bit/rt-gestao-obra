@@ -11,6 +11,12 @@ const MODULOS_LABELS: Record<ModuloApp, string> = {
   almoxarifado: 'Almoxarifado',
   financeiro: 'Financeiro',
   compras: 'Compras',
+  medicoes: 'Medições',
+  contratos: 'Contratos',
+  fvs: 'Qualidade (FVS)',
+  galeria: 'Galeria',
+  efetivo: 'Efetivo',
+  alertas: 'Alertas',
 }
 
 const TODOS_MODULOS = Object.keys(MODULOS_LABELS) as ModuloApp[]

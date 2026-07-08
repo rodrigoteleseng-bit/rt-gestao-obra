@@ -152,6 +152,44 @@
   margin-top: 4px;
 }
 
+.cardSeta {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  color: var(--terracota);
+  font-size: 13px;
+}
+
+.subLista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  border-top: 1px solid var(--cinza-100);
+  padding-top: 10px;
+}
+
+.subBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  background: var(--cinza-100);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy);
+  cursor: pointer;
+  text-align: left;
+}
+
+.subBtn:hover {
+  background: var(--branco);
+  border-color: var(--navy);
+}
+
 .versao {
   font-size: 11px;
   color: var(--cinza-400);

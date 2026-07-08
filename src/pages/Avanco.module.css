@@ -153,7 +153,8 @@
   font-size: 12px;
 }
 
-.inputPct {
+.inputPct,
+.inputQtd {
   width: 76px;
   padding: 9px 10px;
   border: 1.5px solid var(--cinza-200);
@@ -163,9 +164,72 @@
   background: var(--branco);
 }
 
-.inputPct:focus {
+.inputPct:focus,
+.inputQtd:focus,
+.inputUnd:focus {
   border-color: var(--navy);
   outline: none;
+}
+
+.inputUnd {
+  width: 64px;
+  padding: 9px 10px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: var(--branco);
+}
+
+.totalInfo {
+  font-size: 13px;
+  color: var(--cinza-600);
+  white-space: nowrap;
+}
+
+.pctCalc {
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.defLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cinza-600);
+  white-space: nowrap;
+}
+
+.btnDefinir,
+.btnDefOk,
+.btnDefCancela,
+.btnEditTotal {
+  padding: 9px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  background: var(--branco);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--navy);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btnDefinir:hover,
+.btnEditTotal:hover {
+  border-color: var(--navy);
+}
+
+.btnDefOk {
+  background: var(--terracota);
+  border-color: var(--terracota);
+  color: var(--branco);
+}
+
+.btnDefCancela {
+  color: var(--cinza-600);
+}
+
+.btnEditTotal {
+  padding: 9px 10px;
 }
 
 .inputInvalido {

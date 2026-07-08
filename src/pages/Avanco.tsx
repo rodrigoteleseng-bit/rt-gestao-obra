@@ -9,6 +9,18 @@ import styles from './Avanco.module.css'
 
 const fmtData = (iso: string | null | undefined) =>
   iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : '—'
+const fmtNum = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+
+const UNIDADES_MEDIDA = ['m', 'm²', 'm³', 'unid.', 'kg', 'vb', 'pt', 'conj.']
+
+// % a partir da quantidade executada ÷ total (limitado a 100)
+function pctDaQuantidade(q: number, total: number): number {
+  return Math.min(100, Math.round((q / total) * 10000) / 100)
+}
+
+function parseNum(v: string): number {
+  return Number(v.replace(/\./g, '').replace(',', '.'))
+}
 
 interface Grupo {
   chave: string
@@ -26,8 +38,10 @@ export default function Avanco() {
   const [tarefas, setTarefas] = useState<CronogramaTarefa[]>([])
   const [previstos, setPrevistos] = useState<Map<string, CronogramaPrevisto>>(new Map())
   const [atuais, setAtuais] = useState<Map<string, AvancoFisico>>(new Map())
-  const [valores, setValores] = useState<Map<string, string>>(new Map())
+  const [valores, setValores] = useState<Map<string, string>>(new Map())   // % direto (tarefa sem total)
+  const [qtds, setQtds] = useState<Map<string, string>>(new Map())         // quantidade executada
   const [obs, setObs] = useState<Map<string, string>>(new Map())
+  const [defQuant, setDefQuant] = useState<Map<string, { q: string; u: string }>>(new Map()) // mini-form do total
   const [dataRef, setDataRef] = useState(hojeISO())
   const [carregando, setCarregando] = useState(false)
   const [salvando, setSalvando] = useState(false)
@@ -66,7 +80,9 @@ export default function Avanco() {
     setPrevistos(new Map((prevs ?? []).map(p => [p.tarefa_id, p])))
     setAtuais(percentuaisAtuais(avs ?? []))
     setValores(new Map())
+    setQtds(new Map())
     setObs(new Map())
+    setDefQuant(new Map())
     setCarregando(false)
   }
 
@@ -94,39 +110,49 @@ export default function Avanco() {
     return [...mapa.values()]
   }, [tarefas])
 
-  const alterados = useMemo(() => {
-    const lista: { tarefa: CronogramaTarefa; pct: number }[] = []
-    for (const [id, v] of valores) {
-      if (v.trim() === '') continue
-      const pct = Number(v.replace(',', '.'))
-      if (isNaN(pct) || pct < 0 || pct > 100) continue
-      const atual = atuais.get(id)?.percentual ?? 0
-      if (pct !== atual) {
-        const t = tarefas.find(x => x.id === id)
-        if (t) lista.push({ tarefa: t, pct })
+  // Novo % de uma tarefa a partir dos inputs (null = sem alteração; NaN = inválido)
+  function novoPct(t: CronogramaTarefa): { pct: number; qtd: number | null } | 'invalido' | null {
+    if (t.quant_total) {
+      const v = qtds.get(t.id) ?? ''
+      if (v.trim() === '') return null
+      const q = parseNum(v)
+      if (isNaN(q) || q < 0 || q > t.quant_total) return 'invalido'
+      return { pct: pctDaQuantidade(q, t.quant_total), qtd: q }
+    }
+    const v = valores.get(t.id) ?? ''
+    if (v.trim() === '') return null
+    const pct = parseNum(v)
+    if (isNaN(pct) || pct < 0 || pct > 100) return 'invalido'
+    return { pct, qtd: null }
+  }
+
+  const { alterados, invalidos } = useMemo(() => {
+    const lista: { tarefa: CronogramaTarefa; pct: number; qtd: number | null }[] = []
+    let inv = 0
+    for (const t of tarefas) {
+      if (t.resumo) continue
+      const r = novoPct(t)
+      if (r === null) continue
+      if (r === 'invalido') { inv++; continue }
+      const atual = atuais.get(t.id)
+      const pctAtual = atual?.percentual ?? 0
+      const qtdAtual = atual?.quantidade ?? null
+      if (r.pct !== pctAtual || (r.qtd !== null && r.qtd !== qtdAtual)) {
+        lista.push({ tarefa: t, pct: r.pct, qtd: r.qtd })
       }
     }
-    return lista
-  }, [valores, atuais, tarefas])
-
-  const invalidos = useMemo(() => {
-    let n = 0
-    for (const v of valores.values()) {
-      if (v.trim() === '') continue
-      const pct = Number(v.replace(',', '.'))
-      if (isNaN(pct) || pct < 0 || pct > 100) n++
-    }
-    return n
-  }, [valores])
+    return { alterados: lista, invalidos: inv }
+  }, [tarefas, valores, qtds, atuais])
 
   async function salvar() {
     if (alterados.length === 0 || salvando) return
     setSalvando(true)
     setMsg(null)
-    const linhas = alterados.map(({ tarefa, pct }) => ({
+    const linhas = alterados.map(({ tarefa, pct, qtd }) => ({
       tarefa_id: tarefa.id,
       data_referencia: dataRef,
       percentual: pct,
+      quantidade: qtd,
       observacao: obs.get(tarefa.id)?.trim() || null,
     }))
     const { error } = await supabase.from('avancos_fisicos').insert(linhas)
@@ -139,17 +165,57 @@ export default function Avanco() {
     await carregarUnidade(unidadeId)
   }
 
+  async function salvarQuantidadeTotal(t: CronogramaTarefa) {
+    const form = defQuant.get(t.id)
+    if (!form) return
+    const q = parseNum(form.q)
+    const u = form.u.trim()
+    if (isNaN(q) || q <= 0 || !u) {
+      setMsg({ tipo: 'erro', texto: 'Informe quantidade total maior que zero e a unidade.' })
+      return
+    }
+    const { error } = await supabase.rpc('definir_quantidade_tarefa', {
+      p_tarefa: t.id, p_quant: q, p_und: u,
+    })
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Erro ao definir quantidade: ${error.message}` })
+      return
+    }
+    setMsg(null)
+    setTarefas(prev => prev.map(x => x.id === t.id ? { ...x, quant_total: q, und: u } : x))
+    setDefQuant(prev => { const novo = new Map(prev); novo.delete(t.id); return novo })
+  }
+
   function setValor(id: string, v: string) {
     setValores(prev => new Map(prev).set(id, v))
+  }
+  function setQtd(id: string, v: string) {
+    setQtds(prev => new Map(prev).set(id, v))
   }
   function setObsItem(id: string, v: string) {
     setObs(prev => new Map(prev).set(id, v))
   }
+  function abrirDefQuant(t: CronogramaTarefa) {
+    setDefQuant(prev => new Map(prev).set(t.id, {
+      q: t.quant_total ? String(t.quant_total).replace('.', ',') : '',
+      u: t.und ?? '',
+    }))
+  }
+  function setDefCampo(id: string, campo: 'q' | 'u', v: string) {
+    setDefQuant(prev => {
+      const novo = new Map(prev)
+      const atual = novo.get(id) ?? { q: '', u: '' }
+      novo.set(id, { ...atual, [campo]: v })
+      return novo
+    })
+  }
   function toggleGrupo(chave: string) {
-    const novo = new Set(gruposAbertos)
-    if (novo.has(chave)) novo.delete(chave)
-    else novo.add(chave)
-    setGruposAbertos(novo)
+    setGruposAbertos(prev => {
+      const novo = new Set(prev)
+      if (novo.has(chave)) novo.delete(chave)
+      else novo.add(chave)
+      return novo
+    })
   }
 
   if (!podeLancar) {
@@ -167,7 +233,7 @@ export default function Avanco() {
     <div className={styles.page}>
       <h1>Avanço Físico</h1>
       <p className={styles.sub}>
-        Lançamento semanal do % acumulado por tarefa. Cada lançamento grava autor e data/hora — nada é sobrescrito.
+        Medição por quantidade (m, m², m³, unid.) com % calculado automaticamente. Na 1ª medição de uma tarefa, defina a quantidade total. Cada lançamento grava autor e data/hora — nada é sobrescrito.
       </p>
 
       <div className={styles.filtros}>
@@ -199,33 +265,95 @@ export default function Avanco() {
             {aberto && g.folhas.map(f => {
               const prev = previstos.get(f.id)
               const atual = atuais.get(f.id)
-              const valor = valores.get(f.id) ?? ''
-              const pctNum = valor.trim() === '' ? null : Number(valor.replace(',', '.'))
-              const invalido = pctNum !== null && (isNaN(pctNum) || pctNum < 0 || pctNum > 100)
+              const form = defQuant.get(f.id)
+              const r = novoPct(f)
+              const invalido = r === 'invalido'
+
               return (
                 <div key={f.id} className={styles.item}>
                   <div className={styles.itemInfo}>
                     <span className={styles.itemNome}>{f.nome}</span>
                     <span className={styles.itemDatas}>
                       {fmtData(prev?.inicio)} – {fmtData(prev?.fim)}
-                      {atual && <> · último: {atual.percentual}% em {fmtData(atual.data_referencia)}</>}
+                      {atual && (
+                        <> · último: {atual.quantidade !== null && f.quant_total
+                          ? `${fmtNum(atual.quantidade)} ${f.und} (${fmtNum(atual.percentual)}%)`
+                          : `${fmtNum(atual.percentual)}%`} em {fmtData(atual.data_referencia)}</>
+                      )}
                     </span>
                   </div>
-                  <div className={styles.itemCampos}>
-                    <span className={styles.atual}>{atual?.percentual ?? 0}%</span>
-                    <span className={styles.setaPct}>→</span>
-                    <input
-                      type="number" min={0} max={100} inputMode="decimal"
-                      className={`${styles.inputPct} ${invalido ? styles.inputInvalido : ''}`}
-                      placeholder="%" value={valor}
-                      onChange={e => setValor(f.id, e.target.value)}
-                    />
-                    <button className={styles.btn100} onClick={() => setValor(f.id, '100')}>100</button>
-                    <input
-                      type="text" className={styles.inputObs} placeholder="obs. (opcional)"
-                      value={obs.get(f.id) ?? ''} onChange={e => setObsItem(f.id, e.target.value)}
-                    />
-                  </div>
+
+                  {form ? (
+                    // Mini-form: definir/corrigir a quantidade total da tarefa
+                    <div className={styles.itemCampos}>
+                      <span className={styles.defLabel}>Total previsto:</span>
+                      <input
+                        type="text" inputMode="decimal" className={styles.inputQtd}
+                        placeholder="quant." value={form.q}
+                        onChange={e => setDefCampo(f.id, 'q', e.target.value)}
+                      />
+                      <input
+                        type="text" list="unidades-medida" className={styles.inputUnd}
+                        placeholder="und" value={form.u}
+                        onChange={e => setDefCampo(f.id, 'u', e.target.value)}
+                      />
+                      <button className={styles.btnDefOk} onClick={() => salvarQuantidadeTotal(f)}>Salvar total</button>
+                      <button
+                        className={styles.btnDefCancela}
+                        onClick={() => setDefQuant(prevMap => { const novo = new Map(prevMap); novo.delete(f.id); return novo })}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : f.quant_total ? (
+                    // Medição por quantidade
+                    <div className={styles.itemCampos}>
+                      <span className={styles.atual}>{fmtNum(atual?.quantidade ?? 0)}</span>
+                      <span className={styles.setaPct}>→</span>
+                      <input
+                        type="text" inputMode="decimal"
+                        className={`${styles.inputQtd} ${invalido ? styles.inputInvalido : ''}`}
+                        placeholder="quant." value={qtds.get(f.id) ?? ''}
+                        onChange={e => setQtd(f.id, e.target.value)}
+                      />
+                      <span className={styles.totalInfo}>
+                        de {fmtNum(f.quant_total)} {f.und}
+                        {r && r !== 'invalido' && <strong className={styles.pctCalc}> = {fmtNum(r.pct)}%</strong>}
+                      </span>
+                      <button
+                        className={styles.btn100}
+                        onClick={() => setQtd(f.id, String(f.quant_total).replace('.', ','))}
+                        title="Executado 100%"
+                      >
+                        Total
+                      </button>
+                      <button className={styles.btnEditTotal} onClick={() => abrirDefQuant(f)} title="Corrigir quantidade total">✎</button>
+                      <input
+                        type="text" className={styles.inputObs} placeholder="obs. (opcional)"
+                        value={obs.get(f.id) ?? ''} onChange={e => setObsItem(f.id, e.target.value)}
+                      />
+                    </div>
+                  ) : (
+                    // Sem quantidade total definida: % direto + botão para definir
+                    <div className={styles.itemCampos}>
+                      <span className={styles.atual}>{fmtNum(atual?.percentual ?? 0)}%</span>
+                      <span className={styles.setaPct}>→</span>
+                      <input
+                        type="text" inputMode="decimal"
+                        className={`${styles.inputPct} ${invalido ? styles.inputInvalido : ''}`}
+                        placeholder="%" value={valores.get(f.id) ?? ''}
+                        onChange={e => setValor(f.id, e.target.value)}
+                      />
+                      <button className={styles.btn100} onClick={() => setValor(f.id, '100')}>100</button>
+                      <button className={styles.btnDefinir} onClick={() => abrirDefQuant(f)}>
+                        📏 Medir por quantidade
+                      </button>
+                      <input
+                        type="text" className={styles.inputObs} placeholder="obs. (opcional)"
+                        value={obs.get(f.id) ?? ''} onChange={e => setObsItem(f.id, e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -233,11 +361,19 @@ export default function Avanco() {
         )
       })}
 
+      <datalist id="unidades-medida">
+        {UNIDADES_MEDIDA.map(u => <option key={u} value={u} />)}
+      </datalist>
+
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
 
       {unidadeId && (
         <div className={styles.rodape}>
-          {invalidos > 0 && <span className={styles.msgErro}>{invalidos} valor{invalidos !== 1 ? 'es' : ''} fora de 0–100</span>}
+          {invalidos > 0 && (
+            <span className={styles.msgErro}>
+              {invalidos} valor{invalidos !== 1 ? 'es' : ''} inválido{invalidos !== 1 ? 's' : ''} (acima do total ou fora de 0–100)
+            </span>
+          )}
           <button
             className={styles.btnSalvar}
             disabled={alterados.length === 0 || invalidos > 0 || salvando}

@@ -74,6 +74,10 @@ export interface CronogramaTarefa {
   grupo_ataque: string | null
   etapa_id: string | null
   servico_id: string | null
+  und: string | null
+  quant_total: number | null
+  quant_definida_por: string | null
+  quant_definida_em: string | null
 }
 
 export interface CronogramaPrevisto {
@@ -90,6 +94,7 @@ export interface AvancoFisico {
   tarefa_id: string
   data_referencia: string
   percentual: number
+  quantidade: number | null
   observacao: string | null
   ativo: boolean
   criado_em: string

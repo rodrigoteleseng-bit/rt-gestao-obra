@@ -61,6 +61,16 @@ Testado no preview com usuário temporário `equipe` + módulo `avanco` (criado 
 - Login, menu filtrado por permissão, árvore com 16 unidades, Curva S (previsto 18% até hoje), lançamento em lote gravando autor/data/observação via RLS real, agregação ponderada (Canteiro 88,2% = 120h/136h), status Atrasada/Concluída corretos, aba Atrasadas com dias e caminho, Realizado refletindo na curva (0,2%).
 - Build de produção limpo. Bug corrigido durante o teste: `setValores` com map do render (perda em atualizações no mesmo batch) → forma funcional.
 
+## Ajuste 08/07/2026 — Medição por quantidade [extraído — pedido do Rodrigo]
+
+Medição de campo é por m, m², m³, unid. — o % passou a ser calculado.
+
+- Migração `20260708_fase2_medicao_quantidade.sql`: `und`/`quant_total`/`quant_definida_por`/`quant_definida_em` em `cronograma_tarefas`; `quantidade` em `avancos_fisicos`; RPC `definir_quantidade_tarefa` (SECURITY DEFINER, permissão = quem lança avanço) para não abrir UPDATE geral da tabela.
+- Quantidade total definida na 1ª medição pela própria tela (admin ou equipe com módulo `avanco`), com autor/data gravados — decisão aprovada pelo Rodrigo em 08/07/2026.
+- Tela Avanço: tarefa com total → digita quantidade executada acumulada e o % sai na hora (`quantidade ÷ total`, teto 100%); botão "Total" preenche 100%; ✎ corrige o total. Tarefa sem total → % direto (como antes) + botão "📏 Medir por quantidade".
+- O lançamento grava `percentual` E `quantidade` (rastreabilidade da medida que originou o %). Curva S e árvore continuam lendo `percentual` — sem mudança.
+- Verificado no preview com usuário temporário (removido): definir total 48 m como equipe via RPC, lançar 24 → 50,00% gravado com autor. Obs.: em produção já havia 5 lançamentos reais (Catarina e Rodrigo) — preservados.
+
 ## Pendências transferidas
 
 - Exportação Excel/PDF (orçamento e cronograma) — pendência desde a Fase 1.

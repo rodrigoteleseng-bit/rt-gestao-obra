@@ -1,0 +1,620 @@
+﻿import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { useObra } from '../contexts/ObraContext'
+import {
+  supabase, type Rdo, type RdoAtividade, type RdoEfetivo, type RdoFoto, type RdoAudio,
+  type Unidade, type CronogramaTarefa, type AvancoFisico, type CondicaoClima,
+} from '../lib/supabase'
+import { obterPosicao, sha256Hex, carimbarFoto, fmtCoord, fmtDuracao } from '../lib/rdo'
+import styles from './RDO.module.css'
+
+const fmtData = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+const CLIMAS: { valor: CondicaoClima; rotulo: string; icone: string }[] = [
+  { valor: 'claro', rotulo: 'Claro', icone: '☀️' },
+  { valor: 'nublado', rotulo: 'Nublado', icone: '☁️' },
+  { valor: 'chuvoso', rotulo: 'Chuvoso', icone: '🌧️' },
+]
+const FUNCOES_SUGERIDAS = ['Pedreiro', 'Servente', 'Carpinteiro', 'Armador', 'Eletricista', 'Encanador', 'Pintor', 'Gesseiro', 'Mestre de obras', 'Encarregado']
+
+interface AvancoDoDia extends AvancoFisico {
+  tarefaNome: string
+  unidadeNome: string
+}
+
+export default function RDOForm() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { perfil, temModulo } = useAuth()
+  const { obraAtiva } = useObra()
+  const podeEditarModulo = perfil?.papel === 'admin' || temModulo('rdo')
+
+  const [rdo, setRdo] = useState<Rdo | null>(null)
+  const [atividades, setAtividades] = useState<RdoAtividade[]>([])
+  const [efetivo, setEfetivo] = useState<RdoEfetivo[]>([])
+  const [fotos, setFotos] = useState<RdoFoto[]>([])
+  const [audios, setAudios] = useState<RdoAudio[]>([])
+  const [avancosDia, setAvancosDia] = useState<AvancoDoDia[]>([])
+  const [unidades, setUnidades] = useState<Unidade[]>([])
+  const [urls, setUrls] = useState<Map<string, string>>(new Map())
+  const [carregando, setCarregando] = useState(true)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  const [salvando, setSalvando] = useState(false)
+
+  // campos do cabeçalho (estado local; persistidos em "Salvar" e na assinatura)
+  const [horario, setHorario] = useState('')
+  const [climaManha, setClimaManha] = useState<CondicaoClima | null>(null)
+  const [manhaTrab, setManhaTrab] = useState<boolean | null>(null)
+  const [climaTarde, setClimaTarde] = useState<CondicaoClima | null>(null)
+  const [tardeTrab, setTardeTrab] = useState<boolean | null>(null)
+  const [acidente, setAcidente] = useState(false)
+  const [acidenteDesc, setAcidenteDesc] = useState('')
+  const [obs, setObs] = useState('')
+
+  // formulários de adição
+  const [novoEfetivo, setNovoEfetivo] = useState({ funcao: '', quantidade: '', empresa: '' })
+  const [novaAtividade, setNovaAtividade] = useState({ unidade: '', tarefa: '', descricao: '' })
+  const [tarefasUnidade, setTarefasUnidade] = useState<CronogramaTarefa[]>([])
+
+  // áudio
+  const [gravando, setGravando] = useState(false)
+  const gravadorRef = useRef<MediaRecorder | null>(null)
+  const inicioGravacaoRef = useRef<number>(0)
+
+  // ditado
+  const [ditando, setDitando] = useState(false)
+  const reconhecimentoRef = useRef<{ stop: () => void } | null>(null)
+
+  // assinatura
+  const [assinando, setAssinando] = useState(false)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const desenhouRef = useRef(false)
+  const [nomeAssinante, setNomeAssinante] = useState('')
+
+  const [gerandoPdf, setGerandoPdf] = useState(false)
+
+  const rascunho = rdo?.status === 'rascunho'
+  const podeEditar = podeEditarModulo && rascunho
+
+  useEffect(() => { if (id) carregar(id) }, [id])
+
+  async function carregar(rdoId: string) {
+    setCarregando(true)
+    const { data: r } = await supabase.from('rdos').select('*').eq('id', rdoId).single()
+    if (!r) { setCarregando(false); return }
+    setRdo(r)
+    setHorario(r.horario_inicio?.slice(0, 5) ?? '')
+    setClimaManha(r.clima_manha)
+    setManhaTrab(r.clima_manha_trabalhavel)
+    setClimaTarde(r.clima_tarde)
+    setTardeTrab(r.clima_tarde_trabalhavel)
+    setAcidente(r.acidente)
+    setAcidenteDesc(r.acidente_descricao ?? '')
+    setObs(r.observacoes ?? '')
+    setNomeAssinante(perfil?.nome ?? '')
+
+    const [ativ, efet, fts, auds, unis] = await Promise.all([
+      supabase.from('rdo_atividades').select('*').eq('rdo_id', rdoId).eq('ativo', true).order('ordem'),
+      supabase.from('rdo_efetivo').select('*').eq('rdo_id', rdoId).eq('ativo', true).order('criado_em'),
+      supabase.from('rdo_fotos').select('*').eq('rdo_id', rdoId).eq('ativo', true).order('capturada_em'),
+      supabase.from('rdo_audios').select('*').eq('rdo_id', rdoId).eq('ativo', true).order('gravado_em'),
+      supabase.from('unidades').select('*').eq('obra_id', r.obra_id).order('ordem'),
+    ])
+    setAtividades(ativ.data ?? [])
+    setEfetivo(efet.data ?? [])
+    setFotos(fts.data ?? [])
+    setAudios(auds.data ?? [])
+    setUnidades(unis.data ?? [])
+
+    // avanços físicos lançados com data de referência = dia do RDO
+    const { data: avs } = await supabase.from('avancos_fisicos').select('*')
+      .eq('ativo', true).eq('data_referencia', r.data)
+    const lista = avs ?? []
+    if (lista.length > 0) {
+      const ids = [...new Set(lista.map(a => a.tarefa_id))]
+      const { data: tars } = await supabase.from('cronograma_tarefas')
+        .select('id, nome, unidade_id').in('id', ids)
+      const porId = new Map((tars ?? []).map(t => [t.id, t]))
+      const nomesU = new Map((unis.data ?? []).map(u => [u.id, u.nome]))
+      setAvancosDia(lista.map(a => {
+        const t = porId.get(a.tarefa_id)
+        return { ...a, tarefaNome: t?.nome ?? '?', unidadeNome: nomesU.get(t?.unidade_id ?? '') ?? '?' }
+      }))
+    } else setAvancosDia([])
+
+    // URLs assinadas de fotos e áudios
+    const paths = [...(fts.data ?? []).map(f => f.path), ...(auds.data ?? []).map(a => a.path)]
+    if (paths.length > 0) {
+      const novo = new Map<string, string>()
+      await Promise.all(paths.map(async p => {
+        const { data } = await supabase.storage.from('rdo').createSignedUrl(p, 3600)
+        if (data) novo.set(p, data.signedUrl)
+      }))
+      setUrls(novo)
+    }
+    setCarregando(false)
+  }
+
+  async function salvarCabecalho(extra?: Partial<Rdo>): Promise<boolean> {
+    if (!rdo) return false
+    setSalvando(true)
+    const { error } = await supabase.from('rdos').update({
+      horario_inicio: horario || null,
+      clima_manha: climaManha,
+      clima_manha_trabalhavel: manhaTrab,
+      clima_tarde: climaTarde,
+      clima_tarde_trabalhavel: tardeTrab,
+      acidente,
+      acidente_descricao: acidente ? (acidenteDesc || null) : null,
+      observacoes: obs || null,
+      ...extra,
+    }).eq('id', rdo.id)
+    setSalvando(false)
+    if (error) { setMsg({ tipo: 'erro', texto: `Erro ao salvar: ${error.message}` }); return false }
+    return true
+  }
+
+  // ---------- efetivo ----------
+  async function addEfetivo() {
+    if (!rdo) return
+    const qtd = Number(novoEfetivo.quantidade)
+    if (!novoEfetivo.funcao.trim() || isNaN(qtd) || qtd <= 0) return
+    const { data, error } = await supabase.from('rdo_efetivo').insert({
+      rdo_id: rdo.id, funcao: novoEfetivo.funcao.trim(), quantidade: qtd,
+      empresa: novoEfetivo.empresa.trim() || null,
+    }).select().single()
+    if (error) { setMsg({ tipo: 'erro', texto: error.message }); return }
+    setEfetivo(prev => [...prev, data])
+    setNovoEfetivo({ funcao: '', quantidade: '', empresa: '' })
+  }
+  async function removerEfetivo(eId: string) {
+    await supabase.from('rdo_efetivo').update({ ativo: false }).eq('id', eId)
+    setEfetivo(prev => prev.filter(e => e.id !== eId))
+  }
+
+  // ---------- atividades ----------
+  useEffect(() => {
+    if (!novaAtividade.unidade) { setTarefasUnidade([]); return }
+    supabase.from('cronograma_tarefas').select('*')
+      .eq('unidade_id', novaAtividade.unidade).eq('ativo', true).eq('resumo', false).order('ordem')
+      .then(({ data }) => setTarefasUnidade(data ?? []))
+  }, [novaAtividade.unidade])
+
+  async function addAtividade() {
+    if (!rdo || !novaAtividade.unidade || !novaAtividade.descricao.trim()) return
+    const { data, error } = await supabase.from('rdo_atividades').insert({
+      rdo_id: rdo.id, unidade_id: novaAtividade.unidade,
+      tarefa_id: novaAtividade.tarefa || null,
+      descricao: novaAtividade.descricao.trim(),
+      ordem: atividades.length,
+    }).select().single()
+    if (error) { setMsg({ tipo: 'erro', texto: error.message }); return }
+    setAtividades(prev => [...prev, data])
+    setNovaAtividade({ unidade: novaAtividade.unidade, tarefa: '', descricao: '' })
+  }
+  async function removerAtividade(aId: string) {
+    await supabase.from('rdo_atividades').update({ ativo: false }).eq('id', aId)
+    setAtividades(prev => prev.filter(a => a.id !== aId))
+  }
+
+  // ---------- fotos ----------
+  async function anexarFotos(files: FileList | null) {
+    if (!rdo || !obraAtiva || !files || files.length === 0) return
+    setMsg(null)
+    const geo = await obterPosicao()
+    for (const arquivo of Array.from(files)) {
+      try {
+        const capturadaEm = new Date()
+        const blob = await carimbarFoto(arquivo, obraAtiva.nome, geo, capturadaEm)
+        const hash = await sha256Hex(blob)
+        const path = `${rdo.obra_id}/${rdo.data}/${crypto.randomUUID()}.jpg`
+        const { error: eUp } = await supabase.storage.from('rdo').upload(path, blob, { contentType: 'image/jpeg' })
+        if (eUp) throw new Error(eUp.message)
+        const { data, error } = await supabase.from('rdo_fotos').insert({
+          rdo_id: rdo.id, path, lat: geo.lat, lng: geo.lng, precisao_m: geo.precisao,
+          capturada_em: capturadaEm.toISOString(), hash_sha256: hash,
+        }).select().single()
+        if (error) throw new Error(error.message)
+        const { data: su } = await supabase.storage.from('rdo').createSignedUrl(path, 3600)
+        if (su) setUrls(prev => new Map(prev).set(path, su.signedUrl))
+        setFotos(prev => [...prev, data])
+      } catch (e) {
+        setMsg({ tipo: 'erro', texto: `Erro na foto: ${e instanceof Error ? e.message : e}` })
+      }
+    }
+    if (geo.lat === null) {
+      setMsg({ tipo: 'erro', texto: 'Foto anexada SEM GPS (permissão de localização negada ou indisponível) — o carimbo registra "sem GPS".' })
+    }
+  }
+  async function legendarFoto(f: RdoFoto, legenda: string) {
+    await supabase.from('rdo_fotos').update({ legenda: legenda || null }).eq('id', f.id)
+    setFotos(prev => prev.map(x => x.id === f.id ? { ...x, legenda } : x))
+  }
+  async function removerFoto(fId: string) {
+    await supabase.from('rdo_fotos').update({ ativo: false }).eq('id', fId)
+    setFotos(prev => prev.filter(f => f.id !== fId))
+  }
+
+  // ---------- áudio ----------
+  async function alternarGravacao() {
+    if (gravando) {
+      gravadorRef.current?.stop()
+      setGravando(false)
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const rec = new MediaRecorder(stream)
+      const pedacos: Blob[] = []
+      rec.ondataavailable = e => pedacos.push(e.data)
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        if (!rdo) return
+        const blob = new Blob(pedacos, { type: rec.mimeType || 'audio/webm' })
+        const duracao = Math.round((Date.now() - inicioGravacaoRef.current) / 100) / 10
+        const hash = await sha256Hex(blob)
+        const path = `${rdo.obra_id}/${rdo.data}/${crypto.randomUUID()}.webm`
+        const { error: eUp } = await supabase.storage.from('rdo').upload(path, blob, { contentType: blob.type })
+        if (eUp) { setMsg({ tipo: 'erro', texto: `Erro no áudio: ${eUp.message}` }); return }
+        const { data, error } = await supabase.from('rdo_audios').insert({
+          rdo_id: rdo.id, path, duracao_seg: duracao,
+          gravado_em: new Date(inicioGravacaoRef.current).toISOString(), hash_sha256: hash,
+        }).select().single()
+        if (error) { setMsg({ tipo: 'erro', texto: error.message }); return }
+        const { data: su } = await supabase.storage.from('rdo').createSignedUrl(path, 3600)
+        if (su) setUrls(prev => new Map(prev).set(path, su.signedUrl))
+        setAudios(prev => [...prev, data])
+      }
+      inicioGravacaoRef.current = Date.now()
+      rec.start()
+      gravadorRef.current = rec
+      setGravando(true)
+    } catch {
+      setMsg({ tipo: 'erro', texto: 'Microfone indisponível ou permissão negada.' })
+    }
+  }
+  async function removerAudio(aId: string) {
+    await supabase.from('rdo_audios').update({ ativo: false }).eq('id', aId)
+    setAudios(prev => prev.filter(a => a.id !== aId))
+  }
+
+  // ---------- ditado por voz ----------
+  function alternarDitado() {
+    if (ditando) { reconhecimentoRef.current?.stop(); setDitando(false); return }
+    const SR = (window as unknown as { SpeechRecognition?: new () => unknown; webkitSpeechRecognition?: new () => unknown })
+    const Ctor = SR.SpeechRecognition ?? SR.webkitSpeechRecognition
+    if (!Ctor) { setMsg({ tipo: 'erro', texto: 'Ditado por voz não disponível neste navegador (use o Chrome).' }); return }
+    const rec = new (Ctor as new () => {
+      lang: string; continuous: boolean; interimResults: boolean
+      onresult: ((e: { resultIndex: number; results: { isFinal: boolean; 0: { transcript: string } }[] }) => void) | null
+      onend: (() => void) | null; start: () => void; stop: () => void
+    })()
+    rec.lang = 'pt-BR'
+    rec.continuous = true
+    rec.interimResults = false
+    rec.onresult = e => {
+      let texto = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) texto += e.results[i][0].transcript
+      }
+      if (texto) setObs(prev => (prev ? prev + ' ' : '') + texto.trim())
+    }
+    rec.onend = () => setDitando(false)
+    rec.start()
+    reconhecimentoRef.current = rec
+    setDitando(true)
+  }
+
+  // ---------- assinatura ----------
+  useEffect(() => {
+    if (!assinando) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+    ctx.strokeStyle = '#1B2A4A'
+    ctx.lineWidth = 2.2
+    ctx.lineCap = 'round'
+    let tracando = false
+    function pos(e: PointerEvent) {
+      const r = canvas!.getBoundingClientRect()
+      return { x: (e.clientX - r.left) * (canvas!.width / r.width), y: (e.clientY - r.top) * (canvas!.height / r.height) }
+    }
+    function down(e: PointerEvent) { tracando = true; desenhouRef.current = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault() }
+    function move(e: PointerEvent) { if (!tracando) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault() }
+    function up() { tracando = false }
+    canvas.addEventListener('pointerdown', down)
+    canvas.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    return () => {
+      canvas.removeEventListener('pointerdown', down)
+      canvas.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+  }, [assinando])
+
+  function limparAssinatura() {
+    const c = canvasRef.current
+    if (c) c.getContext('2d')!.clearRect(0, 0, c.width, c.height)
+    desenhouRef.current = false
+  }
+
+  async function assinarFechar() {
+    if (!rdo || !desenhouRef.current || !nomeAssinante.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Desenhe a assinatura e confirme o nome antes de fechar.' })
+      return
+    }
+    setSalvando(true)
+    const geo = await obterPosicao()
+    const ok = await salvarCabecalho({
+      status: 'assinado',
+      assinatura_imagem: canvasRef.current!.toDataURL('image/png'),
+      assinado_por_nome: nomeAssinante.trim(),
+      assinado_em: new Date().toISOString(),
+      assinatura_lat: geo.lat,
+      assinatura_lng: geo.lng,
+      assinatura_precisao_m: geo.precisao,
+    })
+    setSalvando(false)
+    if (ok) {
+      setAssinando(false)
+      setMsg({ tipo: 'ok', texto: 'RDO assinado e fechado. Nenhuma alteração é mais possível.' })
+      await carregar(rdo.id)
+    }
+  }
+
+  // ---------- PDF ----------
+  async function baixarPdf() {
+    if (!rdo || !obraAtiva) return
+    setGerandoPdf(true)
+    try {
+      const { gerarPdfRdo } = await import('../lib/rdoPdf')
+      await gerarPdfRdo({
+        rdo: { ...rdo, horario_inicio: horario || rdo.horario_inicio, observacoes: obs || rdo.observacoes },
+        obraNome: obraAtiva.nome,
+        atividades, efetivo, fotos, audios, avancosDia, unidades,
+      })
+    } catch (e) {
+      setMsg({ tipo: 'erro', texto: `Erro ao gerar PDF: ${e instanceof Error ? e.message : e}` })
+    }
+    setGerandoPdf(false)
+  }
+
+  if (carregando) return <div className={styles.page}><p className={styles.carregando}>Carregando RDO…</p></div>
+  if (!rdo) return <div className={styles.page}><p className={styles.vazio}>RDO não encontrado.</p></div>
+
+  const nomeUnidade = (uid: string | null) => unidades.find(u => u.id === uid)?.nome ?? '—'
+
+  return (
+    <div className={styles.page}>
+      <button className={styles.voltar} onClick={() => navigate('/rdo')}>← RDOs</button>
+
+      <div className={styles.header}>
+        <div>
+          <h1>RDO Nº {String(rdo.numero).padStart(3, '0')} — {fmtData(rdo.data)}</h1>
+          <p className={styles.sub}>
+            {rdo.status === 'assinado'
+              ? `Assinado por ${rdo.assinado_por_nome} em ${new Date(rdo.assinado_em!).toLocaleString('pt-BR')} · ${fmtCoord(rdo.assinatura_lat, rdo.assinatura_lng, rdo.assinatura_precisao_m)}`
+              : 'Rascunho — preencha e assine para fechar o dia.'}
+          </p>
+        </div>
+        <span className={rdo.status === 'assinado' ? styles.chipAssinado : styles.chipRascunho}>
+          {rdo.status === 'assinado' ? 'Assinado' : 'Rascunho'}
+        </span>
+      </div>
+
+      {/* Cabeçalho do dia */}
+      <section className={styles.bloco}>
+        <h2>Dia de trabalho</h2>
+        <div className={styles.linhaCampos}>
+          <label className={styles.campo}>
+            Início dos trabalhos
+            <input type="time" value={horario} disabled={!podeEditar} onChange={e => setHorario(e.target.value)} />
+          </label>
+        </div>
+        {(['manha', 'tarde'] as const).map(periodo => {
+          const cond = periodo === 'manha' ? climaManha : climaTarde
+          const trab = periodo === 'manha' ? manhaTrab : tardeTrab
+          const setCond = periodo === 'manha' ? setClimaManha : setClimaTarde
+          const setTrab = periodo === 'manha' ? setManhaTrab : setTardeTrab
+          return (
+            <div key={periodo} className={styles.climaLinha}>
+              <span className={styles.climaRotulo}>{periodo === 'manha' ? 'Manhã' : 'Tarde'}</span>
+              {CLIMAS.map(c => (
+                <button
+                  key={c.valor} disabled={!podeEditar}
+                  className={cond === c.valor ? styles.climaBtnAtivo : styles.climaBtn}
+                  onClick={() => setCond(c.valor)}
+                >
+                  {c.icone} {c.rotulo}
+                </button>
+              ))}
+              <button
+                disabled={!podeEditar}
+                className={trab === true ? styles.trabBtnSim : trab === false ? styles.trabBtnNao : styles.climaBtn}
+                onClick={() => setTrab(trab === null ? true : trab === true ? false : null)}
+                title="Alterna: trabalhável / não trabalhável / não informado"
+              >
+                {trab === true ? '✓ Trabalhável' : trab === false ? '✗ Não trabalhável' : 'Trabalhável?'}
+              </button>
+            </div>
+          )
+        })}
+      </section>
+
+      {/* Efetivo */}
+      <section className={styles.bloco}>
+        <h2>Efetivo do dia {efetivo.length > 0 && <span className={styles.totalEfetivo}>({efetivo.reduce((a, e) => a + e.quantidade, 0)} pessoas)</span>}</h2>
+        {efetivo.map(e => (
+          <div key={e.id} className={styles.itemLinha}>
+            <span className={styles.itemTexto}><strong>{e.quantidade}×</strong> {e.funcao}{e.empresa ? ` — ${e.empresa}` : ''}</span>
+            {podeEditar && <button className={styles.btnRemover} onClick={() => removerEfetivo(e.id)}>✕</button>}
+          </div>
+        ))}
+        {podeEditar && (
+          <div className={styles.linhaCampos}>
+            <input list="funcoes" placeholder="Função" value={novoEfetivo.funcao}
+              onChange={e => setNovoEfetivo(prev => ({ ...prev, funcao: e.target.value }))} className={styles.inputMedio} />
+            <datalist id="funcoes">{FUNCOES_SUGERIDAS.map(f => <option key={f} value={f} />)}</datalist>
+            <input type="number" min={1} placeholder="Qtd" value={novoEfetivo.quantidade}
+              onChange={e => setNovoEfetivo(prev => ({ ...prev, quantidade: e.target.value }))} className={styles.inputCurto} />
+            <input placeholder="Empresa (opcional)" value={novoEfetivo.empresa}
+              onChange={e => setNovoEfetivo(prev => ({ ...prev, empresa: e.target.value }))} className={styles.inputMedio} />
+            <button className={styles.btnAdd} onClick={addEfetivo}>+ Adicionar</button>
+          </div>
+        )}
+      </section>
+
+      {/* Serviços do dia */}
+      <section className={styles.bloco}>
+        <h2>Serviços executados</h2>
+        {avancosDia.length > 0 && (
+          <>
+            <p className={styles.subBloco}>Lançados no Avanço Físico nesta data (automático):</p>
+            {avancosDia.map(a => (
+              <div key={a.id} className={styles.itemLinha}>
+                <span className={styles.itemTexto}>
+                  📊 {a.unidadeNome} — {a.tarefaNome}: <strong>{a.quantidade !== null ? `${a.quantidade} → ` : ''}{a.percentual}%</strong>
+                </span>
+              </div>
+            ))}
+          </>
+        )}
+        {atividades.map(a => (
+          <div key={a.id} className={styles.itemLinha}>
+            <span className={styles.itemTexto}>🔨 {nomeUnidade(a.unidade_id)} — {a.descricao}</span>
+            {podeEditar && <button className={styles.btnRemover} onClick={() => removerAtividade(a.id)}>✕</button>}
+          </div>
+        ))}
+        {avancosDia.length === 0 && atividades.length === 0 && <p className={styles.vazio}>Nenhum serviço registrado neste dia.</p>}
+        {podeEditar && (
+          <div className={styles.linhaCampos}>
+            <select value={novaAtividade.unidade} className={styles.inputMedio}
+              onChange={e => setNovaAtividade(prev => ({ ...prev, unidade: e.target.value, tarefa: '' }))}>
+              <option value="">Unidade…</option>
+              {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+            <select value={novaAtividade.tarefa} className={styles.inputMedio} disabled={!novaAtividade.unidade}
+              onChange={e => setNovaAtividade(prev => ({ ...prev, tarefa: e.target.value }))}>
+              <option value="">Tarefa do cronograma (opcional)…</option>
+              {tarefasUnidade.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+            </select>
+            <input placeholder="Descrição do serviço" value={novaAtividade.descricao} className={styles.inputLongo}
+              onChange={e => setNovaAtividade(prev => ({ ...prev, descricao: e.target.value }))} />
+            <button className={styles.btnAdd} onClick={addAtividade}>+ Adicionar</button>
+          </div>
+        )}
+      </section>
+
+      {/* Acidentes */}
+      <section className={styles.bloco}>
+        <h2>Acidentes</h2>
+        <div className={styles.linhaCampos}>
+          <button disabled={!podeEditar} className={!acidente ? styles.trabBtnSim : styles.climaBtn} onClick={() => setAcidente(false)}>Sem acidentes</button>
+          <button disabled={!podeEditar} className={acidente ? styles.trabBtnNao : styles.climaBtn} onClick={() => setAcidente(true)}>⚠ Houve acidente</button>
+        </div>
+        {acidente && (
+          <textarea
+            className={styles.textarea} placeholder="Descreva o acidente (obrigatório)…"
+            value={acidenteDesc} disabled={!podeEditar} onChange={e => setAcidenteDesc(e.target.value)}
+          />
+        )}
+      </section>
+
+      {/* Fotos */}
+      <section className={styles.bloco}>
+        <h2>Fotos ({fotos.length})</h2>
+        <p className={styles.subBloco}>Cada foto sai carimbada com data, hora e GPS, e recebe hash de integridade.</p>
+        {podeEditar && (
+          <label className={styles.btnFoto}>
+            📷 Tirar / anexar fotos
+            <input type="file" accept="image/*" capture="environment" multiple hidden
+              onChange={e => { anexarFotos(e.target.files); e.target.value = '' }} />
+          </label>
+        )}
+        <div className={styles.gradeFotos}>
+          {fotos.map(f => (
+            <figure key={f.id} className={styles.foto}>
+              {urls.get(f.path)
+                ? <img src={urls.get(f.path)} alt={f.legenda ?? 'Foto do RDO'} />
+                : <div className={styles.fotoPlaceholder}>…</div>}
+              <figcaption>
+                {new Date(f.capturada_em).toLocaleTimeString('pt-BR').slice(0, 5)} · {fmtCoord(f.lat, f.lng, f.precisao_m)}
+                {podeEditar ? (
+                  <input
+                    className={styles.legendaInput} placeholder="legenda…" defaultValue={f.legenda ?? ''}
+                    onBlur={e => legendarFoto(f, e.target.value.trim())}
+                  />
+                ) : (f.legenda && <span className={styles.legendaTexto}>{f.legenda}</span>)}
+              </figcaption>
+              {podeEditar && <button className={styles.btnRemoverFoto} onClick={() => removerFoto(f.id)}>✕</button>}
+            </figure>
+          ))}
+        </div>
+      </section>
+
+      {/* Observações + áudio */}
+      <section className={styles.bloco}>
+        <h2>Observações</h2>
+        <textarea
+          className={styles.textarea} placeholder="Observações do dia…"
+          value={obs} disabled={!podeEditar} onChange={e => setObs(e.target.value)}
+        />
+        {podeEditar && (
+          <div className={styles.linhaCampos}>
+            <button className={ditando ? styles.btnGravando : styles.btnAdd} onClick={alternarDitado}>
+              {ditando ? '⏹ Parar ditado' : '🎤 Ditar texto'}
+            </button>
+            <button className={gravando ? styles.btnGravando : styles.btnAdd} onClick={alternarGravacao}>
+              {gravando ? '⏹ Parar e anexar áudio' : '🎙️ Gravar áudio anexo'}
+            </button>
+          </div>
+        )}
+        {audios.map((a, i) => (
+          <div key={a.id} className={styles.itemLinha}>
+            <span className={styles.itemTexto}>🎙️ Áudio {i + 1} · {fmtDuracao(a.duracao_seg)} · {new Date(a.gravado_em).toLocaleTimeString('pt-BR').slice(0, 5)}</span>
+            {urls.get(a.path) && <audio controls src={urls.get(a.path)} className={styles.player} />}
+            {podeEditar && <button className={styles.btnRemover} onClick={() => removerAudio(a.id)}>✕</button>}
+          </div>
+        ))}
+      </section>
+
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+
+      {/* Ações */}
+      <div className={styles.acoes}>
+        <button className={styles.btnPdf} onClick={baixarPdf} disabled={gerandoPdf}>
+          {gerandoPdf ? 'Gerando…' : `⬇ PDF${rascunho ? ' (rascunho)' : ''}`}
+        </button>
+        {podeEditar && !assinando && (
+          <>
+            <button className={styles.btnSalvarRascunho} onClick={async () => { if (await salvarCabecalho()) setMsg({ tipo: 'ok', texto: 'Rascunho salvo.' }) }} disabled={salvando}>
+              {salvando ? 'Salvando…' : 'Salvar rascunho'}
+            </button>
+            <button className={styles.btnAssinar} onClick={() => setAssinando(true)}>✍ Assinar e fechar</button>
+          </>
+        )}
+      </div>
+
+      {assinando && (
+        <section className={styles.blocoAssinatura}>
+          <h2>Assinatura digital</h2>
+          <p className={styles.subBloco}>
+            Ao assinar, o RDO é fechado em definitivo (data/hora e localização da assinatura são registradas). Nada mais poderá ser alterado.
+          </p>
+          <input
+            className={styles.inputLongo} placeholder="Nome do responsável"
+            value={nomeAssinante} onChange={e => setNomeAssinante(e.target.value)}
+          />
+          <canvas ref={canvasRef} width={600} height={200} className={styles.canvasAssinatura} />
+          <div className={styles.linhaCampos}>
+            <button className={styles.btnAdd} onClick={limparAssinatura}>Limpar</button>
+            <button className={styles.btnAdd} onClick={() => setAssinando(false)}>Cancelar</button>
+            <button className={styles.btnAssinar} onClick={assinarFechar} disabled={salvando}>
+              {salvando ? 'Fechando…' : 'Confirmar assinatura e fechar'}
+            </button>
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}

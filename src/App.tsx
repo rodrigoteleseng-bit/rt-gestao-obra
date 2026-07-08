@@ -9,6 +9,8 @@ import Usuarios from './pages/Usuarios'
 import Orcamento from './pages/Orcamento'
 import Cronograma from './pages/Cronograma'
 import Avanco from './pages/Avanco'
+import RDO from './pages/RDO'
+import RDOForm from './pages/RDOForm'
 import EmConstrucao from './pages/EmConstrucao'
 
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -32,7 +34,8 @@ function AppRoutes() {
         <Route path="orcamento" element={<Orcamento />} />
         <Route path="cronograma" element={<Cronograma />} />
         <Route path="avanco" element={<Avanco />} />
-        <Route path="rdo" element={<EmConstrucao modulo="RDO" fase={4} />} />
+        <Route path="rdo" element={<RDO />} />
+        <Route path="rdo/:id" element={<RDOForm />} />
         <Route path="financeiro" element={<EmConstrucao modulo="Financeiro" fase={3} />} />
         <Route path="compras" element={<EmConstrucao modulo="Compras" fase={6} />} />
         <Route path="almoxarifado" element={<EmConstrucao modulo="Almoxarifado" fase={6} />} />

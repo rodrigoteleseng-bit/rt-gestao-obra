@@ -101,6 +101,77 @@ export interface AvancoFisico {
   criado_por: string
 }
 
+export type StatusRdo = 'rascunho' | 'assinado'
+export type CondicaoClima = 'claro' | 'nublado' | 'chuvoso'
+
+export interface Rdo {
+  id: string
+  obra_id: string
+  numero: number
+  data: string
+  horario_inicio: string | null
+  clima_manha: CondicaoClima | null
+  clima_manha_trabalhavel: boolean | null
+  clima_tarde: CondicaoClima | null
+  clima_tarde_trabalhavel: boolean | null
+  acidente: boolean
+  acidente_descricao: string | null
+  observacoes: string | null
+  status: StatusRdo
+  assinatura_imagem: string | null
+  assinado_por_nome: string | null
+  assinado_em: string | null
+  assinatura_lat: number | null
+  assinatura_lng: number | null
+  assinatura_precisao_m: number | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface RdoAtividade {
+  id: string
+  rdo_id: string
+  unidade_id: string
+  tarefa_id: string | null
+  descricao: string
+  ordem: number
+  ativo: boolean
+}
+
+export interface RdoEfetivo {
+  id: string
+  rdo_id: string
+  funcao: string
+  quantidade: number
+  empresa: string | null
+  ativo: boolean
+}
+
+export interface RdoFoto {
+  id: string
+  rdo_id: string
+  unidade_id: string | null
+  path: string
+  legenda: string | null
+  lat: number | null
+  lng: number | null
+  precisao_m: number | null
+  capturada_em: string
+  hash_sha256: string
+  ativo: boolean
+}
+
+export interface RdoAudio {
+  id: string
+  rdo_id: string
+  path: string
+  duracao_seg: number | null
+  gravado_em: string
+  hash_sha256: string
+  ativo: boolean
+}
+
 export interface Servico {
   id: string
   etapa_id: string

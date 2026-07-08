@@ -1,0 +1,434 @@
+.page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+.page h1 {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.page h2 {
+  font-size: 14px;
+  color: var(--navy);
+  margin-bottom: 10px;
+}
+
+.sub {
+  color: var(--cinza-600);
+  font-size: 13px;
+  max-width: 640px;
+}
+
+.subBloco {
+  color: var(--cinza-600);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.voltar {
+  background: none;
+  border: none;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 0 10px;
+}
+
+.btnHoje {
+  background: var(--terracota);
+  color: var(--branco);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.carregando,
+.vazio {
+  color: var(--cinza-600);
+  font-size: 14px;
+  padding: 12px 0;
+}
+
+/* lista */
+.itemLista {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  box-shadow: var(--sombra-sm);
+  text-align: left;
+  font-size: 14px;
+}
+
+.itemLista:hover {
+  border-color: var(--navy);
+}
+
+.numero {
+  font-family: var(--font-titulo);
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.data {
+  color: var(--cinza-800);
+  flex: 1;
+}
+
+.chipAssinado,
+.chipRascunho,
+.chipAcidente {
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.chipAssinado { background: #e3f4e3; color: #1e6b2e; }
+.chipRascunho { background: #fdf3d7; color: #8a6d1a; }
+.chipAcidente { background: #fdeaea; color: #a33030; }
+
+/* blocos do formulário */
+.bloco,
+.blocoAssinatura {
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--sombra-sm);
+}
+
+.blocoAssinatura {
+  border-color: var(--terracota);
+}
+
+.linhaCampos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cinza-600);
+}
+
+.campo input,
+.inputCurto,
+.inputMedio,
+.inputLongo {
+  padding: 10px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: var(--branco);
+}
+
+.inputCurto { width: 76px; }
+.inputMedio { flex: 1; min-width: 140px; }
+.inputLongo { flex: 2; min-width: 200px; }
+
+.campo input:focus,
+.inputCurto:focus,
+.inputMedio:focus,
+.inputLongo:focus,
+.textarea:focus {
+  border-color: var(--navy);
+  outline: none;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 90px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--branco);
+  margin-top: 6px;
+  resize: vertical;
+}
+
+.climaLinha {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.climaRotulo {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cinza-600);
+  width: 52px;
+}
+
+.climaBtn,
+.climaBtnAtivo,
+.trabBtnSim,
+.trabBtnNao {
+  padding: 9px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: 999px;
+  background: var(--branco);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cinza-800);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.climaBtnAtivo {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: var(--branco);
+}
+
+.trabBtnSim {
+  border-color: #1e6b2e;
+  background: #e3f4e3;
+  color: #1e6b2e;
+}
+
+.trabBtnNao {
+  border-color: #a33030;
+  background: #fdeaea;
+  color: #a33030;
+}
+
+.climaBtn:disabled,
+.climaBtnAtivo:disabled,
+.trabBtnSim:disabled,
+.trabBtnNao:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.totalEfetivo {
+  color: var(--cinza-600);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.itemLinha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--cinza-100);
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.itemTexto {
+  flex: 1;
+  min-width: 200px;
+}
+
+.btnRemover {
+  background: none;
+  border: none;
+  color: var(--cinza-600);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 8px;
+}
+
+.btnRemover:hover { color: #a33030; }
+
+.btnAdd,
+.btnSalvarRascunho {
+  padding: 10px 14px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  background: var(--branco);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.btnAdd:hover,
+.btnSalvarRascunho:hover { border-color: var(--navy); }
+
+.btnGravando {
+  padding: 10px 14px;
+  border: 1.5px solid #a33030;
+  border-radius: var(--radius-sm);
+  background: #fdeaea;
+  font-size: 13px;
+  font-weight: 700;
+  color: #a33030;
+  cursor: pointer;
+  animation: pulsar 1.2s infinite;
+}
+
+@keyframes pulsar {
+  50% { opacity: 0.6; }
+}
+
+.btnFoto {
+  display: inline-block;
+  padding: 12px 16px;
+  border: 1.5px dashed var(--terracota);
+  border-radius: var(--radius-sm);
+  background: var(--branco);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--terracota);
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.gradeFotos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.foto {
+  position: relative;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--cinza-100);
+}
+
+.foto img {
+  width: 100%;
+  display: block;
+}
+
+.fotoPlaceholder {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cinza-600);
+}
+
+.foto figcaption {
+  padding: 6px 8px;
+  font-size: 10.5px;
+  color: var(--cinza-600);
+}
+
+.legendaInput {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--cinza-200);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.legendaTexto {
+  display: block;
+  color: var(--cinza-800);
+  font-weight: 600;
+}
+
+.btnRemoverFoto {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+}
+
+.player {
+  height: 34px;
+  max-width: 240px;
+}
+
+.msgOk {
+  color: #1e6b2e;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 6px 0;
+}
+
+.msgErro {
+  color: #a33030;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+.acoes {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+
+.btnPdf {
+  padding: 12px 18px;
+  border: 1.5px solid var(--navy);
+  border-radius: var(--radius-sm);
+  background: var(--branco);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.btnAssinar {
+  padding: 12px 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--terracota);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--branco);
+  cursor: pointer;
+}
+
+.canvasAssinatura {
+  width: 100%;
+  max-width: 600px;
+  height: 200px;
+  border: 1.5px dashed var(--cinza-200);
+  border-radius: var(--radius-sm);
+  background: #fbfbf9;
+  touch-action: none;
+  display: block;
+  margin-top: 10px;
+}

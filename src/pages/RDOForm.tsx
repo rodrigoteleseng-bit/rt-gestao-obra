@@ -52,6 +52,8 @@ export default function RDOForm() {
   const [obs, setObs] = useState('')
 
   // formulários de adição
+  // funcaoSel: null = mostrando a lista de funções; nome = função clicada; '' = "outra função" (digita)
+  const [funcaoSel, setFuncaoSel] = useState<string | null>(null)
   const [novoEfetivo, setNovoEfetivo] = useState({ funcao: '', quantidade: '', empresa: '' })
   const [novaAtividade, setNovaAtividade] = useState({ unidade: '', tarefa: '', descricao: '' })
   const [tarefasUnidade, setTarefasUnidade] = useState<CronogramaTarefa[]>([])
@@ -157,15 +159,17 @@ export default function RDOForm() {
   // ---------- efetivo ----------
   async function addEfetivo() {
     if (!rdo) return
+    const funcao = (funcaoSel || novoEfetivo.funcao).trim()
     const qtd = Number(novoEfetivo.quantidade)
-    if (!novoEfetivo.funcao.trim() || isNaN(qtd) || qtd <= 0) return
+    if (!funcao || isNaN(qtd) || qtd <= 0) return
     const { data, error } = await supabase.from('rdo_efetivo').insert({
-      rdo_id: rdo.id, funcao: novoEfetivo.funcao.trim(), quantidade: qtd,
+      rdo_id: rdo.id, funcao, quantidade: qtd,
       empresa: novoEfetivo.empresa.trim() || null,
     }).select().single()
     if (error) { setMsg({ tipo: 'erro', texto: error.message }); return }
     setEfetivo(prev => [...prev, data])
     setNovoEfetivo({ funcao: '', quantidade: '', empresa: '' })
+    setFuncaoSel(null)
   }
   async function removerEfetivo(eId: string) {
     await supabase.from('rdo_efetivo').update({ ativo: false }).eq('id', eId)
@@ -198,11 +202,14 @@ export default function RDOForm() {
   }
 
   // ---------- fotos ----------
-  async function anexarFotos(files: FileList | null) {
-    if (!rdo || !obraAtiva || !files || files.length === 0) return
-    setMsg(null)
+  // Recebe File[] já copiado — a FileList original é "viva" e esvazia
+  // quando o input é limpo, o que fazia a foto não anexar.
+  async function anexarFotos(files: File[]) {
+    if (!rdo || !obraAtiva || files.length === 0) return
+    setMsg({ tipo: 'ok', texto: `Anexando ${files.length} foto${files.length > 1 ? 's' : ''}…` })
     const geo = await obterPosicao()
-    for (const arquivo of Array.from(files)) {
+    let anexadas = 0
+    for (const arquivo of files) {
       try {
         const capturadaEm = new Date()
         const blob = await carimbarFoto(arquivo, obraAtiva.nome, geo, capturadaEm)
@@ -218,13 +225,18 @@ export default function RDOForm() {
         const { data: su } = await supabase.storage.from('rdo').createSignedUrl(path, 3600)
         if (su) setUrls(prev => new Map(prev).set(path, su.signedUrl))
         setFotos(prev => [...prev, data])
+        anexadas++
       } catch (e) {
         setMsg({ tipo: 'erro', texto: `Erro na foto: ${e instanceof Error ? e.message : e}` })
+        return
       }
     }
-    if (geo.lat === null) {
-      setMsg({ tipo: 'erro', texto: 'Foto anexada SEM GPS (permissão de localização negada ou indisponível) — o carimbo registra "sem GPS".' })
-    }
+    setMsg({
+      tipo: geo.lat === null ? 'erro' : 'ok',
+      texto: geo.lat === null
+        ? `${anexadas} foto${anexadas > 1 ? 's' : ''} anexada${anexadas > 1 ? 's' : ''} SEM GPS (permissão de localização negada) — o carimbo registra "sem GPS".`
+        : `${anexadas} foto${anexadas > 1 ? 's' : ''} anexada${anexadas > 1 ? 's' : ''} com carimbo de data/hora/GPS.`,
+    })
   }
   async function legendarFoto(f: RdoFoto, legenda: string) {
     await supabase.from('rdo_fotos').update({ legenda: legenda || null }).eq('id', f.id)
@@ -450,16 +462,33 @@ export default function RDOForm() {
             {podeEditar && <button className={styles.btnRemover} onClick={() => removerEfetivo(e.id)}>✕</button>}
           </div>
         ))}
-        {podeEditar && (
+        {podeEditar && funcaoSel === null && (
+          <div className={styles.chipsFuncoes}>
+            {FUNCOES_SUGERIDAS.map(f => (
+              <button key={f} className={styles.chipFuncao} onClick={() => { setFuncaoSel(f); setNovoEfetivo({ funcao: '', quantidade: '', empresa: '' }) }}>
+                {f}
+              </button>
+            ))}
+            <button className={styles.chipFuncaoOutra} onClick={() => { setFuncaoSel(''); setNovoEfetivo({ funcao: '', quantidade: '', empresa: '' }) }}>
+              + Outra função
+            </button>
+          </div>
+        )}
+        {podeEditar && funcaoSel !== null && (
           <div className={styles.linhaCampos}>
-            <input list="funcoes" placeholder="Função" value={novoEfetivo.funcao}
-              onChange={e => setNovoEfetivo(prev => ({ ...prev, funcao: e.target.value }))} className={styles.inputMedio} />
-            <datalist id="funcoes">{FUNCOES_SUGERIDAS.map(f => <option key={f} value={f} />)}</datalist>
-            <input type="number" min={1} placeholder="Qtd" value={novoEfetivo.quantidade}
-              onChange={e => setNovoEfetivo(prev => ({ ...prev, quantidade: e.target.value }))} className={styles.inputCurto} />
+            {funcaoSel === ''
+              ? <input autoFocus placeholder="Função" value={novoEfetivo.funcao}
+                  onChange={e => setNovoEfetivo(prev => ({ ...prev, funcao: e.target.value }))} className={styles.inputMedio} />
+              : <span className={styles.funcaoEscolhida}>{funcaoSel}</span>}
+            <input type="number" min={1} inputMode="numeric" placeholder="Qtd" autoFocus={funcaoSel !== ''}
+              value={novoEfetivo.quantidade}
+              onChange={e => setNovoEfetivo(prev => ({ ...prev, quantidade: e.target.value }))}
+              onKeyDown={e => { if (e.key === 'Enter') addEfetivo() }}
+              className={styles.inputCurto} />
             <input placeholder="Empresa (opcional)" value={novoEfetivo.empresa}
               onChange={e => setNovoEfetivo(prev => ({ ...prev, empresa: e.target.value }))} className={styles.inputMedio} />
             <button className={styles.btnAdd} onClick={addEfetivo}>+ Adicionar</button>
+            <button className={styles.btnRemover} onClick={() => setFuncaoSel(null)}>Cancelar</button>
           </div>
         )}
       </section>
@@ -528,7 +557,11 @@ export default function RDOForm() {
           <label className={styles.btnFoto}>
             📷 Tirar / anexar fotos
             <input type="file" accept="image/*" capture="environment" multiple hidden
-              onChange={e => { anexarFotos(e.target.files); e.target.value = '' }} />
+              onChange={e => {
+                const arquivos = Array.from(e.target.files ?? [])
+                e.target.value = ''
+                anexarFotos(arquivos)
+              }} />
           </label>
         )}
         <div className={styles.gradeFotos}>

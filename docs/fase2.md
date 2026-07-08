@@ -71,6 +71,16 @@ Medição de campo é por m, m², m³, unid. — o % passou a ser calculado.
 - O lançamento grava `percentual` E `quantidade` (rastreabilidade da medida que originou o %). Curva S e árvore continuam lendo `percentual` — sem mudança.
 - Verificado no preview com usuário temporário (removido): definir total 48 m como equipe via RPC, lançar 24 → 50,00% gravado com autor. Obs.: em produção já havia 5 lançamentos reais (Catarina e Rodrigo) — preservados.
 
+## Ajuste 08/07/2026 — Carga de quantidades a partir do orçamento [extraído — pedido do Rodrigo]
+
+Lançamentos de teste do Rodrigo/Catarina zerados a pedido. Quantidades totais das tarefas das **casas 01–13** carregadas do orçamento da Fase 1 por regras explícitas de correspondência (`scripts/carregar-quantidades.cjs`):
+
+- **897 tarefas preenchidas (52% das folhas)** — só correspondência segura: 1 serviço (702 casos, com `servico_id` vinculado = início do de-para da Fase 3) ou soma de itens da mesma unidade (ex.: armação = soma dos kg das bitolas; pintura externa = soma das texturas dos 3 pavimentos).
+- **832 pendentes** — ambíguas no orçamento, ficam vazias e sinalizadas (regra de rastreabilidade nº 3): instalações elétricas/hidráulicas (orçadas como verba única por casa, cronograma detalha por pavimento/atividade), estruturas de platibanda × barrilete (orçamento não separa), concretagem/armação de estacas × blocos (grupo FUNDAÇÃO combinado), Portaria/Área Comum/Canteiro (estruturas diferentes — regras não construídas ainda), louças/luminárias (verba), limpeza/paisagismo (sem item). Preenchíveis na tela na 1ª medição.
+- Conferência integral em `scripts/depara_quantidades.csv` (tarefa → quantidade → serviço-fonte do orçamento).
+- Aplicado via edge function temporária (v5, neutralizada em v6). Autoria da definição: Rodrigo.
+- Armadilha corrigida no matcher: pavimento detectado só pelos ancestrais — nomes como "Vigas Superiores (Pav. Térreo)" enganam.
+
 ## Pendências transferidas
 
 - Exportação Excel/PDF (orçamento e cronograma) — pendência desde a Fase 1.

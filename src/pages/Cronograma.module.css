@@ -409,13 +409,39 @@
   color: #a33030;
 }
 
+.dot {
+  display: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot_concluida { background: #2e9e46; }
+.dot_andamento { background: var(--navy); }
+.dot_atrasada  { background: #c43c3c; }
+.dot_prevista  { background: var(--cinza-200); }
+
 @media (max-width: 700px) {
+  /* Datas descem para uma 2ª linha abaixo do nome; status vira o ponto colorido */
+  .linha {
+    flex-wrap: wrap;
+    row-gap: 1px;
+  }
+
   .linhaDatas {
-    display: none;
+    flex-basis: 100%;
+    order: 5;
+    margin-left: 40px;
+    font-size: 11px;
   }
 
   .chip {
     display: none;
+  }
+
+  .dot {
+    display: inline-block;
   }
 
   .linhaPct {

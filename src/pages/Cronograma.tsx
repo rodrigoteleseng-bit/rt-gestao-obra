@@ -157,6 +157,7 @@ function Arvore(props: {
           role={temFilhos ? 'button' : undefined}
         >
           <span className={styles.seta}>{temFilhos ? (aberto ? '▾' : '▸') : ''}</span>
+          <span className={`${styles.dot} ${styles['dot_' + st]}`} title={STATUS_LABEL[st]} />
           <span className={styles.linhaNome}>{no.tarefa.nome}</span>
           <span className={styles.linhaDatas}>
             {fmtData(no.previsto?.inicio)} – {fmtData(no.previsto?.fim)}

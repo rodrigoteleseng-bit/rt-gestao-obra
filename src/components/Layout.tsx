@@ -5,22 +5,44 @@ import { useObra } from '../contexts/ObraContext'
 import { logout } from '../lib/auth'
 import styles from './Layout.module.css'
 
-const MODULOS = [
-  { key: 'dashboard', label: 'Início', icon: '🏠', path: '/dashboard', sempre: true },
-  { key: 'orcamento', label: 'Orçamento', icon: '📐', path: '/orcamento', sempre: true },
-  { key: 'cronograma', label: 'Cronograma', icon: '📅', path: '/cronograma', sempre: true },
-  { key: 'avanco', label: 'Avanço Físico', icon: '📊', path: '/avanco' },
-  { key: 'rdo', label: 'RDO', icon: '📋', path: '/rdo' },
-  { key: 'financeiro', label: 'Financeiro', icon: '💰', path: '/financeiro' },
-  { key: 'compras', label: 'Compras', icon: '🛒', path: '/compras' },
-  { key: 'almoxarifado', label: 'Almoxarifado', icon: '📦', path: '/almoxarifado' },
-  { key: 'pendencias', label: 'Pendências', icon: '⚠️', path: '/pendencias' },
-  { key: 'medicoes', label: 'Medições', icon: '📏', path: '/medicoes' },
-  { key: 'contratos', label: 'Contratos', icon: '📝', path: '/contratos' },
-  { key: 'fvs', label: 'Qualidade (FVS)', icon: '✅', path: '/fvs' },
-  { key: 'galeria', label: 'Galeria', icon: '🖼️', path: '/galeria' },
-  { key: 'efetivo', label: 'Efetivo', icon: '👷', path: '/efetivo' },
-  { key: 'alertas', label: 'Alertas', icon: '🔔', path: '/alertas' },
+type NavLink = {
+  type: 'link'
+  key: string
+  label: string
+  icon: string
+  path: string
+  sempre?: boolean
+  sub?: boolean       // item indentado sob um grupo
+}
+type NavSection = {
+  type: 'section'
+  label: string
+  showIfAny: string[] // mostra se usuário tem QUALQUER uma dessas chaves (admin sempre vê)
+}
+type NavItem = NavLink | NavSection
+
+const MODULOS: NavItem[] = [
+  { type: 'link', key: 'dashboard', label: 'Início',        icon: '🏠', path: '/dashboard', sempre: true },
+  { type: 'link', key: 'orcamento', label: 'Orçamento',     icon: '📐', path: '/orcamento', sempre: true },
+  { type: 'link', key: 'cronograma', label: 'Cronograma',   icon: '📅', path: '/cronograma', sempre: true },
+  { type: 'link', key: 'avanco',    label: 'Avanço Físico', icon: '📊', path: '/avanco' },
+  // ── RDO ─────────────────────────────────────────────
+  { type: 'section', label: 'RDO', showIfAny: ['rdo', 'galeria', 'efetivo'] },
+  { type: 'link', key: 'rdo',     label: 'Relatório Diário', icon: '📋', path: '/rdo' },
+  { type: 'link', key: 'galeria', label: 'Galeria',          icon: '🖼️', path: '/galeria', sempre: true, sub: true },
+  { type: 'link', key: 'efetivo', label: 'Efetivo',          icon: '👷', path: '/efetivo', sub: true },
+  // ── Financeiro / Suprimentos ─────────────────────────
+  { type: 'link', key: 'financeiro',   label: 'Financeiro',   icon: '💰', path: '/financeiro' },
+  { type: 'link', key: 'compras',      label: 'Compras',      icon: '🛒', path: '/compras' },
+  { type: 'link', key: 'almoxarifado', label: 'Almoxarifado', icon: '📦', path: '/almoxarifado' },
+  { type: 'link', key: 'medicoes',     label: 'Medições',     icon: '📏', path: '/medicoes' },
+  { type: 'link', key: 'contratos',    label: 'Contratos',    icon: '📝', path: '/contratos' },
+  // ── Qualidade ────────────────────────────────────────
+  { type: 'section', label: 'Qualidade', showIfAny: ['fvs', 'pendencias'] },
+  { type: 'link', key: 'fvs',       label: 'FVS / Checklists', icon: '✅', path: '/fvs',       sub: true },
+  { type: 'link', key: 'pendencias', label: 'Pendências',       icon: '⚠️', path: '/pendencias', sub: true },
+  // ─────────────────────────────────────────────────────
+  { type: 'link', key: 'alertas', label: 'Alertas', icon: '🔔', path: '/alertas' },
 ]
 
 export default function Layout() {
@@ -34,7 +56,14 @@ export default function Layout() {
     navigate('/login')
   }
 
-  const modulosVisiveis = MODULOS.filter(m => m.sempre || temModulo(m.key))
+  function itemVisivel(item: NavItem): boolean {
+    if (item.type === 'section') {
+      return perfil?.papel === 'admin' || item.showIfAny.some(k => temModulo(k))
+    }
+    return item.sempre === true || temModulo(item.key)
+  }
+
+  const modulosVisiveis = MODULOS.filter(itemVisivel)
 
   return (
     <div className={styles.app}>
@@ -49,17 +78,28 @@ export default function Layout() {
         </div>
 
         <nav className={styles.nav}>
-          {modulosVisiveis.map(m => (
-            <NavLink
-              key={m.key}
-              to={m.path}
-              className={({ isActive }) => `${styles.navItem} ${isActive ? styles.ativo : ''}`}
-              onClick={() => setMenuAberto(false)}
-            >
-              <span className={styles.navIcon}>{m.icon}</span>
-              <span>{m.label}</span>
-            </NavLink>
-          ))}
+          {modulosVisiveis.map((item, idx) => {
+            if (item.type === 'section') {
+              return (
+                <div key={`section-${idx}`} className={styles.navSection}>
+                  {item.label}
+                </div>
+              )
+            }
+            return (
+              <NavLink
+                key={item.key}
+                to={item.path}
+                className={({ isActive }) =>
+                  `${styles.navItem} ${item.sub ? styles.navSub : ''} ${isActive ? styles.ativo : ''}`
+                }
+                onClick={() => setMenuAberto(false)}
+              >
+                <span className={styles.navIcon}>{item.icon}</span>
+                <span>{item.label}</span>
+              </NavLink>
+            )
+          })}
 
           {perfil?.papel === 'admin' && (
             <NavLink

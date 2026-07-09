@@ -9,7 +9,8 @@ interface SubModulo {
   label: string
   icon: string
   path: string
-  sempre?: boolean // acessível a todos os papéis (ex.: Cronograma)
+  sempre?: boolean    // acessível a todos os papéis
+  moduloKey?: string  // chave de permissão individual (sobrepõe a do card pai)
 }
 
 interface CardModulo {
@@ -19,6 +20,7 @@ interface CardModulo {
   desc: string
   path?: string
   subs?: SubModulo[]
+  multiKey?: string[] // card ativo se o usuário tiver QUALQUER uma dessas chaves
 }
 
 const CARDS_MODULOS: CardModulo[] = [
@@ -29,11 +31,25 @@ const CARDS_MODULOS: CardModulo[] = [
       { label: 'Lançar avanço', icon: '✏️', path: '/avanco' },
     ],
   },
-  { key: 'rdo', label: 'RDO', icon: '📋', desc: 'Relatório Diário de Obra', path: '/rdo' },
+  {
+    key: 'rdo', label: 'RDO', icon: '📋', desc: 'Relatório diário, galeria e efetivo',
+    subs: [
+      { label: 'Relatório Diário', icon: '📋', path: '/rdo' },
+      { label: 'Galeria de Fotos', icon: '🖼️', path: '/galeria', sempre: true },
+      { label: 'Efetivo', icon: '👷', path: '/efetivo', moduloKey: 'efetivo' },
+    ],
+  },
   { key: 'financeiro', label: 'Financeiro', icon: '💰', desc: 'Notas fiscais e gastos', path: '/financeiro' },
   { key: 'compras', label: 'Compras', icon: '🛒', desc: 'Pedidos e cotações', path: '/compras' },
   { key: 'almoxarifado', label: 'Almoxarifado', icon: '📦', desc: 'Materiais e ferramentas', path: '/almoxarifado' },
-  { key: 'pendencias', label: 'Pendências', icon: '⚠️', desc: 'Por unidade e serviço', path: '/pendencias' },
+  {
+    key: 'qualidade', label: 'Qualidade', icon: '🏷️', desc: 'FVS, checklists e pendências de obra',
+    multiKey: ['fvs', 'pendencias'],
+    subs: [
+      { label: 'FVS / Checklists', icon: '✅', path: '/fvs', moduloKey: 'fvs' },
+      { label: 'Pendências', icon: '⚠️', path: '/pendencias', moduloKey: 'pendencias' },
+    ],
+  },
 ]
 
 export default function Dashboard() {
@@ -91,9 +107,14 @@ export default function Dashboard() {
       <h2 className={styles.secaoTitulo}>Módulos</h2>
       <div className={styles.grid}>
         {CARDS_MODULOS.map(m => {
-          const temAcessoModulo = temModulo(m.key)
-          const subsVisiveis = (m.subs ?? []).filter(s => s.sempre || temAcessoModulo)
-          // Card é utilizável se o papel tem o módulo ou se algum sub-módulo é aberto a todos
+          // card ativo se tem a chave principal OU qualquer chave do multiKey
+          const temAcessoModulo = m.multiKey
+            ? m.multiKey.some(k => temModulo(k))
+            : temModulo(m.key)
+          // sub visível se: sempre=true, ou tem chave individual, ou tem acesso ao card pai
+          const subsVisiveis = (m.subs ?? []).filter(s =>
+            s.sempre || (s.moduloKey ? temModulo(s.moduloKey) : temAcessoModulo)
+          )
           const ativo = temAcessoModulo || subsVisiveis.length > 0
           const aberto = cardAberto === m.key
 

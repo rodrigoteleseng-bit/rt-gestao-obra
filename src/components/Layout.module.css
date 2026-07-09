@@ -105,6 +105,23 @@
   text-align: center;
 }
 
+/* Cabeçalho de seção (RDO, Qualidade) */
+.navSection {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+  padding: 14px 12px 4px;
+  margin-top: 4px;
+}
+
+/* Sub-item indentado dentro de uma seção */
+.navSub {
+  padding-left: 28px;
+  font-size: 13px;
+}
+
 /* ── FOOTER ── */
 .sidebarFooter {
   padding: 16px 12px;

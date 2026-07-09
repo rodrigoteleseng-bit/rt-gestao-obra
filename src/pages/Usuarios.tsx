@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, type PerfilUsuario, type ModuloApp } from '../lib/supabase'
+import { resetSenha } from '../lib/auth'
 import styles from './Usuarios.module.css'
 
 const MODULOS_LABELS: Record<ModuloApp, string> = {
@@ -111,6 +112,18 @@ export default function Usuarios() {
       return
     }
     carregarUsuarios()
+  }
+
+  async function enviarLinkSenha(u: PerfilUsuario) {
+    if (!window.confirm(`Enviar link de redefinição de senha para ${u.email}? A pessoa recebe um e-mail e define a nova senha sozinha.`)) return
+    setLoading(true)
+    try {
+      await resetSenha(u.email)
+      window.alert(`Link de nova senha enviado para ${u.email}.`)
+    } catch {
+      window.alert('Falha ao enviar o link. Verifique o e-mail e tente novamente.')
+    }
+    setLoading(false)
   }
 
   async function salvarModulos(userId: string) {
@@ -233,6 +246,14 @@ export default function Usuarios() {
                         onClick={() => editando === u.id ? setEditando(null) : iniciarEdicao(u)}
                       >
                         {editando === u.id ? 'Cancelar' : 'Editar'}
+                      </button>
+                      <button
+                        className={styles.btnEditar}
+                        onClick={() => enviarLinkSenha(u)}
+                        disabled={loading}
+                        title="Envia e-mail para a pessoa definir uma nova senha"
+                      >
+                        🔑 Nova senha
                       </button>
                       <button
                         className={styles.btnDesativar}

@@ -46,14 +46,37 @@ Preview com usuário temporário `equipe` + módulo `pendencias` (removido ao fi
 
 Usuário de teste criado via SQL: além do re-crypt da senha, o GoTrue retorna **500 no login** se os campos de token (`confirmation_token`, `recovery_token`, `email_change*`, `phone_change*`, `reauthentication_token`) ficarem NULL — preencher todos com `''`.
 
-## Próxima etapa — FVS (decisões já colhidas em 09/07/2026)
+## FVS — entregue em 09/07/2026 (migração `20260709_fase5_fvs.sql`)
 
-- FVS = lista de itens de verificação **por tipo de serviço**, aplicada **sobrado por sobrado**, condição para liberar o serviço seguinte.
-- Aprovadores: estagiário, mestre e encarregado (equipe com módulo `fvs`).
-- Integração com avanço: **aviso** de FVS não concluídas (não trava o lançamento por enquanto).
-- A detalhar na próxima sessão: cadastro dos modelos de checklist (itens por tipo de serviço), fluxo de aprovação/reprovação, fotos por item.
+FVS = lista de itens de verificação por tipo de serviço, aplicada unidade a unidade. Decisões do Rodrigo: aprovadores = equipe com módulo `fvs` (preenche e aprova, etapa única); item NC gera pendência automática; reprovação mantém histórico de rodadas até aprovar; adoção do status **"Aprovada com restrição"** (libera mas gera pendência).
+
+### Modelos (seed)
+- **17 fichas** (294 itens) importadas de `fvs_15_prioritarias_qualidade_obras.md` via `scripts/importar-fvs.cjs`, com **renumeração conforme a sequência real da obra** (aprovada pelo Rodrigo): cobertura movida para antes dos acabamentos (FVS-010).
+- **2 fichas novas** criadas por lacuna crítica: **FVS-008 Reboco/emboço** (NBR 13749/7200) e **FVS-013 Forro de gesso** (NBR 15758-2). Análise crítica que motivou: o arquivo exigia "reboco curado" como pré-requisito da pintura mas não tinha ficha para o reboco.
+- Itens têm campo opcional `criterio` (tolerância objetiva, ex.: "desvio ≤ 3 mm / 2 m") para tornar as fichas menos subjetivas com o tempo. Modelos editáveis só por admin.
+
+### Banco
+- `fvs_modelos` + `fvs_modelo_itens` (globais, seções preservadas: Pré-requisitos/Execução/Armação/etc.).
+- `fvs` (aplicação: modelo + unidade + tarefa opcional + local/empreiteiro), `fvs_verificacoes` (rodadas, `resultado` NULL = aberta), `fvs_respostas` (C/NC/NA + observação por item), `fvs_fotos`.
+- `pendencias.fvs_id` liga a pendência gerada à FVS de origem.
+- **RPC `concluir_verificacao_fvs`** (SECURITY DEFINER, transacional): valida, grava resultado, atualiza status da FVS e **cria 1 pendência por item NC** com evento `aberta`. Bloqueia aprovar com NC.
+- **RPC `nova_verificacao_fvs`**: abre nova rodada numa FVS reprovada (volta a `em_andamento`).
+- Status: `em_andamento` → `aprovada` | `aprovada_restricao` | `reprovada`. Aprovada = imutável (RLS bloqueia UPDATE e novas verificações). Cliente não vê. Bucket `fvs` privado.
+
+### Frontend
+- `src/pages/Fvs.tsx` (`/fvs`) — abas **Fichas** (contadores clicáveis, filtro por unidade) e **Mapa da qualidade** (grade serviço × unidade com bolinhas 🟢🟡🔴🔵⚪, clique abre a FVS).
+- `src/pages/FvsForm.tsx` (`/fvs/nova` e `/fvs/:id`) — criação (modelo + unidade) e ficha com itens por seção, botões C/NC/NA, observação por item NC, conclusão com 3 resultados, histórico de rodadas, botão "Nova verificação" quando reprovada.
+- **Integração RDO:** bloco "Qualidade — FVS do dia" no `RDOForm` e no PDF (`rdoPdf.ts`) — FVS cujas verificações foram concluídas na data do RDO entram automaticamente (consulta por `fvs_verificacoes.concluida_em`).
+
+### Verificação executada (09/07/2026)
+Preview com usuário temporário `equipe` + módulos fvs/pendencias/rdo (removido ao final com todos os dados de teste):
+- Criar FVS-004 Alvenaria no Sobrado 05, responder 17 itens (1 NC), Aprovar bloqueado com NC, **Reprovar → 1 pendência automática** vinculada (`fvs_id` + evento "Gerada automaticamente pela FVS-004").
+- Nova verificação (rodada 2) → responder tudo C → **Aprovar** → histórico com as 2 rodadas.
+- Imutabilidade: UPDATE de FVS aprovada = 0 linhas; INSERT de verificação bloqueado por RLS.
+- Mapa da qualidade: bolinha verde no cruzamento FVS-004 × Sobrado 05.
+- Integração RDO: bloco "FVS do dia" mostrou as 2 verificações concluídas na data. Build de produção limpo.
 
 ## Pendências transferidas
 
-- FVS (próxima etapa do grupo Qualidade).
-- Teste de campo e aceite formal da Fase 5.
+- Teste de campo e aceite formal da Fase 5 (Pendências + FVS) com fotos reais.
+- Fotos por item de FVS no PDF (hoje o PDF do RDO lista as FVS; a ficha FVS ainda não gera PDF próprio — avaliar se o Rodrigo quer).

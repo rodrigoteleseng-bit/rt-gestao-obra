@@ -22,6 +22,20 @@ interface AvancoDoDia extends AvancoFisico {
   unidadeNome: string
 }
 
+interface FvsDoDia {
+  id: string
+  codigo: string
+  nome: string
+  unidadeNome: string
+  resultado: string
+}
+
+const RESULTADO_FVS_LABEL: Record<string, string> = {
+  aprovada: 'Aprovada',
+  aprovada_restricao: 'Aprovada c/ restrição',
+  reprovada: 'Reprovada',
+}
+
 export default function RDOForm() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -35,6 +49,7 @@ export default function RDOForm() {
   const [fotos, setFotos] = useState<RdoFoto[]>([])
   const [audios, setAudios] = useState<RdoAudio[]>([])
   const [avancosDia, setAvancosDia] = useState<AvancoDoDia[]>([])
+  const [fvsDia, setFvsDia] = useState<FvsDoDia[]>([])
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [urls, setUrls] = useState<Map<string, string>>(new Map())
   const [carregando, setCarregando] = useState(true)
@@ -123,6 +138,34 @@ export default function RDOForm() {
         return { ...a, tarefaNome: t?.nome ?? '?', unidadeNome: nomesU.get(t?.unidade_id ?? '') ?? '?' }
       }))
     } else setAvancosDia([])
+
+    // FVS cujas verificações foram concluídas no dia do RDO (fuso local: dia inteiro)
+    const { data: verifs } = await supabase.from('fvs_verificacoes')
+      .select('fvs_id, resultado, concluida_em')
+      .not('concluida_em', 'is', null)
+      .gte('concluida_em', `${r.data}T00:00:00`)
+      .lte('concluida_em', `${r.data}T23:59:59.999`)
+    if (verifs && verifs.length > 0) {
+      const fvsIds = [...new Set(verifs.map(v => v.fvs_id))]
+      const { data: fvsRows } = await supabase.from('fvs')
+        .select('id, unidade_id, modelo_id').in('id', fvsIds).eq('obra_id', r.obra_id)
+      const modeloIds = [...new Set((fvsRows ?? []).map(f => f.modelo_id))]
+      const { data: mods } = await supabase.from('fvs_modelos').select('id, codigo, nome').in('id', modeloIds)
+      const modMap = new Map((mods ?? []).map(m => [m.id, m]))
+      const nomesU = new Map((unis.data ?? []).map(u => [u.id, u.nome]))
+      const fvsMap = new Map((fvsRows ?? []).map(f => [f.id, f]))
+      setFvsDia(verifs.map(v => {
+        const f = fvsMap.get(v.fvs_id)
+        const m = f ? modMap.get(f.modelo_id) : undefined
+        return {
+          id: v.fvs_id,
+          codigo: m?.codigo ?? '?',
+          nome: m?.nome ?? '?',
+          unidadeNome: nomesU.get(f?.unidade_id ?? '') ?? '?',
+          resultado: v.resultado ?? '',
+        }
+      }))
+    } else setFvsDia([])
 
     // URLs assinadas de fotos e áudios
     const paths = [...(fts.data ?? []).map(f => f.path), ...(auds.data ?? []).map(a => a.path)]
@@ -383,7 +426,7 @@ export default function RDOForm() {
       await gerarPdfRdo({
         rdo: { ...rdo, horario_inicio: horario || rdo.horario_inicio, observacoes: obs || rdo.observacoes },
         obraNome: obraAtiva.nome,
-        atividades, efetivo, fotos, audios, avancosDia, unidades,
+        atividades, efetivo, fotos, audios, avancosDia, fvsDia, unidades,
       })
     } catch (e) {
       setMsg({ tipo: 'erro', texto: `Erro ao gerar PDF: ${e instanceof Error ? e.message : e}` })
@@ -533,6 +576,21 @@ export default function RDOForm() {
           </div>
         )}
       </section>
+
+      {/* FVS do dia (automático) */}
+      {fvsDia.length > 0 && (
+        <section className={styles.bloco}>
+          <h2>Qualidade — FVS do dia</h2>
+          <p className={styles.subBloco}>Fichas de verificação concluídas nesta data (automático):</p>
+          {fvsDia.map(f => (
+            <div key={`${f.id}-${f.resultado}`} className={styles.itemLinha}>
+              <span className={styles.itemTexto}>
+                ✅ {f.codigo} {f.nome} — {f.unidadeNome}: <strong>{RESULTADO_FVS_LABEL[f.resultado] ?? f.resultado}</strong>
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
 
       {/* Acidentes */}
       <section className={styles.bloco}>

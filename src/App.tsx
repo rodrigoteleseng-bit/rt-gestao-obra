@@ -14,6 +14,8 @@ import RDOForm from './pages/RDOForm'
 import Galeria from './pages/Galeria'
 import Pendencias from './pages/Pendencias'
 import PendenciaForm from './pages/PendenciaForm'
+import FvsPage from './pages/Fvs'
+import FvsForm from './pages/FvsForm'
 import EmConstrucao from './pages/EmConstrucao'
 
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -46,7 +48,8 @@ function AppRoutes() {
         <Route path="pendencias/:id" element={<PendenciaForm />} />
         <Route path="medicoes" element={<EmConstrucao modulo="Medições de Empreiteiros" fase={7} />} />
         <Route path="contratos" element={<EmConstrucao modulo="Controle de Contratos" fase={7} />} />
-        <Route path="fvs" element={<EmConstrucao modulo="Qualidade (FVS)" fase={7} />} />
+        <Route path="fvs" element={<FvsPage />} />
+        <Route path="fvs/:id" element={<FvsForm />} />
         <Route path="galeria" element={<Galeria />} />
         <Route path="efetivo" element={<EmConstrucao modulo="Gestão de Efetivo" fase={7} />} />
         <Route path="alertas" element={<EmConstrucao modulo="Alertas" fase={7} />} />

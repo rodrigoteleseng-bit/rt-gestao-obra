@@ -212,6 +212,80 @@ export interface PendenciaFoto {
   ativo: boolean
 }
 
+export type StatusFvs = 'em_andamento' | 'aprovada' | 'aprovada_restricao' | 'reprovada'
+export type RespostaFvs = 'c' | 'nc' | 'na'
+
+export interface FvsModelo {
+  id: string
+  codigo: string
+  nome: string
+  objetivo: string | null
+  normas: string | null
+  criterios_aceitacao: string | null
+  ordem: number
+  ativo: boolean
+}
+
+export interface FvsModeloItem {
+  id: string
+  modelo_id: string
+  secao: string
+  ordem: number
+  texto: string
+  criterio: string | null
+  ativo: boolean
+}
+
+export interface Fvs {
+  id: string
+  obra_id: string
+  modelo_id: string
+  unidade_id: string
+  tarefa_id: string | null
+  local_ambiente: string | null
+  equipe_empreiteiro: string | null
+  projeto_referencia: string | null
+  status: StatusFvs
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface FvsVerificacao {
+  id: string
+  fvs_id: string
+  numero: number
+  resultado: StatusFvs | null
+  observacao: string | null
+  concluida_em: string | null
+  concluida_por: string | null
+  criado_em: string
+  criado_por: string
+}
+
+export interface FvsResposta {
+  id: string
+  verificacao_id: string
+  item_id: string
+  resposta: RespostaFvs
+  observacao: string | null
+}
+
+export interface FvsFoto {
+  id: string
+  fvs_id: string
+  verificacao_id: string | null
+  item_id: string | null
+  path: string
+  legenda: string | null
+  lat: number | null
+  lng: number | null
+  precisao_m: number | null
+  capturada_em: string
+  hash_sha256: string
+  ativo: boolean
+}
+
 export interface Servico {
   id: string
   etapa_id: string

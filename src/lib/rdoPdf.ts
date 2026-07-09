@@ -9,6 +9,8 @@ const TERRACOTA = '#C0603B'
 const CINZA = '#6c757d'
 
 interface AvancoDoDia extends AvancoFisico { tarefaNome: string; unidadeNome: string }
+export interface FvsDoDiaPdf { codigo: string; nome: string; unidadeNome: string; resultado: string }
+const RESULTADO_FVS: Record<string, string> = { aprovada: 'Aprovada', aprovada_restricao: 'Aprovada c/ restricao', reprovada: 'Reprovada' }
 
 export interface DadosPdfRdo {
   rdo: Rdo
@@ -18,6 +20,7 @@ export interface DadosPdfRdo {
   fotos: RdoFoto[]
   audios: RdoAudio[]
   avancosDia: AvancoDoDia[]
+  fvsDia?: FvsDoDiaPdf[]
   unidades: Unidade[]
 }
 
@@ -146,6 +149,14 @@ export async function gerarPdfRdo(d: DadosPdfRdo): Promise<void> {
   }
   for (const a of d.atividades) {
     texto(`• ${nomeUnidade(a.unidade_id)} — ${a.descricao}`, { indent: 2 })
+  }
+
+  // ---------- FVS do dia ----------
+  if (d.fvsDia && d.fvsDia.length > 0) {
+    titulo('Qualidade — FVS concluídas no dia')
+    for (const f of d.fvsDia) {
+      texto(`• ${f.codigo} ${f.nome} — ${f.unidadeNome}: ${RESULTADO_FVS[f.resultado] ?? f.resultado}`, { indent: 2 })
+    }
   }
 
   // ---------- acidentes ----------

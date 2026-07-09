@@ -46,8 +46,15 @@ Preview com usuário temporário `equipe` + módulos rdo/avanco (removido ao fin
 5. Gerar o PDF → conferir identidade visual, fotos carimbadas e assinatura → enviar no WhatsApp.
 6. Pedir a alguém sem o módulo RDO para tentar editar (deve só visualizar); entrar como cliente (idem).
 
+## Adições pós-entrega (09/07/2026)
+
+- **Banner de RDOs não assinados** (`src/pages/RDO.tsx`): ao abrir a lista, exibe aviso amarelo com os dias pendentes ("1 RDO sem assinar (08/07) — toque no dia para completar e assinar"). Visível só para quem pode editar RDO.
+- **Galeria integrada (Fase 7 antecipada):** fotos anexadas ao RDO aparecem automaticamente em `/galeria`, organizadas por data do RDO. Ver `docs/fase7_extras.md`.
+- **Dashboard — RDO como grupo:** o card RDO é agora expansível e agrupa Relatório Diário, Galeria de Fotos e Efetivo como sub-itens. Galeria tem `sempre: true` (visível inclusive para cliente).
+
 ## Pendências transferidas
 
 - Efetivo automático (Fase 7) e ferramentas do almoxarifado (Fase 6) alimentando o RDO.
+- "Congelar" os avanços no momento da assinatura em vez de consulta dinâmica por data [sugestão feita, sem resposta — Rodrigo vai testar o comportamento atual].
 - E-mail automático do PDF ao cliente [sugestão].
 - Aceites formais das Fases 2 e 4.

@@ -33,22 +33,29 @@ Obra **Tharsos Imperial** com 16 unidades. IDs das unidades estão em `scripts/i
   - `convidar-usuario` — admin convida por e-mail com papel + módulos; convidado define a própria senha.
   - `gerenciar-usuario` — ações `desativar`, `reativar`, `excluir_pendente` (só convites nunca acessados).
 - Tela `/usuarios` (só admin): convidar, editar módulos da equipe, desativar/reativar/excluir convite.
+- **Botão "🔑 Nova senha" (adicionado 09/07/2026):** admin envia link de redefinição direto da tela Usuários, sem depender do usuário clicar "Esqueci minha senha". Chama `supabase.auth.resetPasswordForEmail` (mesmo fluxo do login). Aparece apenas para usuários ativos não-admin.
 - Papéis: admin (tudo), equipe (módulos configuráveis por checkbox), cliente (somente leitura; **vê valores** — confirmado pelo Rodrigo).
+- **Armadilha:** usuário criado via SQL direto falha o 1º login (GoTrue não reconhece a senha). Solução: `UPDATE auth.users SET updated_at = now(), encrypted_password = crypt('senha', gen_salt('bf')) WHERE email = ...`
 
 ## Estrutura do frontend
 
 ```
 src/
-  lib/supabase.ts        — client + tipos (PerfilUsuario, Obra, Unidade, Etapa, Servico)
-  lib/auth.ts            — login/logout
-  contexts/AuthContext   — sessão + perfil + temModulo()
+  lib/supabase.ts        — client + tipos (PerfilUsuario, Obra, Unidade, Etapa, Servico, Rdo*, ...)
+  lib/auth.ts            — login/logout/resetSenha
+  contexts/AuthContext   — sessão + perfil + temModulo(key) [retorna true para admin independente do key]
   contexts/ObraContext   — obras ativas + obra ativa (localStorage), seletor no topo
-  components/Layout      — sidebar responsiva, menu filtrado por permissão
-  pages/                 — Login, NovaSenha, Dashboard, Usuarios, Orcamento, EmConstrucao
+  components/Layout      — sidebar responsiva, seções agrupadas (RDO, Qualidade), menu filtrado por permissão
+  pages/                 — Login, NovaSenha, Dashboard, Usuarios, Orcamento, EmConstrucao + fases 2/4/7
 ```
 
-- Menu: módulos das fases 2–7 apontam para `EmConstrucao` (placeholder com nome e fase).
-- Enum `modulo_app` já inclui os módulos da Fase 7: `medicoes`, `contratos`, `fvs`, `galeria`, `efetivo`, `alertas` (migração `20260707_fase7_modulos_extras_enum.sql`).
+**Dashboard (reestruturado em 09/07/2026):**
+- Cards com `multiKey` (ativo se usuário tem qualquer chave do array) e sub-itens com `moduloKey` individual.
+- **RDO** (expansível): Relatório Diário · Galeria de Fotos (sempre visível) · Efetivo.
+- **Qualidade** (expansível): FVS / Checklists · Pendências.
+- Sidebar: cabeçalhos de seção não-clicáveis ("RDO", "Qualidade") com itens indentados logo abaixo.
+
+Enum `modulo_app` (Fase 7 extras pré-criado): `medicoes`, `contratos`, `fvs`, `galeria`, `efetivo`, `alertas` — migração `20260707_fase7_modulos_extras_enum.sql`.
 
 ## Observações operacionais
 

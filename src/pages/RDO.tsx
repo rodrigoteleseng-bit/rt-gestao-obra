@@ -59,6 +59,19 @@ export default function RDO() {
       </div>
 
       {erro && <p className={styles.msgErro}>{erro}</p>}
+      {(() => {
+        if (carregando || !podeEditar) return null
+        const pendentes = rdos.filter(r => r.status === 'rascunho')
+        if (pendentes.length === 0) return null
+        const datas = pendentes.map(r => `${r.data.slice(8, 10)}/${r.data.slice(5, 7)}`).join(', ')
+        return (
+          <p className={styles.avisoPendentes}>
+            ⚠ {pendentes.length === 1
+              ? `1 RDO sem assinar (${datas})`
+              : `${pendentes.length} RDOs sem assinar (${datas})`} — toque no dia para completar e assinar.
+          </p>
+        )
+      })()}
       {carregando && <p className={styles.carregando}>Carregando…</p>}
       {!carregando && rdos.length === 0 && <p className={styles.vazio}>Nenhum RDO registrado ainda.</p>}
 

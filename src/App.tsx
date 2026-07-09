@@ -12,6 +12,8 @@ import Avanco from './pages/Avanco'
 import RDO from './pages/RDO'
 import RDOForm from './pages/RDOForm'
 import Galeria from './pages/Galeria'
+import Pendencias from './pages/Pendencias'
+import PendenciaForm from './pages/PendenciaForm'
 import EmConstrucao from './pages/EmConstrucao'
 
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -40,7 +42,8 @@ function AppRoutes() {
         <Route path="financeiro" element={<EmConstrucao modulo="Financeiro" fase={3} />} />
         <Route path="compras" element={<EmConstrucao modulo="Compras" fase={6} />} />
         <Route path="almoxarifado" element={<EmConstrucao modulo="Almoxarifado" fase={6} />} />
-        <Route path="pendencias" element={<EmConstrucao modulo="Pendências" fase={5} />} />
+        <Route path="pendencias" element={<Pendencias />} />
+        <Route path="pendencias/:id" element={<PendenciaForm />} />
         <Route path="medicoes" element={<EmConstrucao modulo="Medições de Empreiteiros" fase={7} />} />
         <Route path="contratos" element={<EmConstrucao modulo="Controle de Contratos" fase={7} />} />
         <Route path="fvs" element={<EmConstrucao modulo="Qualidade (FVS)" fase={7} />} />

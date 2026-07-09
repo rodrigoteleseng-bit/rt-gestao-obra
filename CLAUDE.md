@@ -13,9 +13,10 @@
 - **Fase 1 (Orçamento): concluída e aceita** — detalhes em `docs/fase1.md`. Pendência transferida: exportação Excel/PDF.
 - **Fase 2 (Cronograma + Avanço físico): concluída e aceita** (09/07/2026) — detalhes em `docs/fase2.md`. Inclui medição por quantidade (m, m², m³, unid.), carga automática de quantidades do orçamento (897 tarefas preenchidas).
 - **Fase 4 (RDO): concluída e aceita** (09/07/2026, teste de campo positivo) — detalhes em `docs/fase4.md`. Inclui carimbo GPS nas fotos, áudio, ditado, assinatura digital, PDF com identidade RT, banner de RDOs não assinados, integração automática com Galeria.
+- **Fase 5 (Pendências): entregue em 09/07/2026, aguardando teste de campo e aceite** — detalhes em `docs/fase5.md`. Fluxo aberta → em correção → resolvida, fotos com carimbo GPS, histórico imutável, reabertura só admin, cliente não vê.
 - **Fase 7 (Extras) — parcial:** Galeria de Fotos implementada (09/07/2026) — detalhes em `docs/fase7_extras.md`. Demais extras pendentes.
 - **Dashboard reestruturado (09/07/2026):** RDO agrupa Galeria + Efetivo; card "Qualidade" agrupa FVS + Pendências. Sidebar com seções visuais.
-- **Próxima fase: 3 (Financeiro).**
+- **Próximas etapas (ordem decidida pelo Rodrigo em 09/07/2026):** FVS (completa o grupo Qualidade; decisões já colhidas — ver fim de `docs/fase5.md`), depois demais módulos; **Fase 3 (Financeiro) fica por último** (não é predecessora de nada).
 - Ao iniciar qualquer fase, ler `docs/faseN.md` das fases anteriores relevantes em vez de redescobrir o código.
 
 ## 1. Contexto do negócio

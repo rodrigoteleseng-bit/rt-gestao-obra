@@ -172,6 +172,46 @@ export interface RdoAudio {
   ativo: boolean
 }
 
+export type StatusPendencia = 'aberta' | 'em_correcao' | 'resolvida'
+
+export interface Pendencia {
+  id: string
+  obra_id: string
+  unidade_id: string
+  tarefa_id: string | null
+  descricao: string
+  responsavel: string | null
+  prazo: string | null
+  status: StatusPendencia
+  resolvida_em: string | null
+  resolvida_por: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface PendenciaEvento {
+  id: string
+  pendencia_id: string
+  status: StatusPendencia
+  comentario: string | null
+  criado_em: string
+  criado_por: string
+}
+
+export interface PendenciaFoto {
+  id: string
+  pendencia_id: string
+  path: string
+  legenda: string | null
+  lat: number | null
+  lng: number | null
+  precisao_m: number | null
+  capturada_em: string
+  hash_sha256: string
+  ativo: boolean
+}
+
 export interface Servico {
   id: string
   etapa_id: string

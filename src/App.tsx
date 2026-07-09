@@ -11,6 +11,7 @@ import Cronograma from './pages/Cronograma'
 import Avanco from './pages/Avanco'
 import RDO from './pages/RDO'
 import RDOForm from './pages/RDOForm'
+import Galeria from './pages/Galeria'
 import EmConstrucao from './pages/EmConstrucao'
 
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -43,7 +44,7 @@ function AppRoutes() {
         <Route path="medicoes" element={<EmConstrucao modulo="Medições de Empreiteiros" fase={7} />} />
         <Route path="contratos" element={<EmConstrucao modulo="Controle de Contratos" fase={7} />} />
         <Route path="fvs" element={<EmConstrucao modulo="Qualidade (FVS)" fase={7} />} />
-        <Route path="galeria" element={<EmConstrucao modulo="Galeria de Fotos" fase={7} />} />
+        <Route path="galeria" element={<Galeria />} />
         <Route path="efetivo" element={<EmConstrucao modulo="Gestão de Efetivo" fase={7} />} />
         <Route path="alertas" element={<EmConstrucao modulo="Alertas" fase={7} />} />
       </Route>

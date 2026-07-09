@@ -11,12 +11,11 @@
 
 - **Fase 0 (Fundação): concluída e aceita** — detalhes em `docs/fase0.md`. Adição posterior (09/07/2026): botão "Nova senha" em /usuarios (admin envia link de redefinição sem depender do usuário clicar "Esqueci minha senha").
 - **Fase 1 (Orçamento): concluída e aceita** — detalhes em `docs/fase1.md`. Pendência transferida: exportação Excel/PDF.
-- **Fase 2 (Cronograma + Avanço físico): entregue em 07–08/07/2026, aguardando aceite formal** — detalhes em `docs/fase2.md`. Inclui medição por quantidade (m, m², m³, unid.), carga automática de quantidades do orçamento (897 tarefas preenchidas) e zeragem dos dados de teste.
-- **Fase 3 (Financeiro): pulada por decisão do Rodrigo** — será retomada após os aceites das Fases 2 e 4.
-- **Fase 4 (RDO): entregue em 08/07/2026, aguardando aceite formal** — detalhes em `docs/fase4.md`. Inclui carimbo GPS nas fotos, áudio, ditado, assinatura digital, PDF com identidade RT, banner de RDOs não assinados, integração automática com Galeria.
-- **Fase 7 (Extras) — parcial:** Galeria de Fotos implementada e publicada (09/07/2026) — detalhes em `docs/fase7_extras.md`. Demais extras (Medições, Contratos, FVS, Efetivo, Alertas) pendentes.
-- **Dashboard reestruturado (09/07/2026):** RDO agrupa Galeria + Efetivo como sub-itens; novo card "Qualidade" agrupa FVS + Pendências. Sidebar com cabeçalhos de seção (RDO e Qualidade) e itens indentados.
-- **Próxima fase natural: 3 (Financeiro)** — após aceites formais das Fases 2 e 4 pelo Rodrigo.
+- **Fase 2 (Cronograma + Avanço físico): concluída e aceita** (09/07/2026) — detalhes em `docs/fase2.md`. Inclui medição por quantidade (m, m², m³, unid.), carga automática de quantidades do orçamento (897 tarefas preenchidas).
+- **Fase 4 (RDO): concluída e aceita** (09/07/2026, teste de campo positivo) — detalhes em `docs/fase4.md`. Inclui carimbo GPS nas fotos, áudio, ditado, assinatura digital, PDF com identidade RT, banner de RDOs não assinados, integração automática com Galeria.
+- **Fase 7 (Extras) — parcial:** Galeria de Fotos implementada (09/07/2026) — detalhes em `docs/fase7_extras.md`. Demais extras pendentes.
+- **Dashboard reestruturado (09/07/2026):** RDO agrupa Galeria + Efetivo; card "Qualidade" agrupa FVS + Pendências. Sidebar com seções visuais.
+- **Próxima fase: 3 (Financeiro).**
 - Ao iniciar qualquer fase, ler `docs/faseN.md` das fases anteriores relevantes em vez de redescobrir o código.
 
 ## 1. Contexto do negócio

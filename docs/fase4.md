@@ -1,7 +1,7 @@
 # Fase 4 — RDO · Registro de entrega
 
-> Status: **entregue em 08/07/2026 — aguardando teste guiado e aceite do Rodrigo.**
-> Fase 3 (Financeiro) foi pulada por decisão do Rodrigo — os módulos são independentes.
+> Status: **concluída e aceita** (aceite do Rodrigo em 09/07/2026 — teste de campo positivo: fotos com carimbo GPS, áudio, assinatura e PDF funcionando no celular).
+> Fase 3 (Financeiro) foi pulada por decisão do Rodrigo — será retomada agora.
 
 ## Decisões aprovadas (08/07/2026)
 

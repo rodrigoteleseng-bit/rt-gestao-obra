@@ -1,6 +1,6 @@
 # Fase 2 — Cronograma + Avanço Físico · Registro de entrega
 
-> Status: **entregue em 07/07/2026 — aguardando teste guiado e aceite do Rodrigo.**
+> Status: **concluída e aceita** (aceite do Rodrigo em 09/07/2026 — teste de campo positivo).
 > Referência técnica: o que existe, onde está e como funciona.
 
 ## Dados importados

@@ -154,3 +154,40 @@
 .msgOk { color: #1e6b2e; font-weight: 600; font-size: 13px; padding: 6px 0; }
 .msgErro { color: #a33030; font-weight: 600; font-size: 13px; padding: 6px 0; }
 .vazio { color: var(--cinza-600); font-size: 14px; padding: 12px 0; }
+
+.tabelaComparativa {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.tabelaComparativa th, .tabelaComparativa td {
+  border: 1px solid var(--cinza-200);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.tabelaComparativa th { background: var(--cinza-100); font-size: 11px; text-transform: uppercase; color: var(--cinza-600); }
+
+.precoVencedor { font-weight: 700; color: #1e6b2e; }
+
+.btnVencedor {
+  background: none;
+  border: 1.5px solid var(--navy);
+  color: var(--navy);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btnVencedor.ativo { background: #1e6b2e; border-color: #1e6b2e; color: var(--branco); }
+
+.fornecedorForm { border-top: 1.5px solid var(--cinza-200); margin-top: 12px; padding-top: 12px; }
+
+.linha2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.linha2 .campo { margin-bottom: 0; }
+
+.metaLista { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--cinza-600); margin-bottom: 10px; }

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useObra } from '../contexts/ObraContext'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase, type Servico } from '../lib/supabase'
+import { supabase, type Servico, type PedidoCompra, type PedidoCompraItem, type Cotacao, type CotacaoItem, type Fornecedor } from '../lib/supabase'
+import { STATUS_LABEL } from './Compras'
 import styles from './CompraForm.module.css'
 
 interface ItemNovo {
@@ -43,6 +44,38 @@ export default function CompraForm() {
   const [itens, setItens] = useState<ItemNovo[]>([itemVazio()])
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  const [pedido, setPedido] = useState<PedidoCompra | null>(null)
+  const [itensPedido, setItensPedido] = useState<PedidoCompraItem[]>([])
+  const [cotacoes, setCotacoes] = useState<Cotacao[]>([])
+  const [cotacoesItens, setCotacoesItens] = useState<CotacaoItem[]>([])
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
+  const [carregandoPedido, setCarregandoPedido] = useState(!novo)
+
+  useEffect(() => {
+    if (!novo && id) carregarPedido(id)
+  }, [id, novo])
+
+  async function carregarPedido(pedidoId: string) {
+    setCarregandoPedido(true)
+    const [{ data: p }, { data: its }, { data: cots }, { data: forns }] = await Promise.all([
+      supabase.from('pedidos_compra').select('*').eq('id', pedidoId).single(),
+      supabase.from('pedidos_compra_itens').select('*').eq('pedido_id', pedidoId).eq('ativo', true).order('criado_em'),
+      supabase.from('cotacoes').select('*').eq('pedido_id', pedidoId).order('criado_em'),
+      supabase.from('fornecedores').select('*').eq('ativo', true).order('nome'),
+    ])
+    setPedido(p ?? null)
+    setItensPedido(its ?? [])
+    setCotacoes(cots ?? [])
+    setFornecedores(forns ?? [])
+    if (cots && cots.length > 0) {
+      const { data: coti } = await supabase.from('cotacoes_itens').select('*').in('cotacao_id', cots.map(c => c.id))
+      setCotacoesItens(coti ?? [])
+    } else {
+      setCotacoesItens([])
+    }
+    setCarregandoPedido(false)
+  }
 
   useEffect(() => {
     supabase.from('servicos').select('*').eq('ativo', true).order('codigo')
@@ -111,8 +144,14 @@ export default function CompraForm() {
   }
 
   if (!novo) {
-    // Detalhe/edição de pedido existente — implementado nas Tasks 6–8.
-    return <div className={styles.page}><p className={styles.vazio}>Carregando pedido…</p></div>
+    if (carregandoPedido) return <div className={styles.page}><p className={styles.vazio}>Carregando…</p></div>
+    if (!pedido) return <div className={styles.page}><p className={styles.vazio}>Pedido não encontrado.</p></div>
+    return (
+      <DetalhePedido
+        pedido={pedido} itens={itensPedido} cotacoes={cotacoes} cotacoesItens={cotacoesItens}
+        fornecedores={fornecedores} onRecarregar={() => carregarPedido(pedido.id)}
+      />
+    )
   }
 
   return (
@@ -197,6 +236,204 @@ export default function CompraForm() {
       <button className={styles.btnPrincipal} onClick={criar} disabled={salvando}>
         {salvando ? 'Criando…' : 'Criar pedido'}
       </button>
+    </div>
+  )
+}
+
+interface DetalhePedidoProps {
+  pedido: PedidoCompra
+  itens: PedidoCompraItem[]
+  cotacoes: Cotacao[]
+  cotacoesItens: CotacaoItem[]
+  fornecedores: Fornecedor[]
+  onRecarregar: () => void
+}
+
+function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, onRecarregar }: DetalhePedidoProps) {
+  const navigate = useNavigate()
+  const { perfil, temModulo } = useAuth()
+  const podeEditar = perfil?.papel === 'admin' || temModulo('compras')
+  const ehAdmin = perfil?.papel === 'admin'
+
+  const [fornecedorSel, setFornecedorSel] = useState('')
+  const [condicaoPagamento, setCondicaoPagamento] = useState('')
+  const [prazoEntrega, setPrazoEntrega] = useState('')
+  const [precos, setPrecos] = useState<Record<string, string>>({})
+  const [arquivo, setArquivo] = useState<File | null>(null)
+  const [salvandoCotacao, setSalvandoCotacao] = useState(false)
+  const [msgCotacao, setMsgCotacao] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  function precoDe(cotacaoId: string, itemId: string): number | null {
+    const ci = cotacoesItens.find(c => c.cotacao_id === cotacaoId && c.pedido_item_id === itemId)
+    return ci ? ci.preco_unitario : null
+  }
+
+  function idDoItemCotacao(cotacaoId: string, itemId: string): string | null {
+    return cotacoesItens.find(c => c.cotacao_id === cotacaoId && c.pedido_item_id === itemId)?.id ?? null
+  }
+
+  async function registrarCotacao() {
+    if (!fornecedorSel || !arquivo) {
+      setMsgCotacao({ tipo: 'erro', texto: 'Escolha o fornecedor e anexe o orçamento dele.' })
+      return
+    }
+    const itensComPreco = itens.filter(it => Number(precos[it.id]) > 0)
+    if (itensComPreco.length === 0) {
+      setMsgCotacao({ tipo: 'erro', texto: 'Informe o preço de ao menos um item.' })
+      return
+    }
+    setSalvandoCotacao(true)
+    setMsgCotacao(null)
+    const path = `${pedido.id}/${crypto.randomUUID()}-${arquivo.name}`
+    const { error: eUp } = await supabase.storage.from('cotacoes-nf').upload(path, arquivo)
+    if (eUp) {
+      setSalvandoCotacao(false)
+      setMsgCotacao({ tipo: 'erro', texto: `Falha no envio do anexo: ${eUp.message}` })
+      return
+    }
+    const { data: cot, error } = await supabase.from('cotacoes').insert({
+      pedido_id: pedido.id,
+      fornecedor_id: fornecedorSel,
+      condicao_pagamento: condicaoPagamento.trim() || null,
+      prazo_entrega_dias: prazoEntrega ? Number(prazoEntrega) : null,
+      anexo_url: path,
+    }).select().single()
+    if (error || !cot) {
+      setSalvandoCotacao(false)
+      setMsgCotacao({ tipo: 'erro', texto: `Erro ao registrar cotação: ${error?.message}` })
+      return
+    }
+    await supabase.from('cotacoes_itens').insert(
+      itensComPreco.map(it => ({ cotacao_id: cot.id, pedido_item_id: it.id, preco_unitario: Number(precos[it.id]) }))
+    )
+    if (pedido.status === 'rascunho') {
+      await supabase.from('pedidos_compra').update({ status: 'em_cotacao' }).eq('id', pedido.id)
+    }
+    setSalvandoCotacao(false)
+    setFornecedorSel(''); setCondicaoPagamento(''); setPrazoEntrega(''); setPrecos({}); setArquivo(null)
+    setMsgCotacao({ tipo: 'ok', texto: 'Cotação registrada.' })
+    onRecarregar()
+  }
+
+  async function marcarVencedor(itemId: string, cotacaoItemId: string | null) {
+    const { error } = await supabase.from('pedidos_compra_itens')
+      .update({ cotacao_item_vencedora_id: cotacaoItemId }).eq('id', itemId)
+    if (!error) onRecarregar()
+  }
+
+  async function aprovarPedido() {
+    const todosComVencedor = itens.every(it => it.cotacao_item_vencedora_id !== null)
+    if (!todosComVencedor) {
+      alert('Defina o vencedor de todos os itens antes de aprovar.')
+      return
+    }
+    await supabase.from('pedidos_compra').update({
+      status: 'aprovado', aprovado_por: perfil?.id, aprovado_em: new Date().toISOString(),
+    }).eq('id', pedido.id)
+    onRecarregar()
+  }
+
+  const nomeFornecedor = (id: string) => fornecedores.find(f => f.id === id)?.nome ?? '?'
+
+  return (
+    <div className={styles.page}>
+      <button className={styles.voltar} onClick={() => navigate('/compras')}>← Compras</button>
+      <div className={styles.header}>
+        <h1>Pedido {String(pedido.numero).padStart(3, '0')}</h1>
+        <span className={`${styles.chip}`}>{STATUS_LABEL[pedido.status]}</span>
+      </div>
+      {pedido.descricao && <p className={styles.metaLista}>{pedido.descricao}</p>}
+
+      <div className={styles.bloco}>
+        <h2>Itens do pedido</h2>
+        <table className={styles.tabelaComparativa}>
+          <thead>
+            <tr>
+              <th>Item</th><th>Qtd.</th><th>Necessário até</th>
+              {cotacoes.map(c => <th key={c.id}>{nomeFornecedor(c.fornecedor_id)}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {itens.map(it => (
+              <tr key={it.id}>
+                <td>{it.urgente && '⚡ '}{it.descricao_item}</td>
+                <td>{it.quantidade_pedida} {it.und}</td>
+                <td>{it.data_necessaria ?? '—'}</td>
+                {cotacoes.map(c => {
+                  const preco = precoDe(c.id, it.id)
+                  const cotItemId = idDoItemCotacao(c.id, it.id)
+                  const vencedor = it.cotacao_item_vencedora_id !== null && cotItemId === it.cotacao_item_vencedora_id
+                  return (
+                    <td key={c.id}>
+                      {preco !== null ? (
+                        <>
+                          <span className={vencedor ? styles.precoVencedor : ''}>R$ {preco.toFixed(2)}</span>
+                          {ehAdmin && pedido.status !== 'aprovado' && (
+                            <div>
+                              <button
+                                className={`${styles.btnVencedor} ${vencedor ? styles.ativo : ''}`}
+                                onClick={() => marcarVencedor(it.id, vencedor ? null : cotItemId)}
+                              >
+                                {vencedor ? '✓ vencedor' : 'marcar vencedor'}
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      ) : '—'}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {podeEditar && pedido.status !== 'aprovado' && !['encerrado', 'cancelado'].includes(pedido.status) && (
+        <div className={styles.bloco}>
+          <h2>Registrar cotação de fornecedor</h2>
+          <div className={styles.linha2}>
+            <label className={styles.campo}>
+              Fornecedor *
+              <select value={fornecedorSel} onChange={e => setFornecedorSel(e.target.value)}>
+                <option value="">Selecione…</option>
+                {fornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+            </label>
+            <label className={styles.campo}>
+              Condição de pagamento
+              <input value={condicaoPagamento} onChange={e => setCondicaoPagamento(e.target.value)} placeholder="Ex.: 30 dias" />
+            </label>
+            <label className={styles.campo}>
+              Prazo de entrega (dias)
+              <input type="number" min="0" value={prazoEntrega} onChange={e => setPrazoEntrega(e.target.value)} />
+            </label>
+          </div>
+          <div className={styles.fornecedorForm}>
+            {itens.map(it => (
+              <label key={it.id} className={styles.campo}>
+                Preço unitário — {it.descricao_item} ({it.und})
+                <input type="number" min="0" step="0.01" value={precos[it.id] ?? ''}
+                  onChange={e => setPrecos(prev => ({ ...prev, [it.id]: e.target.value }))} />
+              </label>
+            ))}
+            <label className={styles.campo}>
+              Anexo do orçamento do fornecedor (PDF/foto) *
+              <input type="file" accept="application/pdf,image/*" onChange={e => setArquivo(e.target.files?.[0] ?? null)} />
+            </label>
+          </div>
+          {msgCotacao && <p className={msgCotacao.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgCotacao.texto}</p>}
+          <button className={styles.btnPrincipal} onClick={registrarCotacao} disabled={salvandoCotacao}>
+            {salvandoCotacao ? 'Salvando…' : 'Registrar cotação'}
+          </button>
+        </div>
+      )}
+
+      {ehAdmin && pedido.status === 'em_cotacao' && (
+        <div className={styles.bloco}>
+          <button className={styles.btnPrincipal} onClick={aprovarPedido}>Aprovar pedido</button>
+        </div>
+      )}
     </div>
   )
 }

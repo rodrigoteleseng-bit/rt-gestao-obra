@@ -82,6 +82,13 @@ Preview com usuário temporário `equipe` + módulos fvs/pendencias/rdo (removid
 - Aviso suave no bloco de conclusão: "N item(ns) NC ainda sem foto — recomendado anexar" (não bloqueia; câmera pode falhar em campo).
 - As fotos entram automaticamente na seção "Registro fotográfico" do PDF da FVS.
 
+### Conferência por partes / estado "Aguardando" (10/07/2026, migração `20260710_fvs_aguardando.sql`)
+- Enum `resposta_fvs` ganhou o valor `aguardando`. 4ª opção por item: **C / NC / NA / AG**. AG = item ainda não pronto para conferir (ex.: FVS-003 — confere armação num dia, forma noutro, concretagem noutro).
+- Respostas salvam automaticamente a cada clique; a rodada fica `em_andamento` e pode ser retomada em outro dia. Progresso mostra "X/Y conferidos · Z aguardando".
+- Enquanto `faltaConferir > 0` (itens AG ou sem resposta), a tela mostra o bloco **"Conferência em andamento"** com "💾 Salvar e continuar depois" e **não** exibe os botões de resultado. Quando todos os itens têm C/NC/NA, aparece **"Fechar e assinar"** → assinatura → conclusão.
+- Corrige a confusão relatada de "a assinatura não aparece": ela só surge quando a conferência está completa; antes ficava implícito. Agora o estado parcial é explícito.
+- Verificado no preview com FVS-003 (28 itens): marca Armação (8) como C e resto como AG → 8/28 conferidos, sem botões de fechar; recarrega → estado preservado; converte AG→C → 28/28 → botões aparecem → Aprovar abre o painel de assinatura com nome e canvas.
+
 ### Assinatura na conclusão (10/07/2026, migração `20260710_fvs_assinatura.sql`)
 - Quem conclui uma rodada de verificação **assina digitalmente** (canvas, mesmo componente do RDO), com nome + GPS + data/hora. Fluxo em 2 passos: escolhe o resultado (Aprovar/Restrição/Reprovar) → abre o painel de assinatura → "Assinar e concluir".
 - Colunas `assinatura_imagem/assinado_por_nome/assinatura_lat/lng/precisao_m` em `fvs_verificacoes`. A RPC `concluir_verificacao_fvs` ganhou parâmetros `p_assinatura/p_assinante/p_lat/p_lng/p_precisao` e **exige assinatura** (RAISE EXCEPTION se ausente) — a conclusão só acontece assinada, tornando a rodada imutável.

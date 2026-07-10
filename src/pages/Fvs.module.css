@@ -116,8 +116,15 @@
   padding: 8px 0 12px;
 }
 .progressoNC { color: #a33030; }
+.progressoAG { color: #1c4f8a; }
 
-/* legenda C/NC/NA */
+.dicaParcial {
+  font-size: 12.5px; color: #1c4f8a; line-height: 1.5;
+  background: #e4eefa; border-radius: var(--radius-sm);
+  padding: 10px 12px; margin-bottom: 12px;
+}
+
+/* legenda C/NC/NA/AG */
 .legendaResp {
   display: flex; gap: 16px; flex-wrap: wrap;
   font-size: 12px; color: var(--cinza-600);
@@ -127,6 +134,7 @@
 .legC { color: #1e6b2e; }
 .legNC { color: #a33030; }
 .legNA { color: var(--cinza-600); }
+.legAG { color: #1c4f8a; }
 
 /* foto do item NC */
 .itemFotos { flex-basis: 100%; margin-top: 6px; }
@@ -173,6 +181,7 @@
 .rBtn_c_ativo { background: #1e6b2e; border-color: #1e6b2e; color: #fff; }
 .rBtn_nc_ativo { background: #a33030; border-color: #a33030; color: #fff; }
 .rBtn_na_ativo { background: var(--cinza-600); border-color: var(--cinza-600); color: #fff; }
+.rBtn_aguardando_ativo { background: #1c4f8a; border-color: #1c4f8a; color: #fff; }
 
 /* ações */
 .comentario {

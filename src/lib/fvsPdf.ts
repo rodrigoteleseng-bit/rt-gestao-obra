@@ -18,8 +18,8 @@ const STATUS_LABEL: Record<StatusFvs, string> = {
   aprovada_restricao: 'Aprovada com restrição',
   reprovada: 'Reprovada',
 }
-const RESP_LABEL: Record<RespostaFvs, string> = { c: 'C', nc: 'NC', na: 'NA' }
-const RESP_COR: Record<RespostaFvs, string> = { c: '#1e6b2e', nc: '#a33030', na: '#6c757d' }
+const RESP_LABEL: Record<RespostaFvs, string> = { c: 'C', nc: 'NC', na: 'NA', aguardando: 'AG' }
+const RESP_COR: Record<RespostaFvs, string> = { c: '#1e6b2e', nc: '#a33030', na: '#6c757d', aguardando: '#1c4f8a' }
 
 const fmtData = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
 

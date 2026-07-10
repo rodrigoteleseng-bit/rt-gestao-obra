@@ -213,7 +213,7 @@ export interface PendenciaFoto {
 }
 
 export type StatusFvs = 'em_andamento' | 'aprovada' | 'aprovada_restricao' | 'reprovada'
-export type RespostaFvs = 'c' | 'nc' | 'na'
+export type RespostaFvs = 'c' | 'nc' | 'na' | 'aguardando'
 
 export interface FvsModelo {
   id: string

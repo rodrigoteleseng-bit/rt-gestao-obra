@@ -198,7 +198,11 @@ export default function FvsForm() {
   }
 
   const totalItens = itens.length
-  const respondidos = itens.filter(i => respostas.has(i.id)).length
+  // "conferidos" = com decisão final (C/NC/NA). 'aguardando' e sem-resposta ainda não contam.
+  const conferidos = itens.filter(i => { const r = respostas.get(i.id)?.resposta; return r === 'c' || r === 'nc' || r === 'na' }).length
+  const aguardando = itens.filter(i => respostas.get(i.id)?.resposta === 'aguardando').length
+  const semResposta = itens.filter(i => !respostas.has(i.id)).length
+  const faltaConferir = aguardando + semResposta
   const qtdNC = itens.filter(i => respostas.get(i.id)?.resposta === 'nc').length
   const itensComFoto = new Set(fotos.map(f => f.item_id))
   const ncSemFoto = itens.filter(i => respostas.get(i.id)?.resposta === 'nc' && !itensComFoto.has(i.id)).length
@@ -206,8 +210,8 @@ export default function FvsForm() {
   // passo 1: escolhe o resultado → abre o painel de assinatura
   function concluir(resultado: StatusFvs) {
     if (!fvs || !rodadaAberta) return
-    if (respondidos < totalItens) {
-      setMsg({ tipo: 'erro', texto: `Faltam ${totalItens - respondidos} item(ns) para responder.` })
+    if (faltaConferir > 0) {
+      setMsg({ tipo: 'erro', texto: `Ainda há ${faltaConferir} item(ns) aguardando conferência. Marque C, NC ou NA em todos antes de fechar.` })
       return
     }
     setMsg(null)
@@ -388,9 +392,17 @@ export default function FvsForm() {
 
       {editavel && (
         <div className={styles.progresso}>
-          Verificação nº {rodadaAberta!.numero} · {respondidos}/{totalItens} respondidos
+          Verificação nº {rodadaAberta!.numero} · {conferidos}/{totalItens} conferidos
           {qtdNC > 0 && <span className={styles.progressoNC}> · {qtdNC} não conforme</span>}
+          {faltaConferir > 0 && <span className={styles.progressoAG}> · {faltaConferir} aguardando conferência</span>}
         </div>
+      )}
+
+      {editavel && faltaConferir > 0 && (
+        <p className={styles.dicaParcial}>
+          💡 Pode conferir por partes: marque os serviços já prontos e deixe os demais como <strong>Aguardando</strong>.
+          Suas respostas são salvas automaticamente — feche o app e volte outro dia. A conferência só é fechada e assinada quando todos os itens tiverem C, NC ou NA.
+        </p>
       )}
 
       {/* legenda das respostas */}
@@ -398,6 +410,7 @@ export default function FvsForm() {
         <span><strong className={styles.legC}>C</strong> = Conforme</span>
         <span><strong className={styles.legNC}>NC</strong> = Não conforme</span>
         <span><strong className={styles.legNA}>NA</strong> = Não aplicável</span>
+        <span><strong className={styles.legAG}>AG</strong> = Aguardando conferência</span>
       </div>
 
       {/* itens agrupados por seção */}
@@ -413,12 +426,12 @@ export default function FvsForm() {
                   {item.criterio && <span className={styles.itemCriterio}> — {item.criterio}</span>}
                 </div>
                 <div className={styles.respostaBtns}>
-                  {(['c', 'nc', 'na'] as RespostaFvs[]).map(op => (
+                  {(['c', 'nc', 'na', 'aguardando'] as RespostaFvs[]).map(op => (
                     <button key={op}
                       className={`${styles.rBtn} ${r?.resposta === op ? styles[`rBtn_${op}_ativo`] : ''}`}
                       onClick={() => editavel && responder(item.id, op)}
                       disabled={!editavel}>
-                      {op === 'c' ? 'C' : op === 'nc' ? 'NC' : 'NA'}
+                      {op === 'c' ? 'C' : op === 'nc' ? 'NC' : op === 'na' ? 'NA' : 'AG'}
                     </button>
                   ))}
                 </div>
@@ -459,10 +472,23 @@ export default function FvsForm() {
 
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
 
-      {/* ações de conclusão */}
-      {editavel && !assinando && (
+      {/* salvar parcial — some quando tudo está conferido */}
+      {editavel && faltaConferir > 0 && (
         <div className={styles.blocoAcao}>
-          <h2>Concluir verificação nº {rodadaAberta!.numero}</h2>
+          <h2>Conferência em andamento</h2>
+          <p className={styles.subBloco}>
+            {conferidos} de {totalItens} itens conferidos · {faltaConferir} aguardando. As respostas já estão salvas.
+          </p>
+          <button className={styles.btnPrincipal} onClick={() => navigate('/fvs')} disabled={salvando}>
+            💾 Salvar e continuar depois
+          </button>
+        </div>
+      )}
+
+      {/* ações de conclusão — só quando tudo conferido */}
+      {editavel && !assinando && faltaConferir === 0 && (
+        <div className={styles.blocoAcao}>
+          <h2>Fechar e assinar — verificação nº {rodadaAberta!.numero}</h2>
           <textarea className={styles.comentario} value={obsFinal} onChange={e => setObsFinal(e.target.value)}
             placeholder="Observação geral da verificação (opcional)" rows={2} />
           <div className={styles.acoes}>

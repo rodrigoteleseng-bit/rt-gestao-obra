@@ -82,6 +82,13 @@ Preview com usuário temporário `equipe` + módulos fvs/pendencias/rdo (removid
 - Aviso suave no bloco de conclusão: "N item(ns) NC ainda sem foto — recomendado anexar" (não bloqueia; câmera pode falhar em campo).
 - As fotos entram automaticamente na seção "Registro fotográfico" do PDF da FVS.
 
+### Assinatura na conclusão (10/07/2026, migração `20260710_fvs_assinatura.sql`)
+- Quem conclui uma rodada de verificação **assina digitalmente** (canvas, mesmo componente do RDO), com nome + GPS + data/hora. Fluxo em 2 passos: escolhe o resultado (Aprovar/Restrição/Reprovar) → abre o painel de assinatura → "Assinar e concluir".
+- Colunas `assinatura_imagem/assinado_por_nome/assinatura_lat/lng/precisao_m` em `fvs_verificacoes`. A RPC `concluir_verificacao_fvs` ganhou parâmetros `p_assinatura/p_assinante/p_lat/p_lng/p_precisao` e **exige assinatura** (RAISE EXCEPTION se ausente) — a conclusão só acontece assinada, tornando a rodada imutável.
+- Assinatura exibida no histórico de rodadas (tela) e em cada rodada do PDF (imagem + nome + data/hora + GPS).
+- **Armadilha:** ao mudar o nº de parâmetros da RPC, `CREATE OR REPLACE` cria uma sobrecarga em vez de substituir → chamadas ficam ambíguas. Necessário `DROP FUNCTION concluir_verificacao_fvs(uuid, status_fvs, text)` antes (incluído na migração).
+- Verificado no preview: RPC rejeita conclusão sem assinatura; fluxo completo (responder → escolher resultado → desenhar assinatura → concluir) grava imagem PNG (~10 KB) + nome; PDF válido (481 KB com a assinatura embutida). GPS null no headless (capturado no celular real).
+
 ### PDF da FVS (09/07/2026)
 - `src/lib/fvsPdf.ts` — gera o documento A4 com identidade RT (mesma base do RDO): cabeçalho navy/terracota, identificação (obra/unidade/local/empreiteiro/tarefa), situação atual, objetivo, normas, critérios de aceitação, e **cada rodada de verificação** com respostas C/NC/NA por item (marcador colorido + observação do NC em vermelho), fotos ao final, rodapé com CREA. Marca d'água "EM ANDAMENTO" quando não concluída. Nome do arquivo: `FVS_<codigo>_<unidade>_<data>.pdf`.
 - Botão "📄 Gerar PDF" no cabeçalho da ficha (`FvsForm`), lazy import. Gerado sob demanda a partir dos dados imutáveis.

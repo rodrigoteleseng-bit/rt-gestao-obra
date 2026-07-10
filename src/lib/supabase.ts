@@ -259,6 +259,11 @@ export interface FvsVerificacao {
   observacao: string | null
   concluida_em: string | null
   concluida_por: string | null
+  assinatura_imagem: string | null
+  assinado_por_nome: string | null
+  assinatura_lat: number | null
+  assinatura_lng: number | null
+  assinatura_precisao_m: number | null
   criado_em: string
   criado_por: string
 }

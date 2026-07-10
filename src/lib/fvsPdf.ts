@@ -204,6 +204,29 @@ export async function gerarPdfFvs(d: DadosPdfFvs): Promise<void> {
         y += 1
       }
     }
+
+    // assinatura da rodada concluída
+    if (v.assinatura_imagem && v.assinado_por_nome) {
+      precisa(34)
+      y += 3
+      try { pdf.addImage(v.assinatura_imagem, 'PNG', ML + 2, y, 52, 17) } catch { /* ignora imagem inválida */ }
+      y += 19
+      pdf.setDrawColor('#222222')
+      pdf.setLineWidth(0.3)
+      pdf.line(ML + 2, y, ML + 62, y)
+      y += 4
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(8.5)
+      pdf.setTextColor('#222222')
+      pdf.text(v.assinado_por_nome, ML + 2, y)
+      y += 3.8
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(7.5)
+      pdf.setTextColor(CINZA)
+      const geoAssin = v.assinatura_lat != null ? ` · ${fmtCoord(v.assinatura_lat, v.assinatura_lng, v.assinatura_precisao_m)}` : ''
+      pdf.text(`Assinado digitalmente${v.concluida_em ? ` em ${new Date(v.concluida_em).toLocaleString('pt-BR')}` : ''}${geoAssin}`, ML + 2, y)
+      y += 4
+    }
   }
 
   // ---------- fotos ----------

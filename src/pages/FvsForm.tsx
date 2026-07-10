@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
@@ -45,6 +45,12 @@ export default function FvsForm() {
   const [autores, setAutores] = useState<Map<string, string>>(new Map())
   const [obsFinal, setObsFinal] = useState('')
 
+  // assinatura da conclusão
+  const [assinando, setAssinando] = useState<StatusFvs | null>(null) // resultado escolhido aguardando assinatura
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const desenhouRef = useRef(false)
+  const [nomeAssinante, setNomeAssinante] = useState('')
+
   const [carregando, setCarregando] = useState(!nova)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -64,6 +70,7 @@ export default function FvsForm() {
   }, [unidadeSel])
 
   useEffect(() => { if (!nova && id) carregar(id) }, [id, nova])
+  useEffect(() => { if (perfil?.nome) setNomeAssinante(perfil.nome) }, [perfil])
 
   async function carregar(fvsId: string) {
     setCarregando(true)
@@ -196,25 +203,77 @@ export default function FvsForm() {
   const itensComFoto = new Set(fotos.map(f => f.item_id))
   const ncSemFoto = itens.filter(i => respostas.get(i.id)?.resposta === 'nc' && !itensComFoto.has(i.id)).length
 
-  async function concluir(resultado: StatusFvs) {
+  // passo 1: escolhe o resultado → abre o painel de assinatura
+  function concluir(resultado: StatusFvs) {
     if (!fvs || !rodadaAberta) return
     if (respondidos < totalItens) {
       setMsg({ tipo: 'erro', texto: `Faltam ${totalItens - respondidos} item(ns) para responder.` })
       return
     }
+    setMsg(null)
+    setAssinando(resultado)
+    setTimeout(() => document.getElementById('fvs-assinatura')?.scrollIntoView({ behavior: 'smooth' }), 50)
+  }
+
+  // canvas de assinatura (ativo enquanto assinando !== null)
+  useEffect(() => {
+    if (!assinando) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+    ctx.strokeStyle = '#1B2A4A'
+    ctx.lineWidth = 2.2
+    ctx.lineCap = 'round'
+    let tracando = false
+    function pos(e: PointerEvent) {
+      const r = canvas!.getBoundingClientRect()
+      return { x: (e.clientX - r.left) * (canvas!.width / r.width), y: (e.clientY - r.top) * (canvas!.height / r.height) }
+    }
+    function down(e: PointerEvent) { tracando = true; desenhouRef.current = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault() }
+    function move(e: PointerEvent) { if (!tracando) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault() }
+    function up() { tracando = false }
+    canvas.addEventListener('pointerdown', down)
+    canvas.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    return () => {
+      canvas.removeEventListener('pointerdown', down)
+      canvas.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+  }, [assinando])
+
+  function limparAssinatura() {
+    const c = canvasRef.current
+    if (c) c.getContext('2d')!.clearRect(0, 0, c.width, c.height)
+    desenhouRef.current = false
+  }
+
+  // passo 2: valida assinatura e conclui via RPC
+  async function confirmarAssinatura() {
+    if (!fvs || !rodadaAberta || !assinando) return
+    if (!desenhouRef.current || !nomeAssinante.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Desenhe a assinatura e confirme o nome do responsável.' })
+      return
+    }
     setSalvando(true)
     setMsg(null)
+    const geo = await obterPosicao()
     const { data, error } = await supabase.rpc('concluir_verificacao_fvs', {
-      p_verificacao: rodadaAberta.id, p_resultado: resultado, p_observacao: obsFinal.trim() || null,
+      p_verificacao: rodadaAberta.id, p_resultado: assinando, p_observacao: obsFinal.trim() || null,
+      p_assinatura: canvasRef.current!.toDataURL('image/png'), p_assinante: nomeAssinante.trim(),
+      p_lat: geo.lat, p_lng: geo.lng, p_precisao: geo.precisao,
     })
     setSalvando(false)
     if (error) { setMsg({ tipo: 'erro', texto: error.message }); return }
     const nPend = data as number
+    const resultadoLabel = STATUS_FVS_LABEL[assinando]
     setObsFinal('')
+    setAssinando(null)
+    desenhouRef.current = false
     await carregar(fvs.id)
     setMsg({ tipo: 'ok', texto: nPend > 0
-      ? `Verificação concluída: ${STATUS_FVS_LABEL[resultado]}. ${nPend} pendência(s) aberta(s) automaticamente.`
-      : `Verificação concluída: ${STATUS_FVS_LABEL[resultado]}.` })
+      ? `Verificação assinada e concluída: ${resultadoLabel}. ${nPend} pendência(s) aberta(s) automaticamente.`
+      : `Verificação assinada e concluída: ${resultadoLabel}.` })
   }
 
   async function novaRodada() {
@@ -401,7 +460,7 @@ export default function FvsForm() {
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
 
       {/* ações de conclusão */}
-      {editavel && (
+      {editavel && !assinando && (
         <div className={styles.blocoAcao}>
           <h2>Concluir verificação nº {rodadaAberta!.numero}</h2>
           <textarea className={styles.comentario} value={obsFinal} onChange={e => setObsFinal(e.target.value)}
@@ -420,6 +479,29 @@ export default function FvsForm() {
           </div>
           {qtdNC > 0 && <p className={styles.avisoNC}>{qtdNC} item(ns) NC gerará(ão) pendência automática ao concluir.</p>}
           {ncSemFoto > 0 && <p className={styles.avisoFoto}>📷 {ncSemFoto} item(ns) não conforme ainda sem foto — recomendado anexar antes de concluir.</p>}
+          <p className={styles.avisoFoto}>✍ Ao concluir, você assina digitalmente o resultado.</p>
+        </div>
+      )}
+
+      {/* painel de assinatura */}
+      {editavel && assinando && (
+        <div id="fvs-assinatura" className={styles.blocoAcao}>
+          <h2>Assinar — {STATUS_FVS_LABEL[assinando]}</h2>
+          <p className={styles.subBloco}>
+            Assinatura do responsável pela verificação. Data/hora e localização (GPS) são registradas. A verificação fica imutável.
+          </p>
+          <label className={styles.campo}>
+            Nome do responsável
+            <input value={nomeAssinante} onChange={e => setNomeAssinante(e.target.value)} placeholder="Quem está verificando" />
+          </label>
+          <canvas ref={canvasRef} width={600} height={200} className={styles.canvasAssinatura} />
+          <div className={styles.acoes}>
+            <button className={styles.btnAdd} onClick={limparAssinatura} disabled={salvando}>Limpar</button>
+            <button className={styles.btnCancelarAssin} onClick={() => { setAssinando(null); limparAssinatura() }} disabled={salvando}>Cancelar</button>
+            <button className={styles.btnAssinar} onClick={confirmarAssinatura} disabled={salvando}>
+              {salvando ? 'Assinando…' : '✓ Assinar e concluir'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -445,6 +527,15 @@ export default function FvsForm() {
                   )}
                 </div>
                 {v.observacao && <div className={styles.eventoComentario}>{v.observacao}</div>}
+                {v.assinatura_imagem && (
+                  <div className={styles.assinaturaHist}>
+                    <img src={v.assinatura_imagem} alt="Assinatura" className={styles.assinaturaImg} />
+                    <span className={styles.assinaturaLegenda}>
+                      ✍ {v.assinado_por_nome}
+                      {v.assinatura_lat !== null && ` · ${fmtCoord(v.assinatura_lat, v.assinatura_lng, v.assinatura_precisao_m)}`}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           ))}

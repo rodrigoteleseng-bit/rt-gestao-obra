@@ -8,9 +8,10 @@ import styles from './CompraForm.module.css'
 
 interface ItemNovo {
   chave: string
-  servico_id: string | null
-  servicoLabel: string
   descricao_item: string
+  servico_id: string | null
+  servicoCodigo: string
+  buscaAplicacao: string
   quantidade_pedida: string
   und: string
   data_necessaria: string
@@ -21,9 +22,10 @@ interface ItemNovo {
 function itemVazio(): ItemNovo {
   return {
     chave: crypto.randomUUID(),
-    servico_id: null,
-    servicoLabel: '',
     descricao_item: '',
+    servico_id: null,
+    servicoCodigo: '',
+    buscaAplicacao: '',
     quantidade_pedida: '',
     und: '',
     data_necessaria: '',
@@ -96,13 +98,14 @@ export default function CompraForm() {
   }
 
   function escolherServico(chave: string, s: Servico) {
-    atualizarItem(chave, {
+    setItens(prev => prev.map(it => it.chave === chave ? {
+      ...it,
       servico_id: s.id,
-      servicoLabel: `${s.codigo ?? ''} ${s.nome}`.trim(),
-      descricao_item: s.nome,
-      und: s.und ?? '',
+      servicoCodigo: s.codigo || s.nome,
+      buscaAplicacao: `${s.codigo ?? ''} ${s.nome}`.trim(),
+      und: it.und.trim() || s.und || '',
       buscaAberta: false,
-    })
+    } : it))
   }
 
   function removerItem(chave: string) {
@@ -152,7 +155,8 @@ export default function CompraForm() {
     return (
       <DetalhePedido
         pedido={pedido} itens={itensPedido} cotacoes={cotacoes} cotacoesItens={cotacoesItens}
-        fornecedores={fornecedores} recebimentos={recebimentos} onRecarregar={() => carregarPedido(pedido.id)}
+        fornecedores={fornecedores} recebimentos={recebimentos} servicos={servicos}
+        obraNome={obraAtiva?.nome ?? '—'} onRecarregar={() => carregarPedido(pedido.id)}
       />
     )
   }
@@ -173,24 +177,32 @@ export default function CompraForm() {
       <div className={styles.bloco}>
         <h2>Itens</h2>
         {itens.map(it => {
-          const sugestoes = it.buscaAberta ? sugestoesPara(it.descricao_item) : []
+          const sugestoes = it.buscaAberta ? sugestoesPara(it.buscaAplicacao) : []
           return (
             <div key={it.chave} className={styles.itemLinha}>
               {itens.length > 1 && (
                 <button className={styles.btnRemoverItem} onClick={() => removerItem(it.chave)}>✕</button>
               )}
               <div className={styles.itemGrid}>
+                <label className={styles.campo}>
+                  Item *
+                  <input
+                    value={it.descricao_item}
+                    onChange={e => atualizarItem(it.chave, { descricao_item: e.target.value })}
+                    placeholder="Ex.: areia"
+                  />
+                </label>
                 <div className={styles.campo}>
-                  Insumo *
+                  Aplicação
                   <div className={styles.autocompleteWrap}>
                     <input
-                      value={it.descricao_item}
+                      value={it.buscaAplicacao}
                       onChange={e => atualizarItem(it.chave, {
-                        descricao_item: e.target.value, servico_id: null, buscaAberta: true,
+                        buscaAplicacao: e.target.value, servico_id: null, servicoCodigo: '', buscaAberta: true,
                       })}
                       onFocus={() => atualizarItem(it.chave, { buscaAberta: true })}
                       onBlur={() => setTimeout(() => atualizarItem(it.chave, { buscaAberta: false }), 150)}
-                      placeholder="Ex.: bloco cerâmico 14x19x29"
+                      placeholder="Ex.: chapisco"
                     />
                     {sugestoes.length > 0 && (
                       <div className={styles.sugestoes}>
@@ -204,7 +216,7 @@ export default function CompraForm() {
                     )}
                   </div>
                   {it.servico_id
-                    ? <span className={styles.vinculoOk}>✓ vinculado ao orçamento</span>
+                    ? <span className={styles.vinculoOk}>✓ {it.servicoCodigo}</span>
                     : <span className={styles.vinculoAusente}>⚠ sem vínculo — vai para "a classificar"</span>}
                 </div>
                 <label className={styles.campo}>
@@ -217,7 +229,7 @@ export default function CompraForm() {
                   <input value={it.und} onChange={e => atualizarItem(it.chave, { und: e.target.value })} placeholder="un, m³, sc…" />
                 </label>
                 <label className={styles.campo}>
-                  Necessário até
+                  Data na Obra
                   <input type="date" value={it.data_necessaria}
                     onChange={e => atualizarItem(it.chave, { data_necessaria: e.target.value })} />
                 </label>
@@ -250,14 +262,33 @@ interface DetalhePedidoProps {
   cotacoesItens: CotacaoItem[]
   fornecedores: Fornecedor[]
   recebimentos: RecebimentoNf[]
+  servicos: Servico[]
+  obraNome: string
   onRecarregar: () => void
 }
 
-function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, recebimentos, onRecarregar }: DetalhePedidoProps) {
+function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, recebimentos, servicos, obraNome, onRecarregar }: DetalhePedidoProps) {
   const navigate = useNavigate()
   const { perfil, temModulo } = useAuth()
   const podeEditar = perfil?.papel === 'admin' || temModulo('compras')
   const ehAdmin = perfil?.papel === 'admin'
+  const [gerandoPdf, setGerandoPdf] = useState(false)
+
+  function codigoAplicacao(servicoId: string | null): string {
+    if (!servicoId) return '—'
+    const s = servicos.find(sv => sv.id === servicoId)
+    return s?.codigo || s?.nome || '—'
+  }
+
+  async function baixarPdf() {
+    setGerandoPdf(true)
+    try {
+      const { gerarPdfPedido } = await import('../lib/comprasPdf')
+      gerarPdfPedido({ pedido, itens, obraNome, servicos })
+    } finally {
+      setGerandoPdf(false)
+    }
+  }
 
   const [fornecedorSel, setFornecedorSel] = useState('')
   const [condicaoPagamento, setCondicaoPagamento] = useState('')
@@ -495,12 +526,16 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       </div>
       {pedido.descricao && <p className={styles.metaLista}>{pedido.descricao}</p>}
 
+      <button className={styles.btnSecundario} onClick={baixarPdf} disabled={gerandoPdf}>
+        {gerandoPdf ? 'Gerando…' : '📄 Gerar PDF'}
+      </button>
+
       <div className={styles.bloco}>
         <h2>Itens do pedido</h2>
         <table className={styles.tabelaComparativa}>
           <thead>
             <tr>
-              <th>Item</th><th>Qtd.</th><th>Necessário até</th>
+              <th>Item</th><th>Aplicação</th><th>Qtd.</th><th>Data na Obra</th>
               {cotacoes.map(c => (
                 <th key={c.id}>
                   {nomeFornecedor(c.fornecedor_id)}
@@ -519,6 +554,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
             {itens.map(it => (
               <tr key={it.id}>
                 <td>{it.urgente && '⚡ '}{it.descricao_item}</td>
+                <td>{codigoAplicacao(it.servico_id)}</td>
                 <td>{it.quantidade_pedida} {it.und}</td>
                 <td>{it.data_necessaria ?? '—'}</td>
                 {cotacoes.map(c => {

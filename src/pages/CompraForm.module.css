@@ -84,7 +84,7 @@
 
 .itemGrid {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 1.6fr 1.6fr 0.9fr 0.9fr 1fr;
   gap: 10px;
 }
 
@@ -221,4 +221,14 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .itemGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .linha2 {
+    grid-template-columns: 1fr;
+  }
 }

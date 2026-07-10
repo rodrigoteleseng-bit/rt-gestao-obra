@@ -44,6 +44,7 @@ export default function FvsForm() {
   const [carregando, setCarregando] = useState(!nova)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [salvando, setSalvando] = useState(false)
+  const [gerandoPdf, setGerandoPdf] = useState(false)
 
   useEffect(() => {
     if (!obraAtiva) return
@@ -171,6 +172,27 @@ export default function FvsForm() {
     await carregar(fvs.id)
   }
 
+  async function gerarPdf() {
+    if (!fvs || !modelo || !obraAtiva) return
+    setGerandoPdf(true)
+    setMsg(null)
+    try {
+      const { data: fotos } = await supabase.from('fvs_fotos')
+        .select('*').eq('fvs_id', fvs.id).eq('ativo', true).order('criado_em')
+      const { gerarPdfFvs } = await import('../lib/fvsPdf')
+      await gerarPdfFvs({
+        fvs, modelo, itens, verificacoes,
+        obraNome: obraAtiva.nome,
+        unidadeNome: unidades.find(u => u.id === fvs.unidade_id)?.nome ?? '—',
+        tarefaNome: tarefasUnidade.find(t => t.id === fvs.tarefa_id)?.nome ?? null,
+        autores, fotos: fotos ?? [],
+      })
+    } catch (e) {
+      setMsg({ tipo: 'erro', texto: `Erro ao gerar PDF: ${e instanceof Error ? e.message : e}` })
+    }
+    setGerandoPdf(false)
+  }
+
   if (perfil?.papel === 'cliente') {
     return <div className={styles.page}><p className={styles.vazio}>Módulo de uso interno da equipe.</p></div>
   }
@@ -239,7 +261,12 @@ export default function FvsForm() {
           <h1>{modelo.codigo} — {modelo.nome}</h1>
           <p className={styles.sub}>{unidadeNome}{fvs.local_ambiente ? ` · ${fvs.local_ambiente}` : ''}{fvs.equipe_empreiteiro ? ` · ${fvs.equipe_empreiteiro}` : ''}</p>
         </div>
-        <span className={`${styles.chip} ${styles[`chip_${fvs.status}`]}`}>{STATUS_FVS_LABEL[fvs.status]}</span>
+        <div className={styles.headerAcoes}>
+          <span className={`${styles.chip} ${styles[`chip_${fvs.status}`]}`}>{STATUS_FVS_LABEL[fvs.status]}</span>
+          <button className={styles.btnPdf} onClick={gerarPdf} disabled={gerandoPdf}>
+            {gerandoPdf ? 'Gerando…' : '📄 Gerar PDF'}
+          </button>
+        </div>
       </div>
 
       {modelo.criterios_aceitacao && (

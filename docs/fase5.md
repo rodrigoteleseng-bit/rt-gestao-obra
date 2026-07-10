@@ -76,7 +76,11 @@ Preview com usuário temporário `equipe` + módulos fvs/pendencias/rdo (removid
 - Mapa da qualidade: bolinha verde no cruzamento FVS-004 × Sobrado 05.
 - Integração RDO: bloco "FVS do dia" mostrou as 2 verificações concluídas na data. Build de produção limpo.
 
+### PDF da FVS (09/07/2026)
+- `src/lib/fvsPdf.ts` — gera o documento A4 com identidade RT (mesma base do RDO): cabeçalho navy/terracota, identificação (obra/unidade/local/empreiteiro/tarefa), situação atual, objetivo, normas, critérios de aceitação, e **cada rodada de verificação** com respostas C/NC/NA por item (marcador colorido + observação do NC em vermelho), fotos ao final, rodapé com CREA. Marca d'água "EM ANDAMENTO" quando não concluída. Nome do arquivo: `FVS_<codigo>_<unidade>_<data>.pdf`.
+- Botão "📄 Gerar PDF" no cabeçalho da ficha (`FvsForm`), lazy import. Gerado sob demanda a partir dos dados imutáveis.
+- Verificado no preview: PDF válido (%PDF-1.3, ~11 KB, 1 página) gerado sem erro para FVS-008 reprovada. Base idêntica ao rdoPdf já validado em produção.
+
 ## Pendências transferidas
 
 - Teste de campo e aceite formal da Fase 5 (Pendências + FVS) com fotos reais.
-- Fotos por item de FVS no PDF (hoje o PDF do RDO lista as FVS; a ficha FVS ainda não gera PDF próprio — avaliar se o Rodrigo quer).

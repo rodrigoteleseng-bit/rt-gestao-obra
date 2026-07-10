@@ -106,6 +106,8 @@ CREATE TABLE cotacoes_itens (
   cotacao_id      UUID NOT NULL REFERENCES cotacoes(id) ON DELETE CASCADE,
   pedido_item_id  UUID NOT NULL REFERENCES pedidos_compra_itens(id) ON DELETE CASCADE,
   preco_unitario  NUMERIC(14,4) NOT NULL,
+  criado_em       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  criado_por      UUID NOT NULL DEFAULT auth.uid() REFERENCES perfis_usuario(id),
   UNIQUE (cotacao_id, pedido_item_id)
 );
 
@@ -208,7 +210,10 @@ CREATE POLICY forn_update ON fornecedores FOR UPDATE
 CREATE POLICY pc_select ON pedidos_compra FOR SELECT
   USING (ativo = true AND meu_papel() IN ('admin', 'equipe'));
 CREATE POLICY pc_insert ON pedidos_compra FOR INSERT
-  WITH CHECK (pode_editar_compras());
+  WITH CHECK (
+    pode_editar_compras()
+    AND (status = 'rascunho' OR meu_papel() = 'admin')
+  );
 CREATE POLICY pc_update ON pedidos_compra FOR UPDATE
   USING (pode_editar_compras())
   WITH CHECK (

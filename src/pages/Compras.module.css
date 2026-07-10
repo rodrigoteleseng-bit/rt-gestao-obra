@@ -1,0 +1,119 @@
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.page h1 { font-size: 20px; margin-bottom: 4px; }
+
+.sub { color: var(--cinza-600); font-size: 13px; max-width: 640px; }
+
+.acoesHeader { display: flex; gap: 8px; }
+
+.btnSecundario {
+  background: var(--branco);
+  color: var(--navy);
+  border: 1.5px solid var(--navy);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btnNova {
+  background: var(--terracota);
+  color: var(--branco);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filtros { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+
+.selectFiltro {
+  padding: 10px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: var(--branco);
+  min-width: 180px;
+}
+
+.vazio { color: var(--cinza-600); font-size: 14px; padding: 12px 0; }
+
+.card {
+  width: 100%;
+  display: block;
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 13px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  box-shadow: var(--sombra-sm);
+  text-align: left;
+}
+
+.card:hover { border-color: var(--navy); }
+
+.cardUrgente { border-color: #c49a30; background: #fffaf0; }
+
+.cardTopo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.cardNumero {
+  font-family: var(--font-titulo);
+  font-weight: 700;
+  color: var(--navy);
+  font-size: 13px;
+}
+
+.cardDesc { font-size: 14px; color: var(--cinza-800); margin-bottom: 7px; }
+
+.cardRodape {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--cinza-600);
+}
+
+.urgenteTag { color: #a35c00; font-weight: 700; }
+
+.chip {
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.chip_rascunho { background: #eceff1; color: #546e7a; }
+.chip_em_cotacao { background: #fdf3d7; color: #8a6d1a; }
+.chip_aprovado { background: #e3edfa; color: #1a5fa3; }
+.chip_enviado { background: #e3edfa; color: #1a5fa3; }
+.chip_recebido_parcial { background: #fdf3d7; color: #8a6d1a; }
+.chip_recebido_total { background: #e3f4e3; color: #1e6b2e; }
+.chip_conferido_nf { background: #e3f4e3; color: #1e6b2e; }
+.chip_encerrado { background: #e0e0e0; color: #424242; }
+.chip_cancelado { background: #fdeaea; color: #a33030; }

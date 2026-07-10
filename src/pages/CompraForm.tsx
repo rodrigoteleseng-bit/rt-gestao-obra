@@ -34,6 +34,36 @@ function itemVazio(): ItemNovo {
   }
 }
 
+interface ItemEditavel {
+  id: string | null
+  chave: string
+  descricao_item: string
+  servico_id: string | null
+  buscaAplicacao: string
+  quantidade_pedida: string
+  und: string
+  data_necessaria: string
+  urgente: boolean
+  buscaAberta: boolean
+  removido: boolean
+}
+
+function itemEditVazio(): ItemEditavel {
+  return {
+    id: null,
+    chave: crypto.randomUUID(),
+    descricao_item: '',
+    servico_id: null,
+    buscaAplicacao: '',
+    quantidade_pedida: '',
+    und: '',
+    data_necessaria: '',
+    urgente: false,
+    buscaAberta: false,
+    removido: false,
+  }
+}
+
 export default function CompraForm() {
   const { id } = useParams()
   const novo = id === 'novo'
@@ -278,6 +308,122 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
     if (!servicoId) return '—'
     const s = servicos.find(sv => sv.id === servicoId)
     return s?.codigo || s?.nome || '—'
+  }
+
+  // ---------- edição de itens (só enquanto o pedido está em rascunho) ----------
+  const podeEditarItens = podeEditar && pedido.status === 'rascunho'
+
+  const [itensEdit, setItensEdit] = useState<ItemEditavel[]>([])
+  const [salvandoItens, setSalvandoItens] = useState(false)
+  const [msgItens, setMsgItens] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  useEffect(() => {
+    if (!podeEditarItens) return
+    setItensEdit(itens.map(it => ({
+      id: it.id,
+      chave: it.id,
+      descricao_item: it.descricao_item,
+      servico_id: it.servico_id,
+      buscaAplicacao: it.servico_id ? codigoAplicacao(it.servico_id) : '',
+      quantidade_pedida: String(it.quantidade_pedida),
+      und: it.und ?? '',
+      data_necessaria: it.data_necessaria ?? '',
+      urgente: it.urgente,
+      buscaAberta: false,
+      removido: false,
+    })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itens, podeEditarItens])
+
+  function sugestoesParaEdit(texto: string): Servico[] {
+    const t = texto.trim().toLowerCase()
+    if (!t) return servicos
+    return servicos.filter(s => s.nome.toLowerCase().includes(t) || (s.codigo ?? '').toLowerCase().includes(t))
+  }
+
+  function atualizarItemEdit(chave: string, patch: Partial<ItemEditavel>) {
+    setItensEdit(prev => prev.map(it => it.chave === chave ? { ...it, ...patch } : it))
+  }
+
+  function escolherServicoEdit(chave: string, s: Servico) {
+    setItensEdit(prev => prev.map(it => it.chave === chave ? {
+      ...it,
+      servico_id: s.id,
+      buscaAplicacao: `${s.codigo ?? ''} ${s.nome}`.trim(),
+      und: it.und.trim() || s.und || '',
+      buscaAberta: false,
+    } : it))
+  }
+
+  function removerItemEdit(chave: string) {
+    setItensEdit(prev => {
+      const alvo = prev.find(it => it.chave === chave)
+      if (!alvo) return prev
+      if (alvo.id === null) return prev.filter(it => it.chave !== chave)
+      return prev.map(it => it.chave === chave ? { ...it, removido: true } : it)
+    })
+  }
+
+  function adicionarItemEdit() {
+    setItensEdit(prev => [...prev, itemEditVazio()])
+  }
+
+  async function salvarItensEditados() {
+    const ativos = itensEdit.filter(it => !it.removido)
+    const validos = ativos.filter(it => it.descricao_item.trim() && Number(it.quantidade_pedida) > 0)
+    if (validos.length === 0) {
+      setMsgItens({ tipo: 'erro', texto: 'O pedido precisa de ao menos um item com descrição e quantidade.' })
+      return
+    }
+    setSalvandoItens(true)
+    setMsgItens(null)
+
+    for (const it of itensEdit.filter(it => it.removido && it.id)) {
+      const { error } = await supabase.from('pedidos_compra_itens').update({ ativo: false }).eq('id', it.id!)
+      if (error) {
+        setSalvandoItens(false)
+        setMsgItens({ tipo: 'erro', texto: `Falha ao remover "${it.descricao_item}": ${error.message}` })
+        return
+      }
+    }
+
+    for (const it of validos.filter(it => it.id)) {
+      const { error } = await supabase.from('pedidos_compra_itens').update({
+        descricao_item: it.descricao_item.trim(),
+        servico_id: it.servico_id,
+        quantidade_pedida: Number(it.quantidade_pedida),
+        und: it.und.trim() || null,
+        data_necessaria: it.data_necessaria || null,
+        urgente: it.urgente,
+      }).eq('id', it.id!)
+      if (error) {
+        setSalvandoItens(false)
+        setMsgItens({ tipo: 'erro', texto: `Falha ao salvar "${it.descricao_item}": ${error.message}` })
+        return
+      }
+    }
+
+    const novos = validos.filter(it => !it.id)
+    if (novos.length > 0) {
+      const { error } = await supabase.from('pedidos_compra_itens').insert(novos.map(it => ({
+        pedido_id: pedido.id,
+        servico_id: it.servico_id,
+        descricao_item: it.descricao_item.trim(),
+        quantidade_pedida: Number(it.quantidade_pedida),
+        und: it.und.trim() || null,
+        data_necessaria: it.data_necessaria || null,
+        urgente: it.urgente,
+      })))
+      if (error) {
+        setSalvandoItens(false)
+        setMsgItens({ tipo: 'erro', texto: `Falha ao adicionar novos itens: ${error.message}` })
+        return
+      }
+    }
+
+    setSalvandoItens(false)
+    setMsgItens({ tipo: 'ok', texto: 'Itens atualizados.' })
+    onRecarregar()
   }
 
   async function baixarPdf() {
@@ -530,62 +676,135 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
         {gerandoPdf ? 'Gerando…' : '📄 Gerar PDF'}
       </button>
 
-      <div className={styles.bloco}>
-        <h2>Itens do pedido</h2>
-        <table className={styles.tabelaComparativa}>
-          <thead>
-            <tr>
-              <th>Item</th><th>Aplicação</th><th>Qtd.</th><th>Data na Obra</th>
-              {cotacoes.map(c => (
-                <th key={c.id}>
-                  {nomeFornecedor(c.fornecedor_id)}
-                  {c.anexo_url && urlsAnexos.get(c.anexo_url) && (
-                    <div>
-                      <a className={styles.anexoLink} href={urlsAnexos.get(c.anexo_url)} target="_blank" rel="noreferrer">
-                        📎 anexo
-                      </a>
+      {podeEditarItens ? (
+        <div className={styles.bloco}>
+          <h2>Itens do pedido (rascunho — editável)</h2>
+          {itensEdit.filter(it => !it.removido).map(it => {
+            const sugestoes = it.buscaAberta ? sugestoesParaEdit(it.buscaAplicacao) : []
+            return (
+              <div key={it.chave} className={styles.itemLinha}>
+                <button className={styles.btnRemoverItem} onClick={() => removerItemEdit(it.chave)}>✕</button>
+                <div className={styles.itemGrid}>
+                  <label className={styles.campo}>
+                    Item *
+                    <input value={it.descricao_item}
+                      onChange={e => atualizarItemEdit(it.chave, { descricao_item: e.target.value })}
+                      placeholder="Ex.: areia" />
+                  </label>
+                  <div className={styles.campo}>
+                    Aplicação
+                    <div className={styles.autocompleteWrap}>
+                      <input
+                        value={it.buscaAplicacao}
+                        onChange={e => atualizarItemEdit(it.chave, {
+                          buscaAplicacao: e.target.value, servico_id: null, buscaAberta: true,
+                        })}
+                        onFocus={() => atualizarItemEdit(it.chave, { buscaAberta: true })}
+                        onBlur={() => setTimeout(() => atualizarItemEdit(it.chave, { buscaAberta: false }), 150)}
+                        placeholder="Ex.: chapisco"
+                      />
+                      {sugestoes.length > 0 && (
+                        <div className={styles.sugestoes}>
+                          {sugestoes.map(s => (
+                            <button key={s.id} className={styles.sugestao}
+                              onMouseDown={() => escolherServicoEdit(it.chave, s)}>
+                              <span className={styles.sugestaoCodigo}>{s.codigo}</span>{s.nome}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {itens.map(it => (
-              <tr key={it.id}>
-                <td>{it.urgente && '⚡ '}{it.descricao_item}</td>
-                <td>{codigoAplicacao(it.servico_id)}</td>
-                <td>{it.quantidade_pedida} {it.und}</td>
-                <td>{it.data_necessaria ?? '—'}</td>
-                {cotacoes.map(c => {
-                  const preco = precoDe(c.id, it.id)
-                  const cotItemId = idDoItemCotacao(c.id, it.id)
-                  const vencedor = it.cotacao_item_vencedora_id !== null && cotItemId === it.cotacao_item_vencedora_id
-                  return (
-                    <td key={c.id}>
-                      {preco !== null ? (
-                        <>
-                          <span className={vencedor ? styles.precoVencedor : ''}>R$ {preco.toFixed(2)}</span>
-                          {ehAdmin && pedido.status === 'em_cotacao' && (
-                            <div>
-                              <button
-                                className={`${styles.btnVencedor} ${vencedor ? styles.ativo : ''}`}
-                                onClick={() => marcarVencedor(it.id, vencedor ? null : cotItemId)}
-                              >
-                                {vencedor ? '✓ vencedor' : 'marcar vencedor'}
-                              </button>
-                            </div>
-                          )}
-                        </>
-                      ) : '—'}
-                    </td>
-                  )
-                })}
+                    {it.servico_id
+                      ? <span className={styles.vinculoOk}>✓ {codigoAplicacao(it.servico_id)}</span>
+                      : <span className={styles.vinculoAusente}>⚠ sem vínculo — vai para "a classificar"</span>}
+                  </div>
+                  <label className={styles.campo}>
+                    Quantidade *
+                    <input type="number" min="0" step="0.01" value={it.quantidade_pedida}
+                      onChange={e => atualizarItemEdit(it.chave, { quantidade_pedida: e.target.value })} />
+                  </label>
+                  <label className={styles.campo}>
+                    Und.
+                    <input value={it.und} onChange={e => atualizarItemEdit(it.chave, { und: e.target.value })} placeholder="un, m³, sc…" />
+                  </label>
+                  <label className={styles.campo}>
+                    Data na Obra
+                    <input type="date" value={it.data_necessaria}
+                      onChange={e => atualizarItemEdit(it.chave, { data_necessaria: e.target.value })} />
+                  </label>
+                </div>
+                <label className={styles.checkUrgente}>
+                  <input type="checkbox" checked={it.urgente}
+                    onChange={e => atualizarItemEdit(it.chave, { urgente: e.target.checked })} />
+                  ⚡ Urgente — precisamos o mais rápido possível
+                </label>
+              </div>
+            )
+          })}
+          <button className={styles.btnAddItem} onClick={adicionarItemEdit}>+ Adicionar item</button>
+          {msgItens && <p className={msgItens.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgItens.texto}</p>}
+          <button className={styles.btnPrincipal} onClick={salvarItensEditados} disabled={salvandoItens} style={{ marginTop: 12 }}>
+            {salvandoItens ? 'Salvando…' : 'Salvar alterações'}
+          </button>
+        </div>
+      ) : (
+        <div className={styles.bloco}>
+          <h2>Itens do pedido</h2>
+          <table className={styles.tabelaComparativa}>
+            <thead>
+              <tr>
+                <th>Item</th><th>Aplicação</th><th>Qtd.</th><th>Data na Obra</th>
+                {cotacoes.map(c => (
+                  <th key={c.id}>
+                    {nomeFornecedor(c.fornecedor_id)}
+                    {c.anexo_url && urlsAnexos.get(c.anexo_url) && (
+                      <div>
+                        <a className={styles.anexoLink} href={urlsAnexos.get(c.anexo_url)} target="_blank" rel="noreferrer">
+                          📎 anexo
+                        </a>
+                      </div>
+                    )}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {itens.map(it => (
+                <tr key={it.id}>
+                  <td>{it.urgente && '⚡ '}{it.descricao_item}</td>
+                  <td>{codigoAplicacao(it.servico_id)}</td>
+                  <td>{it.quantidade_pedida} {it.und}</td>
+                  <td>{it.data_necessaria ?? '—'}</td>
+                  {cotacoes.map(c => {
+                    const preco = precoDe(c.id, it.id)
+                    const cotItemId = idDoItemCotacao(c.id, it.id)
+                    const vencedor = it.cotacao_item_vencedora_id !== null && cotItemId === it.cotacao_item_vencedora_id
+                    return (
+                      <td key={c.id}>
+                        {preco !== null ? (
+                          <>
+                            <span className={vencedor ? styles.precoVencedor : ''}>R$ {preco.toFixed(2)}</span>
+                            {ehAdmin && pedido.status === 'em_cotacao' && (
+                              <div>
+                                <button
+                                  className={`${styles.btnVencedor} ${vencedor ? styles.ativo : ''}`}
+                                  onClick={() => marcarVencedor(it.id, vencedor ? null : cotItemId)}
+                                >
+                                  {vencedor ? '✓ vencedor' : 'marcar vencedor'}
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        ) : '—'}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {podeEditar && pedido.status !== 'aprovado' && !['encerrado', 'cancelado'].includes(pedido.status) && (
         <div className={styles.bloco}>

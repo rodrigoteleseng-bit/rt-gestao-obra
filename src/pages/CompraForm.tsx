@@ -303,9 +303,14 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, o
       setMsgCotacao({ tipo: 'erro', texto: `Erro ao registrar cotação: ${error?.message}` })
       return
     }
-    await supabase.from('cotacoes_itens').insert(
+    const { error: eItens } = await supabase.from('cotacoes_itens').insert(
       itensComPreco.map(it => ({ cotacao_id: cot.id, pedido_item_id: it.id, preco_unitario: Number(precos[it.id]) }))
     )
+    if (eItens) {
+      setSalvandoCotacao(false)
+      setMsgCotacao({ tipo: 'erro', texto: `Cotação criada, mas falhou ao salvar os preços dos itens: ${eItens.message}` })
+      return
+    }
     if (pedido.status === 'rascunho') {
       await supabase.from('pedidos_compra').update({ status: 'em_cotacao' }).eq('id', pedido.id)
     }
@@ -318,7 +323,11 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, o
   async function marcarVencedor(itemId: string, cotacaoItemId: string | null) {
     const { error } = await supabase.from('pedidos_compra_itens')
       .update({ cotacao_item_vencedora_id: cotacaoItemId }).eq('id', itemId)
-    if (!error) onRecarregar()
+    if (error) {
+      alert(`Falha ao definir o vencedor: ${error.message}`)
+      return
+    }
+    onRecarregar()
   }
 
   async function aprovarPedido() {
@@ -327,9 +336,13 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, o
       alert('Defina o vencedor de todos os itens antes de aprovar.')
       return
     }
-    await supabase.from('pedidos_compra').update({
+    const { error } = await supabase.from('pedidos_compra').update({
       status: 'aprovado', aprovado_por: perfil?.id, aprovado_em: new Date().toISOString(),
     }).eq('id', pedido.id)
+    if (error) {
+      alert(`Falha ao aprovar o pedido: ${error.message}`)
+      return
+    }
     onRecarregar()
   }
 

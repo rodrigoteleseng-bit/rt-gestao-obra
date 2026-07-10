@@ -303,3 +303,77 @@ export interface Servico {
   total: number | null
   ativo: boolean
 }
+
+export type StatusPedidoCompra =
+  | 'rascunho' | 'em_cotacao' | 'aprovado' | 'enviado'
+  | 'recebido_parcial' | 'recebido_total' | 'conferido_nf' | 'encerrado' | 'cancelado'
+
+export interface Fornecedor {
+  id: string
+  nome: string
+  contato: string | null
+  cnpj: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface PedidoCompra {
+  id: string
+  obra_id: string
+  numero: number
+  status: StatusPedidoCompra
+  descricao: string | null
+  motivo_cancelamento: string | null
+  aprovado_por: string | null
+  aprovado_em: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface PedidoCompraItem {
+  id: string
+  pedido_id: string
+  servico_id: string | null
+  descricao_item: string
+  quantidade_pedida: number
+  und: string | null
+  data_necessaria: string | null
+  urgente: boolean
+  cotacao_item_vencedora_id: string | null
+  quantidade_recebida: number
+  valor_recebido: number | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface Cotacao {
+  id: string
+  pedido_id: string
+  fornecedor_id: string
+  condicao_pagamento: string | null
+  prazo_entrega_dias: number | null
+  anexo_url: string
+  criado_em: string
+  criado_por: string
+}
+
+export interface CotacaoItem {
+  id: string
+  cotacao_id: string
+  pedido_item_id: string
+  preco_unitario: number
+  criado_em: string
+  criado_por: string
+}
+
+export interface RecebimentoNf {
+  id: string
+  pedido_id: string
+  anexo_nf_url: string
+  observacao: string | null
+  criado_em: string
+  criado_por: string
+}

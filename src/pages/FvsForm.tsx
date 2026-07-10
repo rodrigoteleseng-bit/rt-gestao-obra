@@ -4,8 +4,9 @@ import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import {
   supabase, type Fvs, type FvsModelo, type FvsModeloItem, type FvsVerificacao,
-  type FvsResposta, type Unidade, type CronogramaTarefa, type StatusFvs, type RespostaFvs,
+  type FvsResposta, type FvsFoto, type Unidade, type CronogramaTarefa, type StatusFvs, type RespostaFvs,
 } from '../lib/supabase'
+import { obterPosicao, sha256Hex, carimbarFoto, fmtCoord } from '../lib/rdo'
 import { STATUS_FVS_LABEL } from './Fvs'
 import styles from './Fvs.module.css'
 
@@ -38,6 +39,9 @@ export default function FvsForm() {
   const [itens, setItens] = useState<FvsModeloItem[]>([])
   const [verificacoes, setVerificacoes] = useState<FvsVerificacao[]>([])
   const [respostas, setRespostas] = useState<Map<string, FvsResposta>>(new Map()) // item_id -> resposta (rodada atual)
+  const [fotos, setFotos] = useState<FvsFoto[]>([])              // fotos da rodada aberta
+  const [urls, setUrls] = useState<Map<string, string>>(new Map())
+  const [anexandoItem, setAnexandoItem] = useState<string | null>(null)
   const [autores, setAutores] = useState<Map<string, string>>(new Map())
   const [obsFinal, setObsFinal] = useState('')
 
@@ -81,6 +85,18 @@ export default function FvsForm() {
     if (atual) {
       const { data: resp } = await supabase.from('fvs_respostas').select('*').eq('verificacao_id', atual.id)
       setRespostas(new Map((resp ?? []).map(r => [r.item_id, r])))
+      // fotos da rodada atual
+      const { data: fts } = await supabase.from('fvs_fotos').select('*')
+        .eq('verificacao_id', atual.id).eq('ativo', true).order('criado_em')
+      setFotos(fts ?? [])
+      if (fts && fts.length > 0) {
+        const novo = new Map<string, string>()
+        await Promise.all(fts.map(async ft => {
+          const { data } = await supabase.storage.from('fvs').createSignedUrl(ft.path, 3600)
+          if (data) novo.set(ft.path, data.signedUrl)
+        }))
+        setUrls(novo)
+      }
     }
 
     const idsAutores = [...new Set([f.criado_por, ...(vers ?? []).map(v => v.concluida_por).filter(Boolean) as string[]])]
@@ -138,9 +154,47 @@ export default function FvsForm() {
     setRespostas(prev => new Map(prev).set(itemId, { ...r, observacao: observacao || null }))
   }
 
+  // anexa uma foto (carimbada com GPS/data/hora + hash) a um item
+  async function anexarFotoItem(itemId: string, arquivos: File[]) {
+    if (!fvs || !rodadaAberta || !obraAtiva || arquivos.length === 0) return
+    setAnexandoItem(itemId)
+    setMsg(null)
+    try {
+      const geo = await obterPosicao()
+      for (const arquivo of arquivos) {
+        const capturadaEm = new Date()
+        const blob = await carimbarFoto(arquivo, obraAtiva.nome, geo, capturadaEm)
+        const hash = await sha256Hex(blob)
+        const path = `${fvs.obra_id}/${fvs.id}/${crypto.randomUUID()}.jpg`
+        const { error: eUp } = await supabase.storage.from('fvs').upload(path, blob, { contentType: 'image/jpeg' })
+        if (eUp) { setMsg({ tipo: 'erro', texto: `Falha no envio da foto: ${eUp.message}` }); break }
+        const { data: foto, error } = await supabase.from('fvs_fotos').insert({
+          fvs_id: fvs.id, verificacao_id: rodadaAberta.id, item_id: itemId, path,
+          lat: geo.lat, lng: geo.lng, precisao_m: geo.precisao,
+          capturada_em: capturadaEm.toISOString(), hash_sha256: hash,
+        }).select().single()
+        if (error) { setMsg({ tipo: 'erro', texto: `Falha ao registrar a foto: ${error.message}` }); break }
+        setFotos(prev => [...prev, foto])
+        const { data: su } = await supabase.storage.from('fvs').createSignedUrl(path, 3600)
+        if (su) setUrls(prev => new Map(prev).set(path, su.signedUrl))
+      }
+    } catch {
+      setMsg({ tipo: 'erro', texto: 'Falha ao processar a foto. Tente novamente.' })
+    }
+    setAnexandoItem(null)
+  }
+
+  async function removerFoto(fotoId: string, path: string) {
+    await supabase.from('fvs_fotos').update({ ativo: false }).eq('id', fotoId)
+    setFotos(prev => prev.filter(f => f.id !== fotoId))
+    setUrls(prev => { const n = new Map(prev); n.delete(path); return n })
+  }
+
   const totalItens = itens.length
   const respondidos = itens.filter(i => respostas.has(i.id)).length
   const qtdNC = itens.filter(i => respostas.get(i.id)?.resposta === 'nc').length
+  const itensComFoto = new Set(fotos.map(f => f.item_id))
+  const ncSemFoto = itens.filter(i => respostas.get(i.id)?.resposta === 'nc' && !itensComFoto.has(i.id)).length
 
   async function concluir(resultado: StatusFvs) {
     if (!fvs || !rodadaAberta) return
@@ -280,6 +334,13 @@ export default function FvsForm() {
         </div>
       )}
 
+      {/* legenda das respostas */}
+      <div className={styles.legendaResp}>
+        <span><strong className={styles.legC}>C</strong> = Conforme</span>
+        <span><strong className={styles.legNC}>NC</strong> = Não conforme</span>
+        <span><strong className={styles.legNA}>NA</strong> = Não aplicável</span>
+      </div>
+
       {/* itens agrupados por seção */}
       {secoes.map(secao => (
         <div key={secao} className={styles.bloco}>
@@ -303,9 +364,33 @@ export default function FvsForm() {
                   ))}
                 </div>
                 {r?.resposta === 'nc' && (
-                  <input className={styles.itemObs} defaultValue={r.observacao ?? ''}
-                    placeholder="O que está errado? (vira descrição da pendência)"
-                    onBlur={e => salvarObsItem(item.id, e.target.value)} disabled={!editavel} />
+                  <>
+                    <input className={styles.itemObs} defaultValue={r.observacao ?? ''}
+                      placeholder="O que está errado? (vira descrição da pendência)"
+                      onBlur={e => salvarObsItem(item.id, e.target.value)} disabled={!editavel} />
+                    <div className={styles.itemFotos}>
+                      {editavel && (
+                        <label className={styles.btnFotoItem}>
+                          📷 {anexandoItem === item.id ? 'Processando…' : 'Anexar foto do problema'}
+                          <input type="file" accept="image/*" capture="environment" multiple hidden
+                            disabled={anexandoItem === item.id}
+                            onChange={e => { const a = Array.from(e.target.files ?? []); e.target.value = ''; anexarFotoItem(item.id, a) }} />
+                        </label>
+                      )}
+                      {fotos.filter(f => f.item_id === item.id).length > 0 && (
+                        <div className={styles.miniFotos}>
+                          {fotos.filter(f => f.item_id === item.id).map(f => (
+                            <figure key={f.id} className={styles.miniFoto}>
+                              {urls.get(f.path)
+                                ? <img src={urls.get(f.path)} alt="Foto do item não conforme" />
+                                : <div className={styles.miniPlaceholder}>⏳</div>}
+                              {editavel && <button className={styles.miniRemover} onClick={() => removerFoto(f.id, f.path)}>✕</button>}
+                            </figure>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             )
@@ -334,6 +419,7 @@ export default function FvsForm() {
             </button>
           </div>
           {qtdNC > 0 && <p className={styles.avisoNC}>{qtdNC} item(ns) NC gerará(ão) pendência automática ao concluir.</p>}
+          {ncSemFoto > 0 && <p className={styles.avisoFoto}>📷 {ncSemFoto} item(ns) não conforme ainda sem foto — recomendado anexar antes de concluir.</p>}
         </div>
       )}
 

@@ -76,6 +76,12 @@ Preview com usuário temporário `equipe` + módulos fvs/pendencias/rdo (removid
 - Mapa da qualidade: bolinha verde no cruzamento FVS-004 × Sobrado 05.
 - Integração RDO: bloco "FVS do dia" mostrou as 2 verificações concluídas na data. Build de produção limpo.
 
+### Legenda + foto por item NC (09/07/2026)
+- **Legenda** C = Conforme / NC = Não conforme / NA = Não aplicável exibida acima dos itens na ficha.
+- Ao marcar um item como **NC**, além do campo de observação aparece o botão **"📷 Anexar foto do problema"** (`capture="environment"`, câmera traseira). A foto é carimbada (GPS + data/hora + hash SHA-256, mesmo `carimbarFoto` do RDO/Pendências), sobe ao bucket `fvs` e é gravada em `fvs_fotos` com `item_id` + `verificacao_id`. Miniaturas com botão de remover.
+- Aviso suave no bloco de conclusão: "N item(ns) NC ainda sem foto — recomendado anexar" (não bloqueia; câmera pode falhar em campo).
+- As fotos entram automaticamente na seção "Registro fotográfico" do PDF da FVS.
+
 ### PDF da FVS (09/07/2026)
 - `src/lib/fvsPdf.ts` — gera o documento A4 com identidade RT (mesma base do RDO): cabeçalho navy/terracota, identificação (obra/unidade/local/empreiteiro/tarefa), situação atual, objetivo, normas, critérios de aceitação, e **cada rodada de verificação** com respostas C/NC/NA por item (marcador colorido + observação do NC em vermelho), fotos ao final, rodapé com CREA. Marca d'água "EM ANDAMENTO" quando não concluída. Nome do arquivo: `FVS_<codigo>_<unidade>_<data>.pdf`.
 - Botão "📄 Gerar PDF" no cabeçalho da ficha (`FvsForm`), lazy import. Gerado sob demanda a partir dos dados imutáveis.

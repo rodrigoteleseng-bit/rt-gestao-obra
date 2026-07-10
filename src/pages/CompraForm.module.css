@@ -191,3 +191,14 @@
 .linha2 .campo { margin-bottom: 0; }
 
 .metaLista { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--cinza-600); margin-bottom: 10px; }
+
+.btnSecundario {
+  background: var(--branco);
+  color: var(--navy);
+  border: 1.5px solid var(--navy);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}

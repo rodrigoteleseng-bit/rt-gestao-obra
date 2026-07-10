@@ -355,6 +355,8 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
   const [obsNf, setObsNf] = useState('')
   const [salvandoRecebimento, setSalvandoRecebimento] = useState(false)
   const [msgRecebimento, setMsgRecebimento] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  const [motivoCancelamento, setMotivoCancelamento] = useState('')
+  const [mostrarCancelar, setMostrarCancelar] = useState(false)
 
   async function marcarEnviado() {
     const { error } = await supabase.from('pedidos_compra').update({ status: 'enviado' }).eq('id', pedido.id)
@@ -424,6 +426,30 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
     setSalvandoRecebimento(false)
     setArquivoNf(null); setObsNf('')
     setMsgRecebimento({ tipo: 'ok', texto: 'NF registrada.' })
+    onRecarregar()
+  }
+
+  async function cancelarPedido() {
+    if (!motivoCancelamento.trim()) {
+      alert('Informe o motivo do cancelamento.')
+      return
+    }
+    const { error } = await supabase.from('pedidos_compra').update({
+      status: 'cancelado', motivo_cancelamento: motivoCancelamento.trim(),
+    }).eq('id', pedido.id)
+    if (error) {
+      alert(`Falha ao cancelar o pedido: ${error.message}`)
+      return
+    }
+    onRecarregar()
+  }
+
+  async function encerrarPedido() {
+    const { error } = await supabase.from('pedidos_compra').update({ status: 'encerrado' }).eq('id', pedido.id)
+    if (error) {
+      alert(`Falha ao encerrar o pedido: ${error.message}`)
+      return
+    }
     onRecarregar()
   }
 
@@ -582,6 +608,35 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
           {recebimentos.map(r => (
             <p key={r.id} className={styles.metaLista}>{r.observacao || 'NF sem observação'} — {new Date(r.criado_em).toLocaleDateString('pt-BR')}</p>
           ))}
+        </div>
+      )}
+
+      {ehAdmin && pedido.status === 'conferido_nf' && (
+        <div className={styles.bloco}>
+          <button className={styles.btnPrincipal} onClick={encerrarPedido}>Encerrar pedido</button>
+        </div>
+      )}
+
+      {pedido.status === 'cancelado' && pedido.motivo_cancelamento && (
+        <div className={styles.bloco}>
+          <h2>Motivo do cancelamento</h2>
+          <p>{pedido.motivo_cancelamento}</p>
+        </div>
+      )}
+
+      {ehAdmin && !['encerrado', 'cancelado'].includes(pedido.status) && (
+        <div className={styles.bloco}>
+          {!mostrarCancelar ? (
+            <button className={styles.btnSecundario} onClick={() => setMostrarCancelar(true)}>Cancelar pedido</button>
+          ) : (
+            <>
+              <label className={styles.campo}>
+                Motivo do cancelamento *
+                <input value={motivoCancelamento} onChange={e => setMotivoCancelamento(e.target.value)} />
+              </label>
+              <button className={styles.btnSecundario} onClick={cancelarPedido}>Confirmar cancelamento</button>
+            </>
+          )}
         </div>
       )}
     </div>

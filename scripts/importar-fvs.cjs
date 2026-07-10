@@ -62,19 +62,21 @@ function parseFvs(md) {
     const registros = secTexto('Registros obrigatórios')
     if (registros) criterios = `${criterios ?? ''}\nRegistros obrigatórios: ${registros}`.trim()
 
-    // seções com tabela de itens
+    // seções com tabela de itens — ordem GLOBAL (Pré-requisitos primeiro,
+    // seções na ordem do documento; nunca reinicia por seção, senão as
+    // seções se intercalam ao ordenar por 'ordem').
     const itens = []
     const reSec = /## ((?:Pré-requisitos|Checklist)[^\n]*)\n+((?:\|[^\n]*\n)+)/g
     let m
+    let ordemGlobal = 0
     while ((m = reSec.exec(bloco)) !== null) {
       const secao = nomeSecao(m[1])
       const linhas = m[2].trim().split('\n').slice(2) // pula cabeçalho e separador
-      let ordem = 0
       for (const linha of linhas) {
         const cols = linha.split('|').map(c => c.trim())
         // | n | texto | C | NC | NA |  → cols[1]=n, cols[2]=texto
         if (cols.length >= 3 && cols[2]) {
-          itens.push({ secao, ordem: ++ordem, texto: cols[2] })
+          itens.push({ secao, ordem: ++ordemGlobal, texto: cols[2] })
         }
       }
     }
@@ -146,6 +148,24 @@ for (const f of parseadas) {
 }
 fichas.push(...NOVAS)
 fichas.sort((a, b) => a.ordem - b.ordem)
+
+// Reindexa os itens de cada ficha com ordem GLOBAL, garantindo a ordem
+// canônica de seções (Pré-requisitos primeiro). Cobre também as fichas
+// novas, cujo array vem com ordem por seção.
+const PRIORIDADE_SECAO = {
+  'Pré-requisitos': 1, 'Execução': 2, 'Formas e escoramento': 3,
+  'Armação': 4, 'Concretagem': 5, 'Por sistema': 6, 'Documental': 7,
+}
+for (const f of fichas) {
+  const idx = new Map()
+  f.itens.forEach((it, i) => { if (!idx.has(it.secao)) idx.set(it.secao, idx.size) })
+  f.itens.sort((a, b) => {
+    const pa = PRIORIDADE_SECAO[a.secao] ?? (100 + idx.get(a.secao))
+    const pb = PRIORIDADE_SECAO[b.secao] ?? (100 + idx.get(b.secao))
+    return pa - pb || a.ordem - b.ordem
+  })
+  f.itens.forEach((it, i) => { it.ordem = i + 1 })
+}
 
 // ── gerar SQL ──
 const esc = (s) => s == null ? 'NULL' : `'${String(s).replace(/'/g, "''")}'`

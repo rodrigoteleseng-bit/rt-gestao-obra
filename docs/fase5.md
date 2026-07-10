@@ -82,6 +82,11 @@ Preview com usuário temporário `equipe` + módulos fvs/pendencias/rdo (removid
 - Aviso suave no bloco de conclusão: "N item(ns) NC ainda sem foto — recomendado anexar" (não bloqueia; câmera pode falhar em campo).
 - As fotos entram automaticamente na seção "Registro fotográfico" do PDF da FVS.
 
+### Ordem global dos itens + exclusão pelo admin (10/07/2026, migração `20260710_fvs_ordem_global_e_exclusao.sql`)
+- **Bug de ordenação corrigido:** o campo `ordem` reiniciava em 1 por seção, então ao ordenar globalmente as seções se intercalavam (Pré-requisitos aparecia no meio). Agora `ordem` é **global** (prioridade da seção × 1000 + ordem interna), com **Pré-requisitos sempre primeiro** — premissa a verificar antes de qualquer serviço. UPDATE preservou os `item_id` (não quebrou as respostas das FVS já criadas). `scripts/importar-fvs.cjs` também gera ordem global (re-seed futuro sai correto).
+- **Exclusão pelo admin:** RPC `excluir_fvs(p_fvs)` SECURITY DEFINER — soft delete (`ativo=false`) da FVS + inativa as pendências que ela gerou. Botão "🗑 Excluir esta FVS" no rodapé da ficha, só para admin. Para fichas salvas por engano; o registro permanece no banco.
+- **Segurança:** a checagem usa `meu_papel() IS DISTINCT FROM 'admin'` (não `<> 'admin'`) — com `<>`, `meu_papel()` NULL (sem sessão) não dispararia a exceção e um anônimo poderia excluir. Verificado no preview: admin exclui (soft delete confirmado no banco); sem sessão a RPC levanta "Apenas o administrador pode excluir".
+
 ### Conferência por partes / estado "Aguardando" (10/07/2026, migração `20260710_fvs_aguardando.sql`)
 - Enum `resposta_fvs` ganhou o valor `aguardando`. 4ª opção por item: **C / NC / NA / AG**. AG = item ainda não pronto para conferir (ex.: FVS-003 — confere armação num dia, forma noutro, concretagem noutro).
 - Respostas salvam automaticamente a cada clique; a rodada fica `em_andamento` e pode ser retomada em outro dia. Progresso mostra "X/Y conferidos · Z aguardando".

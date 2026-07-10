@@ -289,6 +289,16 @@ export default function FvsForm() {
     await carregar(fvs.id)
   }
 
+  async function excluirFvs() {
+    if (!fvs) return
+    if (!window.confirm('Excluir esta FVS? Ela sai das listagens e do mapa da qualidade, e as pendências que ela gerou são inativadas. O registro é mantido no banco (exclusão lógica). Use apenas para fichas salvas por engano.')) return
+    setSalvando(true)
+    const { error } = await supabase.rpc('excluir_fvs', { p_fvs: fvs.id })
+    setSalvando(false)
+    if (error) { setMsg({ tipo: 'erro', texto: error.message }); return }
+    navigate('/fvs')
+  }
+
   async function gerarPdf() {
     if (!fvs || !modelo || !obraAtiva) return
     setGerandoPdf(true)
@@ -567,6 +577,16 @@ export default function FvsForm() {
           ))}
         </div>
       </div>
+
+      {/* exclusão — só admin */}
+      {perfil?.papel === 'admin' && (
+        <div className={styles.zonaAdmin}>
+          <button className={styles.btnExcluir} onClick={excluirFvs} disabled={salvando}>
+            🗑 Excluir esta FVS
+          </button>
+          <span className={styles.zonaAdminNota}>Exclusão lógica (admin) — para fichas salvas por engano.</span>
+        </div>
+      )}
     </div>
   )
 }

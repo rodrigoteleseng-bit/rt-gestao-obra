@@ -224,6 +224,18 @@
 }
 .assinaturaLegenda { font-size: 11px; color: var(--cinza-600); }
 
+/* zona de exclusão (admin) */
+.zonaAdmin {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 8px; padding-top: 14px; border-top: 1px dashed var(--cinza-200);
+}
+.btnExcluir {
+  padding: 10px 16px; border: 1.5px solid #a33030; border-radius: var(--radius-sm);
+  background: var(--branco); font-size: 13px; font-weight: 700; color: #a33030; cursor: pointer;
+}
+.btnExcluir:disabled { opacity: 0.5; cursor: default; }
+.zonaAdminNota { font-size: 11px; color: var(--cinza-600); }
+
 /* timeline */
 .timeline { display: flex; flex-direction: column; gap: 12px; }
 .evento { display: flex; gap: 10px; align-items: flex-start; }

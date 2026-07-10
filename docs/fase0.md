@@ -57,8 +57,28 @@ src/
 
 Enum `modulo_app` (Fase 7 extras pré-criado): `medicoes`, `contratos`, `fvs`, `galeria`, `efetivo`, `alertas` — migração `20260707_fase7_modulos_extras_enum.sql`.
 
+## Identidade visual — correção de paleta (10/07/2026)
+
+A skill `rt-manual-marca` (instalada, específica da RT) define a paleta oficial — diferente da usada no app desde a Fase 0. Corrigido em `src/styles/tokens.css`, nos 2 geradores de PDF (`rdoPdf.ts`, `fvsPdf.ts`), canvas de assinatura e metadados PWA (`theme-color`, manifest):
+
+```
+--navy:         #1A3248  (era #1B2A4A)
+--navy-light:   #3A7CA5  (azul-médio oficial, usado como acento — era um tom inventado)
+--terracota:    #C49A7A  (era #C4622D — laranja queimado; oficial é nude/tan)
+--terracota-*   tons derivados recalculados a partir do terracota oficial
+--azul-gelo:    #B8D4E8  (suporte oficial — novo token)
+--nude:         #F0EBE3  (fundo oficial — novo token, usado em hovers que antes tinham tom improvisado)
+```
+
+Tipografia (Sora/Inter) já estava correta desde a Fase 0. **Sempre que houver trabalho visual/PDF novo, consultar a skill `rt-manual-marca` antes de estimar uma cor** — não reinventar tons.
+
+## Skills RT/Engenhar.IA instaladas (relevantes ao projeto)
+
+Pipeline de metodologia para novas obras (fora do escopo do app, geram documentos `.md`/`.xlsx` avulsos): `diagnostico-obra` (lê projetos PDF → 2 documentos: análise técnica + leitura de planejamento/orçamento) → `escopo-obra` (escopo técnico executivo) → `eap-obra` (EAP) → `cronograma-obra` (cronograma físico em 2 fases: parâmetros validados → planilha) / `estrutura-orcamento-obra` (estrutura de orçamento). Também: `rt-manual-marca` (identidade visual, ver acima) e `rt-documentos-obra` (gera documentos avulsos — relatório de acompanhamento, proposta de empreitada, ata, diário de obra, pedido de compras — como `.md`, fora do app). Referenciadas em CLAUDE.md §4 e §1.
+
 ## Observações operacionais
 
 - Node v24 em `C:\Program Files\nodejs` fora do PATH do PowerShell — prefixar `$env:Path = "C:\Program Files\nodejs;" + $env:Path`.
 - Supabase JS limita 1000 linhas por select — paginar com `.range()`.
 - Projeto usa `"type": "module"` — scripts CommonJS devem ser `.cjs`.
+- **Storage bloqueia DELETE via SQL** ("Direct deletion from storage tables is not allowed"). Para remover arquivos de teste: criar policy temporária de DELETE (`bucket_id IN (...) AND auth.role() = 'authenticated'`), logar como usuário autenticado no preview e chamar `supabase.storage.from(bucket).remove([paths])` pela Storage API; depois derrubar a policy. Usado na limpeza de dados de teste de 10/07/2026 (ver fase5.md).

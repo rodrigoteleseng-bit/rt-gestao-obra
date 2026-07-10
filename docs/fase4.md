@@ -52,9 +52,16 @@ Preview com usuário temporário `equipe` + módulos rdo/avanco (removido ao fin
 - **Galeria integrada (Fase 7 antecipada):** fotos anexadas ao RDO aparecem automaticamente em `/galeria`, organizadas por data do RDO. Ver `docs/fase7_extras.md`.
 - **Dashboard — RDO como grupo:** o card RDO é agora expansível e agrupa Relatório Diário, Galeria de Fotos e Efetivo como sub-itens. Galeria tem `sempre: true` (visível inclusive para cliente).
 
+## Correção de paleta (10/07/2026)
+
+O gerador de PDF (`rdoPdf.ts`) usava navy/terracota divergentes do manual de marca oficial da RT. Corrigido para os tokens oficiais (`#1A3248` / `#C49A7A`, ver `fase0.md`) — cabeçalho, marca d'água RASCUNHO e assinatura no canvas.
+
+## Reset de dados de teste (10/07/2026)
+
+O único RDO de teste (nº 001, 08/07/2026, com fotos/áudio/assinatura) foi **apagado definitivamente** a pedido do Rodrigo, incluindo os arquivos no Storage — ver `fase5.md`. `/rdo` está vazio, pronto para o primeiro RDO real.
+
 ## Pendências transferidas
 
 - Efetivo automático (Fase 7) e ferramentas do almoxarifado (Fase 6) alimentando o RDO.
 - "Congelar" os avanços no momento da assinatura em vez de consulta dinâmica por data [sugestão feita, sem resposta — Rodrigo vai testar o comportamento atual].
 - E-mail automático do PDF ao cliente [sugestão].
-- Aceites formais das Fases 2 e 4.

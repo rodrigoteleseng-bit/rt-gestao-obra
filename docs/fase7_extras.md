@@ -27,6 +27,14 @@
 
 **Integração com Dashboard:** sub-item de Galeria de Fotos no card RDO tem `sempre: true` — cliente também vê o link.
 
+**Reset de dados de teste (10/07/2026):** todas as fotos de teste (RDO, Pendências, FVS) foram apagadas do banco e do Storage a pedido do Rodrigo — ver `fase5.md`. `/galeria` está vazia; volta a popular sozinha assim que o primeiro RDO real tiver fotos.
+
+---
+
+## FVS / Qualidade — implementada (ver `fase5.md`)
+
+~~Estava listada como pendente aqui~~ — entregue na Fase 5 (09–10/07/2026) junto com Pendências, formando o grupo Qualidade. Detalhes completos em `docs/fase5.md`.
+
 ---
 
 ## Extras pendentes
@@ -35,7 +43,6 @@
 |---|---|---|
 | Medições de empreiteiros | % concluído por serviço × sobrado, geração de medição para pagamento | Fase 2 (avanço) |
 | Controle de contratos | Cadastro de contratos com empreiteiros + situação | Fase 6 (compras) |
-| FVS / Qualidade | Checklist de verificação por serviço; serviço só fecha com FVS aprovado | Pendências |
 | Gestão de efetivo | Cadastro de trabalhadores, frequência, custo de mão de obra | RDO |
 | Alertas | Ferramenta não devolvida, etapa estourando orçamento, tarefa atrasada | Todos os módulos |
 

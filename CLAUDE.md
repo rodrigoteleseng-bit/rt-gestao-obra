@@ -13,10 +13,12 @@
 - **Fase 1 (Orçamento): concluída e aceita** — detalhes em `docs/fase1.md`. Pendência transferida: exportação Excel/PDF.
 - **Fase 2 (Cronograma + Avanço físico): concluída e aceita** (09/07/2026) — detalhes em `docs/fase2.md`. Inclui medição por quantidade (m, m², m³, unid.), carga automática de quantidades do orçamento (897 tarefas preenchidas).
 - **Fase 4 (RDO): concluída e aceita** (09/07/2026, teste de campo positivo) — detalhes em `docs/fase4.md`. Inclui carimbo GPS nas fotos, áudio, ditado, assinatura digital, PDF com identidade RT, banner de RDOs não assinados, integração automática com Galeria.
-- **Fase 5 (Qualidade — Pendências + FVS): entregue em 09/07/2026, aguardando teste de campo e aceite** — detalhes em `docs/fase5.md`. Pendências: fluxo aberta → em correção → resolvida, fotos GPS, histórico imutável. FVS: 17 modelos seedados (renumerados p/ sequência da obra) + 2 novos (Reboco, Forro), item NC gera pendência automática, rodadas de verificação, "Aprovada com restrição", mapa da qualidade, integração automática com RDO. Cliente não vê o módulo.
+- **Fase 5 (Qualidade — Pendências + FVS): entregue em 09–10/07/2026, aguardando teste de campo com dados reais e aceite** — detalhes em `docs/fase5.md`. Pendências: fluxo aberta → em correção → resolvida, fotos GPS, histórico imutável. FVS: 17 modelos seedados (renumerados p/ sequência da obra, pré-requisitos sempre primeiro) + 2 novos (Reboco, Forro), item NC gera pendência automática, rodadas de verificação com estado "Aguardando" (conferência por partes), assinatura digital na conclusão, PDF próprio, "Aprovada com restrição", mapa da qualidade, exclusão pelo admin, integração automática com RDO. Cliente não vê o módulo.
 - **Fase 7 (Extras) — parcial:** Galeria de Fotos implementada (09/07/2026) — detalhes em `docs/fase7_extras.md`. Demais extras pendentes.
 - **Dashboard reestruturado (09/07/2026):** RDO agrupa Galeria + Efetivo; card "Qualidade" agrupa FVS + Pendências. Sidebar com seções visuais.
-- **Próximas etapas (ordem decidida pelo Rodrigo em 09/07/2026):** FVS (completa o grupo Qualidade; decisões já colhidas — ver fim de `docs/fase5.md`), depois demais módulos; **Fase 3 (Financeiro) fica por último** (não é predecessora de nada).
+- **Paleta corrigida para o manual de marca oficial (10/07/2026)** — navy `#1A3248`, terracota `#C49A7A` (era um tom improvisado desde a Fase 0). Ver §1 e `docs/fase0.md`.
+- **Reset de dados de teste (10/07/2026):** a pedido do Rodrigo, FVS/Pendências/RDO/Avanços físicos/Galeria foram apagados definitivamente para começar o lançamento real (17 modelos de FVS, cronograma e orçamento preservados). Detalhes em `docs/fase5.md`.
+- **Próxima etapa:** aceite formal da Fase 5 com dados reais de obra; depois seguir para Suprimentos (Fase 6), Medições ou Financeiro (Fase 3, decidido por último pelo Rodrigo — não é predecessora de nada).
 - Ao iniciar qualquer fase, ler `docs/faseN.md` das fases anteriores relevantes em vez de redescobrir o código.
 
 ## 1. Contexto do negócio
@@ -25,7 +27,7 @@
 - **Atuação:** administração de obras, empreitada global, projetos e reformas, com controle de qualidade, cronograma físico-financeiro e compras. [extraído]
 - **Obra piloto do app:** incorporação com **13 sobrados + portaria + área comum** (referência: Tharsos Imperial – Sobrado Tipo, Aparecida de Goiânia). [extraído]
 - **Orçamento base:** existe levantamento de quantitativos em planilha Excel multi-abas já elaborado. A Fase 1 é de **importação e estruturação**, não de criação do zero. [extraído]
-- **Identidade visual:** paleta navy + terracota, tipografia Sora/Inter, tagline "Inteligência Aplicada". Aplicar em todo o app e nos PDFs exportados (RDO, relatórios). [extraído]
+- **Identidade visual:** paleta navy `#1A3248` + terracota `#C49A7A` (nude), acento azul-médio `#3A7CA5`, suporte azul-gelo `#B8D4E8`, fundo nude `#F0EBE3`; tipografia Sora (títulos) / Inter (corpo); tagline "Inteligência Aplicada". Fonte de verdade: skill `rt-manual-marca` (instalada) — **sempre consultá-la antes de estimar cor/tom novo**, nunca inventar um hex. Aplicar em todo o app e nos PDFs exportados (RDO, FVS, relatórios). [extraído — corrigido em 10/07/2026, ver `docs/fase0.md`]
 
 ## 2. Usuários e permissões
 
@@ -59,9 +61,25 @@ OBRA
            └── SERVIÇO (item orçável: quantitativo + unidade + valor unitário)
 ```
 
-- A EAP do app deriva da EAP/escopo já usados na metodologia RT Engenharia (skills `eap-obra`, `estrutura-orcamento-obra`). [extraído]
+- A EAP do app deriva da EAP/escopo já usados na metodologia RT Engenharia. [extraído]
 - A estrutura exata de etapas e serviços da obra piloto vem da **planilha de orçamento do Rodrigo** — importada na Fase 1. [extraído]
 - Todo lançamento (nota, avanço, RDO, pendência, movimentação de almoxarifado) referencia obrigatoriamente um nó dessa hierarquia — no mínimo até ETAPA; idealmente até SERVIÇO.
+
+### Skills RT/Engenhar.IA instaladas — quando usar
+
+Estas skills geram **documentos avulsos** (`.md`/`.xlsx`, fora do app) e não substituem os módulos do app — usar quando o Rodrigo pedir algo que o app ainda não faz, ou para uma obra nova antes de ela entrar no app. Pipeline em sequência, cada uma alimenta a próxima:
+
+| Skill | Quando acionar |
+|---|---|
+| `diagnostico-obra` | Rodrigo anexa projetos (PDF/DWG) de uma obra nova e pede para extrair dados — gera 2 documentos (análise técnica + leitura de planejamento/orçamento) |
+| `escopo-obra` | Definir o escopo técnico executivo de uma obra nova, serviço por serviço (sem quantitativo/preço) |
+| `eap-obra` | Estruturar a EAP a partir do escopo — é a base que o app espera (Unidade → Etapa → Serviço) |
+| `estrutura-orcamento-obra` | Estruturar orçamento (quantitativos + valores) a partir da EAP — antes de importar no módulo Orçamento |
+| `cronograma-obra` | Gerar cronograma físico do zero (sem arquivo MS Project) — 2 fases: parâmetros/produtividade validados → planilha `.xlsx` |
+| `rt-manual-marca` | Qualquer trabalho visual/PDF novo — cores, logo, tipografia (ver §1) |
+| `rt-documentos-obra` | Documento avulso pontual: relatório de acompanhamento, proposta de empreitada, ata de reunião, diário de obra, pedido de compras — em Markdown |
+
+Para a obra piloto (Tharsos Imperial), escopo/EAP/orçamento/cronograma já foram importados diretamente das planilhas/MS Project do Rodrigo (Fases 1 e 2) — essas skills entram em cena para **obras futuras** ou peças avulsas, não para retrabalhar o que já está importado.
 
 ## 5. Módulos e fases de desenvolvimento [extraído — plano aprovado]
 
@@ -77,6 +95,8 @@ Ordem aprovada. Cada fase só inicia após a anterior ser validada pelo Rodrigo 
 | 5 | Pendências | Por unidade (seleciona Sobrado 1 → serviços pendentes + observações), status e responsável |
 | 6 | Suprimentos (Compras + Almoxarifado) | **Compras:** pedido vinculado ao orçamento → cotações com anexos → aprovação → conferência com NF. **Almoxarifado:** entrada/saída de materiais, empréstimo de ferramentas com devolução diária e alerta de não devolvido |
 | 7 | Extras (**todos aprovados**) | Medições de empreiteiros · Controle de contratos · FVS/checklist de qualidade · Galeria de fotos por unidade · Gestão de efetivo · Alertas (ferramenta não devolvida, etapa estourando orçamento, tarefa atrasada) |
+
+> **Nota de execução (09/07/2026):** por decisão do Rodrigo, FVS foi antecipado e entregue junto com Pendências como grupo **"Qualidade"** (Fase 5), em vez de esperar a Fase 7 isolada. Galeria de Fotos também foi antecipada (Fase 7 → entregue junto com RDO). Demais itens da Fase 7 seguem a ordem original.
 
 ### Amarrações entre módulos (regras de integração)
 1. **Financeiro ↔ Orçamento:** todo gasto lançado aponta para uma etapa/serviço do orçamento. Gasto sem vínculo não é aceito pelo sistema — vai para fila "a classificar".
@@ -140,6 +160,7 @@ Respondidas em 07/07/2026 [extraído]:
 
 ---
 
+*Versão 1.3 — 10/07/2026 — Fases 2, 4 e 5 (parcial) registradas; §1 corrige a paleta para os hex exatos do manual de marca oficial (skill `rt-manual-marca`) e referencia a fonte de verdade; §4 adiciona tabela de skills RT/Engenhar.IA e quando acionar cada uma; §5 nota a antecipação de FVS/Galeria para as fases 5/4; §0 registra o reset de dados de teste de 10/07/2026 (FVS/Pendências/RDO/Avanços/Galeria zerados a pedido do Rodrigo, modelos de FVS/cronograma/orçamento preservados).*
 *Versão 1.2 — 07/07/2026 — Fases 0 e 1 concluídas e aceitas; adiciona §0 Estado atual apontando para docs/fase0.md e docs/fase1.md; lacunas do §9 atualizadas com as respostas do Rodrigo; cliente vê valores confirmado; hospedagem Vercel definida.*
 *Versão 1.1 — 07/07/2026 — inclui módulo Compras na Fase 6 (Suprimentos) com conferência tripla cotação x recebimento x NF.*
 *Versão 1.0 — 07/07/2026 — elaborado com base nas definições de Rodrigo Teles Silva em conversa com o Claude. Alterações neste documento exigem aprovação do Rodrigo e atualização do número de versão.*

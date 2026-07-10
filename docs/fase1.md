@@ -1,7 +1,7 @@
 # Fase 1 — Orçamento · Registro de entrega
 
 > Status: **concluída e aceita** (07/07/2026) — navegação testada no desktop e celular pelo Rodrigo.
-> Pendência transferida para iteração futura: exportação Excel/PDF do orçamento.
+> Pendência transferida para iteração futura: exportação Excel/PDF do orçamento. [sugestão] Skill `xlsx` (instalada) pode gerar a exportação quando essa pendência for retomada.
 
 ## Dados importados
 

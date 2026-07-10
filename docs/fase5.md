@@ -1,7 +1,7 @@
-# Fase 5 — Pendências · Registro de entrega
+# Fase 5 — Qualidade (Pendências + FVS) · Registro de entrega
 
-> Status: **entregue em 09/07/2026 — aguardando teste de campo e aceite do Rodrigo.**
-> Primeiro sub-módulo do grupo Qualidade. FVS é a próxima etapa (decisões já colhidas — ver fim deste doc).
+> Status: **entregue em 09–10/07/2026 — aguardando teste de campo com dados reais e aceite formal do Rodrigo.**
+> Os dois sub-módulos do grupo Qualidade. Banco de dados de teste zerado em 10/07/2026 (ver seção ao final) — o teste de campo pendente agora é com dados reais da obra.
 
 ## Decisões aprovadas (09/07/2026)
 
@@ -106,6 +106,28 @@ Preview com usuário temporário `equipe` + módulos fvs/pendencias/rdo (removid
 - Botão "📄 Gerar PDF" no cabeçalho da ficha (`FvsForm`), lazy import. Gerado sob demanda a partir dos dados imutáveis.
 - Verificado no preview: PDF válido (%PDF-1.3, ~11 KB, 1 página) gerado sem erro para FVS-008 reprovada. Base idêntica ao rdoPdf já validado em produção.
 
+## Correção de paleta (10/07/2026)
+
+`fvsPdf.ts` e o canvas de assinatura da FVS usavam navy/terracota divergentes do manual de marca oficial. Corrigido para os tokens oficiais (`#1A3248` / `#C49A7A`) — ver `fase0.md` para o detalhe completo da correção (aplicada em todo o app, não só na FVS).
+
+## Reset de dados de teste (10/07/2026)
+
+A pedido do Rodrigo ("a maioria dos dados que fiz foi pra testar o app"), **apagados definitivamente** (não soft delete — DELETE físico, confirmado pelo Rodrigo por ser irreversível):
+
+| Dado | Quantidade removida |
+|---|---|
+| FVS (+ verificações, respostas) | 4 fichas, 5 verificações |
+| Pendências (+ eventos) | 2 |
+| RDOs (+ atividades, efetivo) | 1 |
+| Avanços físicos | 68 |
+| Fotos no Storage (buckets `fvs`, `pendencias`, `rdo`) | 14 arquivos (3 vinculados + 11 órfãos de testes anteriores) |
+
+**Preservado:** os 17 modelos de FVS + 294 itens (`fvs_modelos`/`fvs_modelo_itens`), cronograma (2.816 tarefas), orçamento (3.475 serviços), unidades, obra e os 4 usuários reais.
+
+**Ordem de exclusão** (FK `pendencias.fvs_id` → `fvs` exige apagar pendências antes de FVS): `pendencias` → `fvs` → `rdos` → `avancos_fisicos`, tudo em uma transação. Arquivos do Storage removidos à parte pela Storage API (ver armadilha em `fase0.md` — DELETE direto em `storage.objects` é bloqueado).
+
+Resultado: app limpo para lançamento de dados reais a partir de 10/07/2026. Galeria, RDO, Pendências, FVS e Avanço físico começam do zero.
+
 ## Pendências transferidas
 
-- Teste de campo e aceite formal da Fase 5 (Pendências + FVS) com fotos reais.
+- Teste de campo e aceite formal da Fase 5 (Pendências + FVS) com **dados reais** — o reset de 10/07 zerou os testes anteriores.

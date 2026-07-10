@@ -81,9 +81,13 @@ Lançamentos de teste do Rodrigo/Catarina zerados a pedido. Quantidades totais d
 - Aplicado via edge function temporária (v5, neutralizada em v6). Autoria da definição: Rodrigo.
 - Armadilha corrigida no matcher: pavimento detectado só pelos ancestrais — nomes como "Vigas Superiores (Pav. Térreo)" enganam.
 
+## Reset de dados de teste (10/07/2026)
+
+Os **68 avanços físicos** lançados até então (testes do Rodrigo e da Catarina) foram **apagados definitivamente** a pedido do Rodrigo, junto com FVS/Pendências/RDO/Galeria (ver `fase5.md`), para começar o lançamento real do zero. Quantidades totais das tarefas (carregadas do orçamento — ver acima) e o cronograma em si **não foram afetados**. `/avanco` está com 0% em todas as tarefas — pronto para lançamento real.
+
 ## Pendências transferidas
 
-- Exportação Excel/PDF (orçamento e cronograma) — pendência desde a Fase 1.
+- Exportação Excel/PDF (orçamento e cronograma) — pendência desde a Fase 1. [sugestão] A skill `xlsx` (instalada) pode ser usada para gerar a exportação de orçamento/cronograma quando essa pendência for retomada.
 - Script de **reimportação** de baseline (v2+) — adaptar `importar-cronograma.cjs` quando o Project mudar.
 - De-para cronograma ↔ orçamento + Curva S em R$ — Fase 3.
 - Teste guiado do Rodrigo (celular + desktop) e aceite formal da fase.

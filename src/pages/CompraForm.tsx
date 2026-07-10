@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useObra } from '../contexts/ObraContext'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase, type Servico, type PedidoCompra, type PedidoCompraItem, type Cotacao, type CotacaoItem, type Fornecedor } from '../lib/supabase'
+import { supabase, type Servico, type PedidoCompra, type PedidoCompraItem, type Cotacao, type CotacaoItem, type Fornecedor, type RecebimentoNf } from '../lib/supabase'
 import { STATUS_LABEL } from './Compras'
 import styles from './CompraForm.module.css'
 
@@ -50,6 +50,7 @@ export default function CompraForm() {
   const [cotacoes, setCotacoes] = useState<Cotacao[]>([])
   const [cotacoesItens, setCotacoesItens] = useState<CotacaoItem[]>([])
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
+  const [recebimentos, setRecebimentos] = useState<RecebimentoNf[]>([])
   const [carregandoPedido, setCarregandoPedido] = useState(!novo)
 
   useEffect(() => {
@@ -58,16 +59,18 @@ export default function CompraForm() {
 
   async function carregarPedido(pedidoId: string) {
     setCarregandoPedido(true)
-    const [{ data: p }, { data: its }, { data: cots }, { data: forns }] = await Promise.all([
+    const [{ data: p }, { data: its }, { data: cots }, { data: forns }, { data: recs }] = await Promise.all([
       supabase.from('pedidos_compra').select('*').eq('id', pedidoId).single(),
       supabase.from('pedidos_compra_itens').select('*').eq('pedido_id', pedidoId).eq('ativo', true).order('criado_em'),
       supabase.from('cotacoes').select('*').eq('pedido_id', pedidoId).order('criado_em'),
       supabase.from('fornecedores').select('*').eq('ativo', true).order('nome'),
+      supabase.from('recebimentos_nf').select('*').eq('pedido_id', pedidoId).order('criado_em'),
     ])
     setPedido(p ?? null)
     setItensPedido(its ?? [])
     setCotacoes(cots ?? [])
     setFornecedores(forns ?? [])
+    setRecebimentos(recs ?? [])
     if (cots && cots.length > 0) {
       const { data: coti } = await supabase.from('cotacoes_itens').select('*').in('cotacao_id', cots.map(c => c.id))
       setCotacoesItens(coti ?? [])
@@ -149,7 +152,7 @@ export default function CompraForm() {
     return (
       <DetalhePedido
         pedido={pedido} itens={itensPedido} cotacoes={cotacoes} cotacoesItens={cotacoesItens}
-        fornecedores={fornecedores} onRecarregar={() => carregarPedido(pedido.id)}
+        fornecedores={fornecedores} recebimentos={recebimentos} onRecarregar={() => carregarPedido(pedido.id)}
       />
     )
   }
@@ -246,10 +249,11 @@ interface DetalhePedidoProps {
   cotacoes: Cotacao[]
   cotacoesItens: CotacaoItem[]
   fornecedores: Fornecedor[]
+  recebimentos: RecebimentoNf[]
   onRecarregar: () => void
 }
 
-function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, onRecarregar }: DetalhePedidoProps) {
+function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, recebimentos, onRecarregar }: DetalhePedidoProps) {
   const navigate = useNavigate()
   const { perfil, temModulo } = useAuth()
   const podeEditar = perfil?.papel === 'admin' || temModulo('compras')
@@ -344,6 +348,87 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, o
       return
     }
     onRecarregar()
+  }
+
+  const [quantidades, setQuantidades] = useState<Record<string, string>>({})
+  const [arquivoNf, setArquivoNf] = useState<File | null>(null)
+  const [obsNf, setObsNf] = useState('')
+  const [salvandoRecebimento, setSalvandoRecebimento] = useState(false)
+  const [msgRecebimento, setMsgRecebimento] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function marcarEnviado() {
+    const { error } = await supabase.from('pedidos_compra').update({ status: 'enviado' }).eq('id', pedido.id)
+    if (error) {
+      setMsgRecebimento({ tipo: 'erro', texto: `Falha ao marcar como enviado: ${error.message}` })
+      return
+    }
+    setMsgRecebimento(null)
+    onRecarregar()
+  }
+
+  async function salvarRecebimento() {
+    const atualizacoes = itens.filter(it => quantidades[it.id] !== undefined && quantidades[it.id] !== '')
+    if (atualizacoes.length === 0) {
+      setMsgRecebimento({ tipo: 'erro', texto: 'Informe a quantidade recebida de ao menos um item.' })
+      return
+    }
+    setSalvandoRecebimento(true)
+    setMsgRecebimento(null)
+    for (const it of atualizacoes) {
+      const { error } = await supabase.from('pedidos_compra_itens')
+        .update({ quantidade_recebida: Number(quantidades[it.id]) })
+        .eq('id', it.id)
+      if (error) {
+        setSalvandoRecebimento(false)
+        setMsgRecebimento({ tipo: 'erro', texto: `Falha ao salvar recebimento de "${it.descricao_item}": ${error.message}` })
+        return
+      }
+    }
+    setSalvandoRecebimento(false)
+    setQuantidades({})
+    setMsgRecebimento({ tipo: 'ok', texto: 'Recebimento atualizado.' })
+    onRecarregar()
+  }
+
+  async function registrarNf() {
+    if (!arquivoNf) {
+      setMsgRecebimento({ tipo: 'erro', texto: 'Anexe a nota fiscal.' })
+      return
+    }
+    setSalvandoRecebimento(true)
+    setMsgRecebimento(null)
+    const path = `${pedido.id}/nf-${crypto.randomUUID()}-${arquivoNf.name}`
+    const { error: eUp } = await supabase.storage.from('cotacoes-nf').upload(path, arquivoNf)
+    if (eUp) {
+      setSalvandoRecebimento(false)
+      setMsgRecebimento({ tipo: 'erro', texto: `Falha no envio da NF: ${eUp.message}` })
+      return
+    }
+    const { error } = await supabase.from('recebimentos_nf').insert({
+      pedido_id: pedido.id, anexo_nf_url: path, observacao: obsNf.trim() || null,
+    })
+    if (error) {
+      setSalvandoRecebimento(false)
+      setMsgRecebimento({ tipo: 'erro', texto: `Falha ao registrar a NF: ${error.message}` })
+      return
+    }
+    if (pedido.status === 'recebido_total') {
+      const { error: eStatus } = await supabase.from('pedidos_compra').update({ status: 'conferido_nf' }).eq('id', pedido.id)
+      if (eStatus) {
+        setSalvandoRecebimento(false)
+        setMsgRecebimento({ tipo: 'erro', texto: `NF registrada, mas falhou ao atualizar o status do pedido: ${eStatus.message}` })
+        onRecarregar()
+        return
+      }
+    }
+    setSalvandoRecebimento(false)
+    setArquivoNf(null); setObsNf('')
+    setMsgRecebimento({ tipo: 'ok', texto: 'NF registrada.' })
+    onRecarregar()
+  }
+
+  function divergencia(it: PedidoCompraItem): boolean {
+    return it.quantidade_recebida > 0 && it.quantidade_recebida !== it.quantidade_pedida
   }
 
   const nomeFornecedor = (id: string) => fornecedores.find(f => f.id === id)?.nome ?? '?'
@@ -445,6 +530,58 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, o
       {ehAdmin && pedido.status === 'em_cotacao' && (
         <div className={styles.bloco}>
           <button className={styles.btnPrincipal} onClick={aprovarPedido}>Aprovar pedido</button>
+        </div>
+      )}
+
+      {ehAdmin && pedido.status === 'aprovado' && (
+        <div className={styles.bloco}>
+          <button className={styles.btnPrincipal} onClick={marcarEnviado}>Marcar como enviado ao fornecedor</button>
+        </div>
+      )}
+
+      {podeEditar && ['enviado', 'recebido_parcial'].includes(pedido.status) && (
+        <div className={styles.bloco}>
+          <h2>Registrar recebimento</h2>
+          {itens.map(it => (
+            <label key={it.id} className={styles.campo}>
+              {it.descricao_item} — pedido {it.quantidade_pedida} {it.und}, recebido até agora {it.quantidade_recebida}
+              {divergencia(it) && <span className={styles.msgErro}> (divergência)</span>}
+              <input type="number" min="0" step="0.01" value={quantidades[it.id] ?? ''}
+                placeholder={`Nova quantidade total recebida`}
+                onChange={e => setQuantidades(prev => ({ ...prev, [it.id]: e.target.value }))} />
+            </label>
+          ))}
+          {msgRecebimento && <p className={msgRecebimento.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgRecebimento.texto}</p>}
+          <button className={styles.btnPrincipal} onClick={salvarRecebimento} disabled={salvandoRecebimento}>
+            {salvandoRecebimento ? 'Salvando…' : 'Salvar quantidades recebidas'}
+          </button>
+        </div>
+      )}
+
+      {podeEditar && pedido.status === 'recebido_total' && (
+        <div className={styles.bloco}>
+          <h2>Conferência com nota fiscal</h2>
+          <label className={styles.campo}>
+            Nota fiscal (PDF/foto) *
+            <input type="file" accept="application/pdf,image/*" onChange={e => setArquivoNf(e.target.files?.[0] ?? null)} />
+          </label>
+          <label className={styles.campo}>
+            Observação
+            <input value={obsNf} onChange={e => setObsNf(e.target.value)} placeholder="Ex.: NF 12345, entrega em duas notas…" />
+          </label>
+          {msgRecebimento && <p className={msgRecebimento.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgRecebimento.texto}</p>}
+          <button className={styles.btnPrincipal} onClick={registrarNf} disabled={salvandoRecebimento}>
+            {salvandoRecebimento ? 'Salvando…' : 'Anexar NF e conferir'}
+          </button>
+        </div>
+      )}
+
+      {recebimentos.length > 0 && (
+        <div className={styles.bloco}>
+          <h2>Notas fiscais anexadas ({recebimentos.length})</h2>
+          {recebimentos.map(r => (
+            <p key={r.id} className={styles.metaLista}>{r.observacao || 'NF sem observação'} — {new Date(r.criado_em).toLocaleDateString('pt-BR')}</p>
+          ))}
         </div>
       )}
     </div>

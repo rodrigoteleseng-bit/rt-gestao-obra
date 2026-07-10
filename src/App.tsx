@@ -46,7 +46,6 @@ function AppRoutes() {
         <Route path="rdo/:id" element={<RDOForm />} />
         <Route path="financeiro" element={<EmConstrucao modulo="Financeiro" fase={3} />} />
         <Route path="compras" element={<Compras />} />
-        <Route path="compras/novo" element={<CompraForm />} />
         <Route path="compras/:id" element={<CompraForm />} />
         <Route path="almoxarifado" element={<EmConstrucao modulo="Almoxarifado" fase={6} />} />
         <Route path="pendencias" element={<Pendencias />} />

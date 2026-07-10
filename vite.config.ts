@@ -13,7 +13,7 @@ export default defineConfig({
         name: 'RT Gestão de Obra',
         short_name: 'RT Obra',
         description: 'Inteligência Aplicada — RT Engenharia',
-        theme_color: '#1B2A4A',
+        theme_color: '#1A3248',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait-primary',

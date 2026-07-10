@@ -4,8 +4,8 @@ import { supabase } from './supabase'
 import type { Rdo, RdoAtividade, RdoEfetivo, RdoFoto, RdoAudio, Unidade, AvancoFisico } from './supabase'
 import { fmtCoord, fmtDuracao } from './rdo'
 
-const NAVY = '#1B2A4A'
-const TERRACOTA = '#C0603B'
+const NAVY = '#1A3248'
+const TERRACOTA = '#C49A7A'
 const CINZA = '#6c757d'
 
 interface AvancoDoDia extends AvancoFisico { tarefaNome: string; unidadeNome: string }
@@ -60,7 +60,7 @@ export async function gerarPdfRdo(d: DadosPdfRdo): Promise<void> {
       pdf.text(`Página ${i} de ${total}`, W - MR, 290, { align: 'right' })
       if (d.rdo.status === 'rascunho') {
         pdf.setFontSize(60)
-        pdf.setTextColor('#e9b8a5')
+        pdf.setTextColor('#D9BDA9')
         pdf.text('RASCUNHO', W / 2, 160, { align: 'center', angle: 40 })
       }
     }
@@ -108,14 +108,14 @@ export async function gerarPdfRdo(d: DadosPdfRdo): Promise<void> {
   pdf.text('RT ENGENHARIA', ML, 13)
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8.5)
-  pdf.setTextColor('#c9d2e3')
+  pdf.setTextColor('#B8D4E8')
   pdf.text('Inteligência Aplicada', ML, 18.5)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(12)
   pdf.setTextColor('#ffffff')
   pdf.text('RELATÓRIO DIÁRIO DE OBRA', W - MR, 12, { align: 'right' })
   pdf.setFontSize(10)
-  pdf.setTextColor('#e8c4b3')
+  pdf.setTextColor('#D0AE95')
   pdf.text(`RDO Nº ${String(d.rdo.numero).padStart(3, '0')} · ${fmtData(d.rdo.data)}`, W - MR, 18.5, { align: 'right' })
   y = 39
 

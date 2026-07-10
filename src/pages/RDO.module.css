@@ -269,7 +269,7 @@
 .chipFuncao:hover,
 .chipFuncao:active {
   border-color: var(--terracota);
-  background: #fdf1ec;
+  background: var(--nude);
 }
 
 .chipFuncaoOutra {

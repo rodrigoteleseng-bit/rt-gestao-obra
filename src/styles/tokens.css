@@ -1,10 +1,13 @@
 :root {
-  --navy: #1B2A4A;
-  --navy-light: #243660;
-  --navy-dark: #111c33;
-  --terracota: #C4622D;
-  --terracota-light: #d4733e;
-  --terracota-dark: #a84f22;
+  /* Paleta oficial RT Engenharia (manual de marca) */
+  --navy: #1A3248;
+  --navy-light: #3A7CA5;   /* azul-médio (acento oficial) */
+  --navy-dark: #122332;
+  --terracota: #C49A7A;
+  --terracota-light: #CDA98E;
+  --terracota-dark: #A68368;
+  --azul-gelo: #B8D4E8;    /* suporte oficial */
+  --nude: #F0EBE3;         /* fundo oficial */
   --branco: #ffffff;
   --cinza-50: #f8f9fa;
   --cinza-100: #f1f3f5;

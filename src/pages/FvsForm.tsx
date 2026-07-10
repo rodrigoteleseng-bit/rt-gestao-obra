@@ -225,7 +225,7 @@ export default function FvsForm() {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')!
-    ctx.strokeStyle = '#1B2A4A'
+    ctx.strokeStyle = '#1A3248'
     ctx.lineWidth = 2.2
     ctx.lineCap = 'round'
     let tracando = false

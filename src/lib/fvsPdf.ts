@@ -8,8 +8,8 @@ import type {
 } from './supabase'
 import { fmtCoord } from './rdo'
 
-const NAVY = '#1B2A4A'
-const TERRACOTA = '#C0603B'
+const NAVY = '#1A3248'
+const TERRACOTA = '#C49A7A'
 const CINZA = '#6c757d'
 
 const STATUS_LABEL: Record<StatusFvs, string> = {
@@ -68,7 +68,7 @@ export async function gerarPdfFvs(d: DadosPdfFvs): Promise<void> {
       pdf.text(`Página ${i} de ${total}`, W - MR, 290, { align: 'right' })
       if (naoConcluida) {
         pdf.setFontSize(58)
-        pdf.setTextColor('#e9b8a5')
+        pdf.setTextColor('#D9BDA9')
         pdf.text('EM ANDAMENTO', W / 2, 165, { align: 'center', angle: 40 })
       }
     }
@@ -113,14 +113,14 @@ export async function gerarPdfFvs(d: DadosPdfFvs): Promise<void> {
   pdf.text('RT ENGENHARIA', ML, 13)
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8.5)
-  pdf.setTextColor('#c9d2e3')
+  pdf.setTextColor('#B8D4E8')
   pdf.text('Inteligência Aplicada', ML, 18.5)
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(11)
   pdf.setTextColor('#ffffff')
   pdf.text('FICHA DE VERIFICAÇÃO DE SERVIÇO', W - MR, 12, { align: 'right' })
   pdf.setFontSize(10)
-  pdf.setTextColor('#e8c4b3')
+  pdf.setTextColor('#D0AE95')
   pdf.text(`${d.modelo.codigo} · ${d.modelo.nome}`, W - MR, 18.5, { align: 'right' })
   y = 39
 

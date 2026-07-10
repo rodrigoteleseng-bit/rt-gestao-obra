@@ -443,7 +443,77 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
   const [arquivo, setArquivo] = useState<File | null>(null)
   const [salvandoCotacao, setSalvandoCotacao] = useState(false)
   const [msgCotacao, setMsgCotacao] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  const [msgImportacao, setMsgImportacao] = useState<string | null>(null)
   const [urlsAnexos, setUrlsAnexos] = useState<Map<string, string>>(new Map())
+
+  function parseCsv(texto: string): string[][] {
+    return texto.split(/\r?\n/).filter(l => l.trim().length > 0).map(linha => {
+      const campos: string[] = []
+      let atual = ''
+      let dentroAspas = false
+      for (let i = 0; i < linha.length; i++) {
+        const c = linha[i]
+        if (c === '"') {
+          if (dentroAspas && linha[i + 1] === '"') { atual += '"'; i++ }
+          else dentroAspas = !dentroAspas
+        } else if (c === ',' && !dentroAspas) {
+          campos.push(atual); atual = ''
+        } else {
+          atual += c
+        }
+      }
+      campos.push(atual)
+      return campos.map(c => c.trim())
+    })
+  }
+
+  async function importarCsv(arquivoCsv: File) {
+    const texto = await arquivoCsv.text()
+    const linhas = parseCsv(texto)
+    if (linhas.length < 2) {
+      setMsgImportacao('CSV vazio ou sem linhas de item.')
+      return
+    }
+    const header = linhas[0].map(h => h.toLowerCase())
+    const idx = {
+      fornecedor: header.indexOf('fornecedor'),
+      condicao: header.indexOf('condicao_pagamento'),
+      prazo: header.indexOf('prazo_entrega_dias'),
+      item: header.indexOf('item'),
+      preco: header.indexOf('preco_unitario'),
+    }
+    if (Object.values(idx).some(i => i === -1)) {
+      setMsgImportacao('Cabeçalho do CSV não reconhecido. Esperado: fornecedor,condicao_pagamento,prazo_entrega_dias,item,preco_unitario')
+      return
+    }
+    const linhasDados = linhas.slice(1)
+
+    const nomeFornecedorCsv = (linhasDados[0][idx.fornecedor] ?? '').trim()
+    const matchFornecedor = fornecedores.find(f => f.nome.trim().toLowerCase() === nomeFornecedorCsv.toLowerCase())
+    if (matchFornecedor) setFornecedorSel(matchFornecedor.id)
+    if (linhasDados[0][idx.condicao]) setCondicaoPagamento(linhasDados[0][idx.condicao].trim())
+    if (linhasDados[0][idx.prazo]) setPrazoEntrega(linhasDados[0][idx.prazo].trim())
+
+    const novosPrecos: Record<string, string> = {}
+    const semCorrespondencia: string[] = []
+    for (const linha of linhasDados) {
+      const nomeItem = (linha[idx.item] ?? '').trim()
+      const preco = (linha[idx.preco] ?? '').trim()
+      if (!nomeItem || !preco) continue
+      const nomeItemLower = nomeItem.toLowerCase()
+      const itemPedido = itens.find(it =>
+        it.descricao_item.toLowerCase().includes(nomeItemLower) || nomeItemLower.includes(it.descricao_item.toLowerCase())
+      )
+      if (itemPedido) novosPrecos[itemPedido.id] = preco
+      else semCorrespondencia.push(nomeItem)
+    }
+    setPrecos(prev => ({ ...prev, ...novosPrecos }))
+
+    const partes = [`${Object.keys(novosPrecos).length} de ${linhasDados.length} item(ns) do CSV preenchidos automaticamente.`]
+    if (nomeFornecedorCsv && !matchFornecedor) partes.push(`Fornecedor "${nomeFornecedorCsv}" não encontrado no cadastro — selecione manualmente.`)
+    if (semCorrespondencia.length > 0) partes.push(`Sem correspondência no pedido: ${semCorrespondencia.join(', ')}.`)
+    setMsgImportacao(partes.join(' '))
+  }
 
   useEffect(() => {
     let cancelado = false
@@ -809,6 +879,16 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       {podeEditar && pedido.status !== 'aprovado' && !['encerrado', 'cancelado'].includes(pedido.status) && (
         <div className={styles.bloco}>
           <h2>Registrar cotação de fornecedor</h2>
+          <label className={styles.campo}>
+            Importar CSV (skill "leitura-cotacao-fornecedor")
+            <input type="file" accept=".csv,text/csv"
+              onChange={e => {
+                const f = e.target.files?.[0]
+                e.target.value = ''
+                if (f) importarCsv(f)
+              }} />
+          </label>
+          {msgImportacao && <p className={styles.msgInfo}>{msgImportacao}</p>}
           <div className={styles.linha2}>
             <label className={styles.campo}>
               Fornecedor *

@@ -163,6 +163,7 @@
 
 .msgOk { color: #1e6b2e; font-weight: 600; font-size: 13px; padding: 6px 0; }
 .msgErro { color: #a33030; font-weight: 600; font-size: 13px; padding: 6px 0; }
+.msgInfo { color: var(--navy); font-weight: 600; font-size: 13px; padding: 6px 0; }
 .vazio { color: var(--cinza-600); font-size: 14px; padding: 12px 0; }
 
 .tabelaComparativa {

@@ -150,6 +150,6 @@ export function gerarPdfPedido(d: DadosPdfPedido): void {
   pdf.line(ML, y, W - MR, y)
 
   rodape()
-  const nomeObra = d.obraNome.replace(/\s+/g, '')
-  pdf.save(`Pedido_${String(d.pedido.numero).padStart(3, '0')}_${nomeObra}.pdf`)
+  const numeroComZero = String(d.pedido.numero).padStart(3, '0')
+  pdf.save(`${d.pedido.numero} - PEDIDO ${d.obraNome} ${numeroComZero}.pdf`)
 }

@@ -89,8 +89,8 @@ export default function CompraForm() {
 
   function sugestoesPara(texto: string): Servico[] {
     const t = texto.trim().toLowerCase()
-    if (t.length < 2) return []
-    return servicos.filter(s => s.nome.toLowerCase().includes(t) || (s.codigo ?? '').toLowerCase().includes(t)).slice(0, 8)
+    if (!t) return servicos
+    return servicos.filter(s => s.nome.toLowerCase().includes(t) || (s.codigo ?? '').toLowerCase().includes(t))
   }
 
   function atualizarItem(chave: string, patch: Partial<ItemNovo>) {

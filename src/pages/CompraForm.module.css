@@ -34,6 +34,16 @@
   white-space: nowrap;
 }
 
+.chip_rascunho { background: #eceff1; color: #546e7a; }
+.chip_em_cotacao { background: #fdf3d7; color: #8a6d1a; }
+.chip_aprovado { background: #e3edfa; color: #1a5fa3; }
+.chip_enviado { background: #e3edfa; color: #1a5fa3; }
+.chip_recebido_parcial { background: #fdf3d7; color: #8a6d1a; }
+.chip_recebido_total { background: #e3f4e3; color: #1e6b2e; }
+.chip_conferido_nf { background: #e3f4e3; color: #1e6b2e; }
+.chip_encerrado { background: #e0e0e0; color: #424242; }
+.chip_cancelado { background: #fdeaea; color: #a33030; }
+
 .bloco {
   background: var(--branco);
   border: 1.5px solid var(--cinza-200);
@@ -184,6 +194,16 @@
 }
 
 .btnVencedor.ativo { background: #1e6b2e; border-color: #1e6b2e; color: var(--branco); }
+
+.anexoLink {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--navy);
+  text-decoration: none;
+}
+.anexoLink:hover { text-decoration: underline; }
 
 .fornecedorForm { border-top: 1.5px solid var(--cinza-200); margin-top: 12px; padding-top: 12px; }
 

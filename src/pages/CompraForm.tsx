@@ -266,6 +266,29 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
   const [arquivo, setArquivo] = useState<File | null>(null)
   const [salvandoCotacao, setSalvandoCotacao] = useState(false)
   const [msgCotacao, setMsgCotacao] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  const [urlsAnexos, setUrlsAnexos] = useState<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    let cancelado = false
+    async function carregarUrls() {
+      const novasUrls = new Map<string, string>()
+      await Promise.all([
+        ...cotacoes.map(async c => {
+          if (!c.anexo_url) return
+          const { data } = await supabase.storage.from('cotacoes-nf').createSignedUrl(c.anexo_url, 3600)
+          if (data) novasUrls.set(c.anexo_url, data.signedUrl)
+        }),
+        ...recebimentos.map(async r => {
+          if (!r.anexo_nf_url) return
+          const { data } = await supabase.storage.from('cotacoes-nf').createSignedUrl(r.anexo_nf_url, 3600)
+          if (data) novasUrls.set(r.anexo_nf_url, data.signedUrl)
+        }),
+      ])
+      if (!cancelado) setUrlsAnexos(novasUrls)
+    }
+    carregarUrls()
+    return () => { cancelado = true }
+  }, [cotacoes, recebimentos])
 
   function precoDe(cotacaoId: string, itemId: string): number | null {
     const ci = cotacoesItens.find(c => c.cotacao_id === cotacaoId && c.pedido_item_id === itemId)
@@ -315,12 +338,16 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       setMsgCotacao({ tipo: 'erro', texto: `Cotação criada, mas falhou ao salvar os preços dos itens: ${eItens.message}` })
       return
     }
+    let statusMsg: { tipo: 'ok' | 'erro'; texto: string } = { tipo: 'ok', texto: 'Cotação registrada.' }
     if (pedido.status === 'rascunho') {
-      await supabase.from('pedidos_compra').update({ status: 'em_cotacao' }).eq('id', pedido.id)
+      const { error: eStatus } = await supabase.from('pedidos_compra').update({ status: 'em_cotacao' }).eq('id', pedido.id)
+      if (eStatus) {
+        statusMsg = { tipo: 'erro', texto: `Cotação registrada, mas falhou ao atualizar o status do pedido: ${eStatus.message}` }
+      }
     }
     setSalvandoCotacao(false)
     setFornecedorSel(''); setCondicaoPagamento(''); setPrazoEntrega(''); setPrecos({}); setArquivo(null)
-    setMsgCotacao({ tipo: 'ok', texto: 'Cotação registrada.' })
+    setMsgCotacao(statusMsg)
     onRecarregar()
   }
 
@@ -414,7 +441,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       setMsgRecebimento({ tipo: 'erro', texto: `Falha ao registrar a NF: ${error.message}` })
       return
     }
-    if (pedido.status === 'recebido_total') {
+    if (['recebido_parcial', 'recebido_total'].includes(pedido.status)) {
       const { error: eStatus } = await supabase.from('pedidos_compra').update({ status: 'conferido_nf' }).eq('id', pedido.id)
       if (eStatus) {
         setSalvandoRecebimento(false)
@@ -464,7 +491,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       <button className={styles.voltar} onClick={() => navigate('/compras')}>← Compras</button>
       <div className={styles.header}>
         <h1>Pedido {String(pedido.numero).padStart(3, '0')}</h1>
-        <span className={`${styles.chip}`}>{STATUS_LABEL[pedido.status]}</span>
+        <span className={`${styles.chip} ${styles[`chip_${pedido.status}`]}`}>{STATUS_LABEL[pedido.status]}</span>
       </div>
       {pedido.descricao && <p className={styles.metaLista}>{pedido.descricao}</p>}
 
@@ -474,7 +501,18 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
           <thead>
             <tr>
               <th>Item</th><th>Qtd.</th><th>Necessário até</th>
-              {cotacoes.map(c => <th key={c.id}>{nomeFornecedor(c.fornecedor_id)}</th>)}
+              {cotacoes.map(c => (
+                <th key={c.id}>
+                  {nomeFornecedor(c.fornecedor_id)}
+                  {c.anexo_url && urlsAnexos.get(c.anexo_url) && (
+                    <div>
+                      <a className={styles.anexoLink} href={urlsAnexos.get(c.anexo_url)} target="_blank" rel="noreferrer">
+                        📎 anexo
+                      </a>
+                    </div>
+                  )}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -492,7 +530,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
                       {preco !== null ? (
                         <>
                           <span className={vencedor ? styles.precoVencedor : ''}>R$ {preco.toFixed(2)}</span>
-                          {ehAdmin && pedido.status !== 'aprovado' && (
+                          {ehAdmin && pedido.status === 'em_cotacao' && (
                             <div>
                               <button
                                 className={`${styles.btnVencedor} ${vencedor ? styles.ativo : ''}`}
@@ -584,7 +622,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
         </div>
       )}
 
-      {podeEditar && pedido.status === 'recebido_total' && (
+      {podeEditar && ['recebido_parcial', 'recebido_total'].includes(pedido.status) && (
         <div className={styles.bloco}>
           <h2>Conferência com nota fiscal</h2>
           <label className={styles.campo}>
@@ -606,7 +644,14 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
         <div className={styles.bloco}>
           <h2>Notas fiscais anexadas ({recebimentos.length})</h2>
           {recebimentos.map(r => (
-            <p key={r.id} className={styles.metaLista}>{r.observacao || 'NF sem observação'} — {new Date(r.criado_em).toLocaleDateString('pt-BR')}</p>
+            <p key={r.id} className={styles.metaLista}>
+              {r.observacao || 'NF sem observação'} — {new Date(r.criado_em).toLocaleDateString('pt-BR')}
+              {r.anexo_nf_url && urlsAnexos.get(r.anexo_nf_url) && (
+                <a className={styles.anexoLink} href={urlsAnexos.get(r.anexo_nf_url)} target="_blank" rel="noreferrer">
+                  📎 abrir NF
+                </a>
+              )}
+            </p>
           ))}
         </div>
       )}

@@ -50,6 +50,7 @@ export default function FvsForm() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const desenhouRef = useRef(false)
   const [nomeAssinante, setNomeAssinante] = useState('')
+  const [respPendencia, setRespPendencia] = useState('') // responsável pelas pendências dos itens NC
 
   const [carregando, setCarregando] = useState(!nova)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
@@ -266,12 +267,14 @@ export default function FvsForm() {
       p_verificacao: rodadaAberta.id, p_resultado: assinando, p_observacao: obsFinal.trim() || null,
       p_assinatura: canvasRef.current!.toDataURL('image/png'), p_assinante: nomeAssinante.trim(),
       p_lat: geo.lat, p_lng: geo.lng, p_precisao: geo.precisao,
+      p_responsavel: respPendencia.trim() || null,
     })
     setSalvando(false)
     if (error) { setMsg({ tipo: 'erro', texto: error.message }); return }
     const nPend = data as number
     const resultadoLabel = STATUS_FVS_LABEL[assinando]
     setObsFinal('')
+    setRespPendencia('')
     setAssinando(null)
     desenhouRef.current = false
     await carregar(fvs.id)
@@ -530,6 +533,13 @@ export default function FvsForm() {
             Nome do responsável
             <input value={nomeAssinante} onChange={e => setNomeAssinante(e.target.value)} placeholder="Quem está verificando" />
           </label>
+          {qtdNC > 0 && (
+            <label className={styles.campo}>
+              Responsável pela correção das pendências ({qtdNC} item(ns) NC)
+              <input value={respPendencia} onChange={e => setRespPendencia(e.target.value)}
+                placeholder="Ex.: empreiteiro de alvenaria, João" />
+            </label>
+          )}
           <canvas ref={canvasRef} width={600} height={200} className={styles.canvasAssinatura} />
           <div className={styles.acoes}>
             <button className={styles.btnAdd} onClick={limparAssinatura} disabled={salvando}>Limpar</button>

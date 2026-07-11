@@ -51,6 +51,8 @@ export default function PendenciaForm() {
   const [fotosStaged, setFotosStaged] = useState<FotoStaged[]>([])
 
   const [comentario, setComentario] = useState('')
+  const [editandoResp, setEditandoResp] = useState(false)
+  const [respNovo, setRespNovo] = useState('')
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [anexando, setAnexando] = useState(false)
@@ -196,6 +198,23 @@ export default function PendenciaForm() {
     setMsg({ tipo: 'ok', texto: `Status atualizado: ${STATUS_LABEL[novoStatus]}.` })
   }
 
+  // ---------- responsável (editável enquanto a pendência estiver ativa) ----------
+  async function salvarResponsavel() {
+    if (!pendencia) return
+    setSalvando(true)
+    setMsg(null)
+    const { data, error } = await supabase.from('pendencias')
+      .update({ responsavel: respNovo.trim() || null }).eq('id', pendencia.id).select()
+    setSalvando(false)
+    if (error || !data || data.length === 0) {
+      setMsg({ tipo: 'erro', texto: error?.message ?? 'Sem permissão para alterar esta pendência.' })
+      return
+    }
+    setPendencia(data[0])
+    setEditandoResp(false)
+    setMsg({ tipo: 'ok', texto: 'Responsável atualizado.' })
+  }
+
   const nomeUnidade = unidades.find(u => u.id === unidadeSel)?.nome ?? '?'
   const nomeTarefa = tarefasUnidade.find(t => t.id === tarefaSel)?.nome
 
@@ -309,7 +328,30 @@ export default function PendenciaForm() {
         <p className={styles.descDetalhe}>{p.descricao}</p>
         <div className={styles.metaLista}>
           {nomeTarefa && <span>🔗 {nomeTarefa}</span>}
-          {p.responsavel && <span>👤 {p.responsavel}</span>}
+          {!editandoResp && p.responsavel && (
+            <span>
+              👤 {p.responsavel}
+              {podeMudarStatus && (
+                <button className={styles.btnRespEditar} disabled={salvando}
+                  onClick={() => { setRespNovo(p.responsavel ?? ''); setEditandoResp(true) }}>✎</button>
+              )}
+            </span>
+          )}
+          {!editandoResp && !p.responsavel && podeMudarStatus && (
+            <button className={styles.btnRespDefinir} disabled={salvando}
+              onClick={() => { setRespNovo(''); setEditandoResp(true) }}>
+              👤 definir responsável
+            </button>
+          )}
+          {editandoResp && (
+            <span className={styles.respEdicao}>
+              <input value={respNovo} onChange={e => setRespNovo(e.target.value)}
+                placeholder="Responsável pela correção" autoFocus
+                onKeyDown={e => { if (e.key === 'Enter') salvarResponsavel() }} />
+              <button className={styles.btnRespSalvar} onClick={salvarResponsavel} disabled={salvando}>✓</button>
+              <button className={styles.btnRespCancelar} onClick={() => setEditandoResp(false)} disabled={salvando}>✕</button>
+            </span>
+          )}
           {p.prazo && <span>📅 prazo {p.prazo.slice(8, 10)}/{p.prazo.slice(5, 7)}/{p.prazo.slice(0, 4)}</span>}
           <span>✍ {autores.get(p.criado_por) ?? '?'} em {fmtDataHora(p.criado_em)}</span>
         </div>

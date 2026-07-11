@@ -239,9 +239,56 @@
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
+  align-items: center;
   font-size: 12px;
   color: var(--cinza-600);
 }
+
+/* ── responsável editável ── */
+.btnRespEditar {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--navy-light);
+  font-size: 12px;
+  padding: 0 4px;
+}
+
+.btnRespDefinir {
+  background: none;
+  border: 1.5px dashed var(--cinza-200);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--navy-light);
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.respEdicao {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.respEdicao input {
+  padding: 6px 10px;
+  border: 1.5px solid var(--navy);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+  min-width: 200px;
+}
+
+.btnRespSalvar, .btnRespCancelar {
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 10px;
+}
+
+.btnRespSalvar { background: var(--navy); color: var(--branco); }
+.btnRespCancelar { background: var(--cinza-200); color: var(--cinza-600); }
 
 /* ── fotos ── */
 .btnFoto {

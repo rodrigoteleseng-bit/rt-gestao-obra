@@ -3,7 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import { supabase, type Unidade } from '../lib/supabase'
+import { dataLocalISO, dataHoje, diasEntre } from '../lib/almoxarifado'
 import styles from './Dashboard.module.css'
+
+interface FerramentaAtraso {
+  emprestimoId: string
+  nomeFerramenta: string
+  retiradoPor: string
+  dias: number
+}
 
 interface SubModulo {
   label: string
@@ -58,6 +66,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [cardAberto, setCardAberto] = useState<string | null>(null)
+  const [ferramentasAtraso, setFerramentasAtraso] = useState<FerramentaAtraso[]>([])
 
   useEffect(() => {
     if (!obra) {
@@ -68,6 +77,44 @@ export default function Dashboard() {
       .then(({ data }) => setUnidades(data ?? []))
   }, [obra])
 
+  const vePainelAlmoxarifado = perfil?.papel !== 'cliente' && temModulo('almoxarifado')
+
+  useEffect(() => {
+    if (!obra || !vePainelAlmoxarifado) {
+      setFerramentasAtraso([])
+      return
+    }
+    type LinhaEmprestimo = {
+      id: string
+      retirado_por: string
+      retirada_em: string
+      ferramentas: { nome: string; obra_id: string } | null
+    }
+    supabase.from('ferramenta_emprestimos')
+      .select('id, retirado_por, retirada_em, ferramentas!inner(nome, obra_id)')
+      .eq('ferramentas.obra_id', obra.id)
+      .is('devolvida_em', null)
+      .then(({ data }) => {
+        const hoje = dataHoje()
+        const linhas = (data ?? []) as unknown as LinhaEmprestimo[]
+        const atrasadas: FerramentaAtraso[] = linhas
+          .map(e => ({
+            emprestimoId: e.id,
+            nomeFerramenta: e.ferramentas?.nome ?? '?',
+            retiradoPor: e.retirado_por,
+            dataRetirada: dataLocalISO(new Date(e.retirada_em)),
+          }))
+          .filter(e => e.dataRetirada < hoje)
+          .map(e => ({
+            emprestimoId: e.emprestimoId,
+            nomeFerramenta: e.nomeFerramenta,
+            retiradoPor: e.retiradoPor,
+            dias: diasEntre(e.dataRetirada, hoje),
+          }))
+        setFerramentasAtraso(atrasadas)
+      })
+  }, [obra, vePainelAlmoxarifado])
+
   const sobrados = unidades.filter(u => u.tipo === 'sobrado')
 
   return (
@@ -76,6 +123,22 @@ export default function Dashboard() {
         <h1>Olá, {perfil?.nome?.split(' ')[0]} 👋</h1>
         <p>Bem-vindo ao painel de gestão de obra da RT Engenharia.</p>
       </div>
+
+      {ferramentasAtraso.length > 0 && (
+        <button className={styles.bannerAlerta} onClick={() => navigate('/almoxarifado')}>
+          <span className={styles.bannerIcon}>🔧</span>
+          <span className={styles.bannerTexto}>
+            {ferramentasAtraso.length} ferramenta{ferramentasAtraso.length > 1 ? 's' : ''} não devolvida{ferramentasAtraso.length > 1 ? 's' : ''}:{' '}
+            {ferramentasAtraso.slice(0, 3).map((f, i) => (
+              <span key={f.emprestimoId}>
+                {i > 0 && ', '}
+                {f.nomeFerramenta} ({f.retiradoPor}, há {f.dias} dia{f.dias > 1 ? 's' : ''})
+              </span>
+            ))}
+            {ferramentasAtraso.length > 3 && ` e mais ${ferramentasAtraso.length - 3}`}
+          </span>
+        </button>
+      )}
 
       {obra && (
         <div className={styles.obraCard}>

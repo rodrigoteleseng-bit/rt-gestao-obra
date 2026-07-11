@@ -17,6 +17,38 @@
   font-size: 14px;
 }
 
+/* ── BANNER DE ALERTA ── */
+.bannerAlerta {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  background: #fdeaea;
+  border: 1.5px solid var(--erro);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.bannerAlerta:hover {
+  background: #fbd9d9;
+}
+
+.bannerIcon {
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.bannerTexto {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--erro);
+  line-height: 1.5;
+}
+
 /* ── OBRA CARD ── */
 .obraCard {
   background: var(--navy);

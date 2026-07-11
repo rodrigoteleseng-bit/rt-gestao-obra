@@ -706,6 +706,12 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
     return it.quantidade_recebida > 0 && it.quantidade_recebida !== it.quantidade_pedida
   }
 
+  function precoVencedorDoItem(it: PedidoCompraItem): number | null {
+    if (!it.cotacao_item_vencedora_id) return null
+    const ci = cotacoesItens.find(c => c.id === it.cotacao_item_vencedora_id)
+    return ci ? ci.preco_unitario : null
+  }
+
   const nomeFornecedor = (id: string) => fornecedores.find(f => f.id === id)?.nome ?? '?'
 
   return (
@@ -958,6 +964,65 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
               )}
             </p>
           ))}
+        </div>
+      )}
+
+      {perfil?.papel !== 'cliente' && ['recebido_parcial', 'recebido_total', 'conferido_nf', 'encerrado'].includes(pedido.status) && (
+        <div className={styles.bloco}>
+          <h2>Conferência tripla (aprovado × almoxarifado × NF)</h2>
+          <table className={styles.tabelaComparativa}>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Aprovado</th>
+                <th>Almoxarifado</th>
+                <th>NF</th>
+                <th>Conferência</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itens.map(it => {
+                const preco = precoVencedorDoItem(it)
+                const valorAprovado = preco !== null ? it.quantidade_pedida * preco : null
+                const valorAlmoxarifado = preco !== null ? it.quantidade_recebida * preco : null
+                const nfAnexada = recebimentos.length > 0
+
+                const avisos: string[] = []
+                if (it.quantidade_recebida !== it.quantidade_pedida) {
+                  avisos.push(`recebido no almoxarifado (${it.quantidade_recebida} ${it.und}) ≠ aprovado (${it.quantidade_pedida} ${it.und})`)
+                }
+                if (it.valor_recebido !== null && valorAprovado !== null && it.valor_recebido !== valorAprovado) {
+                  avisos.push(`valor da NF (R$ ${it.valor_recebido.toFixed(2)}) ≠ valor aprovado (R$ ${valorAprovado.toFixed(2)})`)
+                }
+                const diverge = avisos.length > 0
+
+                return (
+                  <tr key={it.id} className={diverge ? styles.linhaDivergente : ''}>
+                    <td>{it.descricao_item}</td>
+                    <td>
+                      {it.quantidade_pedida} {it.und}
+                      {preco !== null ? <div>R$ {preco.toFixed(2)}/{it.und} — total R$ {valorAprovado!.toFixed(2)}</div>
+                        : <div className={styles.msgInfo}>preço vencedor não definido</div>}
+                    </td>
+                    <td>
+                      {it.quantidade_recebida} {it.und}
+                      {valorAlmoxarifado !== null && <div>~R$ {valorAlmoxarifado.toFixed(2)} (a preço aprovado)</div>}
+                    </td>
+                    <td>
+                      {nfAnexada
+                        ? (it.valor_recebido !== null ? <>R$ {it.valor_recebido.toFixed(2)}</> : <span className={styles.msgInfo}>NF anexada — valor por item não informado</span>)
+                        : <span className={styles.msgInfo}>sem NF anexada ainda</span>}
+                    </td>
+                    <td>
+                      {diverge
+                        ? <span className={styles.msgErro}>⚠ {avisos.join('; ')}</span>
+                        : <span className={styles.msgOk}>✓ conferido</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 

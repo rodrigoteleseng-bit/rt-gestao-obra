@@ -184,6 +184,8 @@
 
 .precoVencedor { font-weight: 700; color: #1e6b2e; }
 
+.linhaDivergente td { background: #fdeaea; }
+
 .btnVencedor {
   background: none;
   border: 1.5px solid var(--navy);

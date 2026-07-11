@@ -7,6 +7,7 @@ import {
   type Ferramenta, type FerramentaEmprestimo,
 } from '../lib/supabase'
 import { gerarPdfBlocoRequisicoes } from '../lib/requisicoesPdf'
+import { dataLocalISO, dataHoje, diasEntre } from '../lib/almoxarifado'
 import styles from './Almoxarifado.module.css'
 
 type Aba = 'estoque' | 'ferramentas' | 'requisicoes'
@@ -437,21 +438,6 @@ const ESTADO_LABEL: Record<EstadoFerramenta, string> = {
   disponivel: 'Disponível',
   emprestada: 'Emprestada',
   atraso: 'Em atraso',
-}
-
-function dataLocalISO(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const dia = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${dia}`
-}
-
-function dataHoje(): string {
-  return dataLocalISO(new Date())
-}
-
-function diasEntre(dataIsoInicio: string, dataIsoFim: string): number {
-  return Math.round((Date.parse(dataIsoFim) - Date.parse(dataIsoInicio)) / 86400000)
 }
 
 function estadoDoEmprestimo(emprestimo: FerramentaEmprestimo | undefined): { estado: EstadoFerramenta; dias: number } {

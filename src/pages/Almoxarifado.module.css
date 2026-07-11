@@ -298,6 +298,116 @@
   cursor: pointer;
 }
 
+/* ── formulário de entrada ── */
+.topoAcoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.btnPrincipal {
+  background: var(--terracota);
+  color: var(--branco);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btnPrincipal:disabled { opacity: 0.6; cursor: default; }
+
+.btnSecundario {
+  background: var(--branco);
+  color: var(--navy);
+  border: 1.5px solid var(--navy);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.painelForm {
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--sombra-sm);
+}
+
+.blocoAninhado {
+  background: var(--cinza-100);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.acoesInline {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cinza-600);
+  margin-bottom: 12px;
+}
+
+.campo input, .campo select, .campo textarea {
+  padding: 10px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--branco);
+}
+
+.campo input:focus, .campo select:focus, .campo textarea:focus { border-color: var(--navy); outline: none; }
+
+.linha2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.linha2 .campo { margin-bottom: 0; }
+
+.autocompleteWrap { position: relative; }
+
+.sugestoes {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--branco);
+  border: 1.5px solid var(--navy);
+  border-radius: var(--radius-sm);
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: var(--sombra-sm);
+}
+
+.sugestao {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.sugestao:hover { background: var(--cinza-100); }
+
+.sugestaoCodigo { color: var(--cinza-600); font-size: 11px; margin-right: 6px; }
+
+.vinculoOk { color: #1e6b2e; font-size: 11px; margin-top: 4px; }
+.vinculoAusente { color: #a35c00; font-size: 11px; margin-top: 4px; }
+
 /* ── mobile ── */
 @media (max-width: 640px) {
   .linha {
@@ -325,5 +435,9 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+  }
+
+  .linha2 {
+    grid-template-columns: 1fr;
   }
 }

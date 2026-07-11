@@ -624,7 +624,6 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
     onRecarregar()
   }
 
-  const [quantidades, setQuantidades] = useState<Record<string, string>>({})
   const [arquivoNf, setArquivoNf] = useState<File | null>(null)
   const [obsNf, setObsNf] = useState('')
   const [salvandoRecebimento, setSalvandoRecebimento] = useState(false)
@@ -639,30 +638,6 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       return
     }
     setMsgRecebimento(null)
-    onRecarregar()
-  }
-
-  async function salvarRecebimento() {
-    const atualizacoes = itens.filter(it => quantidades[it.id] !== undefined && quantidades[it.id] !== '')
-    if (atualizacoes.length === 0) {
-      setMsgRecebimento({ tipo: 'erro', texto: 'Informe a quantidade recebida de ao menos um item.' })
-      return
-    }
-    setSalvandoRecebimento(true)
-    setMsgRecebimento(null)
-    for (const it of atualizacoes) {
-      const { error } = await supabase.from('pedidos_compra_itens')
-        .update({ quantidade_recebida: Number(quantidades[it.id]) })
-        .eq('id', it.id)
-      if (error) {
-        setSalvandoRecebimento(false)
-        setMsgRecebimento({ tipo: 'erro', texto: `Falha ao salvar recebimento de "${it.descricao_item}": ${error.message}` })
-        return
-      }
-    }
-    setSalvandoRecebimento(false)
-    setQuantidades({})
-    setMsgRecebimento({ tipo: 'ok', texto: 'Recebimento atualizado.' })
     onRecarregar()
   }
 
@@ -940,20 +915,15 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
 
       {podeEditar && ['enviado', 'recebido_parcial'].includes(pedido.status) && (
         <div className={styles.bloco}>
-          <h2>Registrar recebimento</h2>
+          <h2>Recebimento</h2>
           {itens.map(it => (
-            <label key={it.id} className={styles.campo}>
+            <p key={it.id} className={styles.metaLista}>
               {it.descricao_item} — pedido {it.quantidade_pedida} {it.und}, recebido até agora {it.quantidade_recebida}
               {divergencia(it) && <span className={styles.msgErro}> (divergência)</span>}
-              <input type="number" min="0" step="0.01" value={quantidades[it.id] ?? ''}
-                placeholder={`Nova quantidade total recebida`}
-                onChange={e => setQuantidades(prev => ({ ...prev, [it.id]: e.target.value }))} />
-            </label>
+            </p>
           ))}
-          {msgRecebimento && <p className={msgRecebimento.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgRecebimento.texto}</p>}
-          <button className={styles.btnPrincipal} onClick={salvarRecebimento} disabled={salvandoRecebimento}>
-            {salvandoRecebimento ? 'Salvando…' : 'Salvar quantidades recebidas'}
-          </button>
+          <p className={styles.msgInfo}>Recebimento é lançado pela Entrada do Almoxarifado.</p>
+          <button className={styles.btnSecundario} onClick={() => navigate('/almoxarifado')}>Ir para o Almoxarifado</button>
         </div>
       )}
 

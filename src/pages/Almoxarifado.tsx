@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import {
   supabase, type Material, type CategoriaMaterial, type EstoqueMovimento, type Unidade,
+  type PedidoCompra, type PedidoCompraItem,
 } from '../lib/supabase'
 import styles from './Almoxarifado.module.css'
 
@@ -84,6 +85,8 @@ function AbaEstoque() {
   const [carregandoExtrato, setCarregandoExtrato] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
+  const [mostrarEntrada, setMostrarEntrada] = useState(false)
+
   useEffect(() => {
     if (!obraAtiva) return
     setCarregando(true)
@@ -129,6 +132,15 @@ function AbaEstoque() {
     setCarregandoExtrato(false)
   }
 
+  async function recarregarSaldos() {
+    const { data: s } = await supabase.from('estoque_saldos').select('*')
+    setSaldos(new Map((s ?? []).map((r: { material_id: string; saldo: number }) => [r.material_id, r.saldo])))
+  }
+
+  function materialCriado(m: Material) {
+    setMateriais(prev => [...prev, m].sort((a, b) => a.nome.localeCompare(b.nome)))
+  }
+
   async function inativarMovimento(mv: EstoqueMovimento) {
     if (!window.confirm('Inativar este movimento? Ele deixa de contar no saldo, mas o registro é mantido no histórico (exclusão lógica).')) return
     const { error } = await supabase.from('estoque_movimentos').update({ ativo: false }).eq('id', mv.id)
@@ -145,6 +157,23 @@ function AbaEstoque() {
 
   return (
     <div>
+      <div className={styles.topoAcoes}>
+        <button className={styles.btnPrincipal} onClick={() => setMostrarEntrada(true)}>+ Entrada de material</button>
+      </div>
+
+      {mostrarEntrada && (
+        <PainelEntrada
+          materiais={materiais}
+          onFechar={() => setMostrarEntrada(false)}
+          onMaterialCriado={materialCriado}
+          onSucesso={async () => {
+            await recarregarSaldos()
+            setMostrarEntrada(false)
+            setMsg({ tipo: 'ok', texto: 'Entrada registrada.' })
+          }}
+        />
+      )}
+
       <div className={styles.filtros}>
         <input className={styles.busca} value={busca} onChange={e => setBusca(e.target.value)}
           placeholder="Buscar por código ou nome…" />
@@ -159,6 +188,8 @@ function AbaEstoque() {
           Só abaixo do mínimo
         </label>
       </div>
+
+      {msg && !materialSel && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
 
       {carregando && <p className={styles.vazio}>Carregando…</p>}
       {!carregando && filtrados.length === 0 && (
@@ -236,6 +267,248 @@ function AbaEstoque() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+const PEDIDO_STATUS_VINCULAVEL: PedidoCompra['status'][] = ['aprovado', 'enviado', 'recebido_parcial']
+
+interface PainelEntradaProps {
+  materiais: Material[]
+  onFechar: () => void
+  onMaterialCriado: (m: Material) => void
+  onSucesso: () => void
+}
+
+function PainelEntrada({ materiais, onFechar, onMaterialCriado, onSucesso }: PainelEntradaProps) {
+  const { obraAtiva } = useObra()
+
+  const [buscaMaterial, setBuscaMaterial] = useState('')
+  const [materialId, setMaterialId] = useState<string | null>(null)
+  const [sugestoesAbertas, setSugestoesAbertas] = useState(false)
+
+  const [criandoMaterial, setCriandoMaterial] = useState(false)
+  const [novoNome, setNovoNome] = useState('')
+  const [novoUnd, setNovoUnd] = useState('')
+  const [novaCategoria, setNovaCategoria] = useState<CategoriaMaterial>('material')
+  const [salvandoMaterial, setSalvandoMaterial] = useState(false)
+
+  const [quantidade, setQuantidade] = useState('')
+  const [observacao, setObservacao] = useState('')
+
+  const [pedidos, setPedidos] = useState<PedidoCompra[] | null>(null)
+  const [pedidoSel, setPedidoSel] = useState('')
+  const [itensPedido, setItensPedido] = useState<PedidoCompraItem[]>([])
+  const [itemSel, setItemSel] = useState('')
+  const [carregandoItens, setCarregandoItens] = useState(false)
+
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  useEffect(() => {
+    if (!obraAtiva) return
+    supabase.from('pedidos_compra').select('*')
+      .eq('obra_id', obraAtiva.id).in('status', PEDIDO_STATUS_VINCULAVEL).order('numero')
+      .then(({ data }) => setPedidos(data ?? []))
+  }, [obraAtiva])
+
+  function sugestoesMateriais(): Material[] {
+    const t = buscaMaterial.trim().toLowerCase()
+    if (!t) return materiais
+    return materiais.filter(m => m.nome.toLowerCase().includes(t) || m.codigo.toLowerCase().includes(t))
+  }
+
+  function escolherMaterial(m: Material) {
+    setMaterialId(m.id)
+    setBuscaMaterial(`${m.codigo} — ${m.nome}`)
+    setSugestoesAbertas(false)
+  }
+
+  async function criarMaterial() {
+    if (!obraAtiva) return
+    if (!novoNome.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe o nome do novo material.' })
+      return
+    }
+    setSalvandoMaterial(true)
+    setMsg(null)
+    const { data: codigo, error: eCodigo } = await supabase.rpc('proximo_codigo_material', { p_obra: obraAtiva.id })
+    if (eCodigo || !codigo) {
+      setSalvandoMaterial(false)
+      setMsg({ tipo: 'erro', texto: `Falha ao gerar código: ${eCodigo?.message}` })
+      return
+    }
+    const { data: novo, error } = await supabase.from('materiais').insert({
+      obra_id: obraAtiva.id,
+      codigo,
+      nome: novoNome.trim(),
+      und: novoUnd.trim() || 'un',
+      categoria: novaCategoria,
+    }).select().single()
+    setSalvandoMaterial(false)
+    if (error || !novo) {
+      setMsg({ tipo: 'erro', texto: `Falha ao criar material: ${error?.message}` })
+      return
+    }
+    onMaterialCriado(novo)
+    escolherMaterial(novo)
+    setCriandoMaterial(false)
+    setNovoNome(''); setNovoUnd(''); setNovaCategoria('material')
+  }
+
+  async function selecionarPedido(pedidoId: string) {
+    setPedidoSel(pedidoId)
+    setItemSel('')
+    setItensPedido([])
+    if (!pedidoId) return
+    setCarregandoItens(true)
+    const { data } = await supabase.from('pedidos_compra_itens').select('*')
+      .eq('pedido_id', pedidoId).eq('ativo', true).order('criado_em')
+    setItensPedido(data ?? [])
+    setCarregandoItens(false)
+  }
+
+  function faltaReceber(it: PedidoCompraItem): number {
+    return it.quantidade_pedida - it.quantidade_recebida
+  }
+
+  async function salvar() {
+    if (!obraAtiva) return
+    if (!materialId) {
+      setMsg({ tipo: 'erro', texto: 'Selecione (ou crie) o material.' })
+      return
+    }
+    const qtd = Number(quantidade)
+    if (!qtd || qtd <= 0) {
+      setMsg({ tipo: 'erro', texto: 'Informe uma quantidade maior que zero.' })
+      return
+    }
+    setSalvando(true)
+    setMsg(null)
+    const { error } = await supabase.from('estoque_movimentos').insert({
+      obra_id: obraAtiva.id,
+      material_id: materialId,
+      tipo: 'entrada',
+      quantidade: qtd,
+      pedido_item_id: itemSel || null,
+      observacao: observacao.trim() || null,
+    })
+    setSalvando(false)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Falha ao registrar entrada: ${error.message}` })
+      return
+    }
+    onSucesso()
+  }
+
+  const sugestoes = sugestoesAbertas ? sugestoesMateriais() : []
+
+  return (
+    <div className={styles.painelForm}>
+      <div className={styles.painelHeader}>
+        <h2>Entrada de material</h2>
+        <button className={styles.btnFechar} onClick={onFechar}>✕</button>
+      </div>
+
+      <div className={styles.campo}>
+        Material *
+        <div className={styles.autocompleteWrap}>
+          <input
+            value={buscaMaterial}
+            onChange={e => { setBuscaMaterial(e.target.value); setMaterialId(null); setSugestoesAbertas(true) }}
+            onFocus={() => setSugestoesAbertas(true)}
+            onBlur={() => setTimeout(() => setSugestoesAbertas(false), 150)}
+            placeholder="Buscar por código ou nome…"
+            disabled={criandoMaterial}
+          />
+          {sugestoes.length > 0 && (
+            <div className={styles.sugestoes}>
+              {sugestoes.map(m => (
+                <button key={m.id} className={styles.sugestao} onMouseDown={() => escolherMaterial(m)}>
+                  <span className={styles.sugestaoCodigo}>{m.codigo}</span>{m.nome}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {materialId
+          ? <span className={styles.vinculoOk}>✓ material selecionado</span>
+          : <span className={styles.vinculoAusente}>⚠ nenhum material selecionado</span>}
+      </div>
+
+      {!criandoMaterial ? (
+        <button className={styles.btnSecundario} onClick={() => setCriandoMaterial(true)} style={{ marginBottom: 12 }}>
+          + Criar material
+        </button>
+      ) : (
+        <div className={styles.blocoAninhado}>
+          <div className={styles.linha2}>
+            <label className={styles.campo}>
+              Nome *
+              <input value={novoNome} onChange={e => setNovoNome(e.target.value)} placeholder="Ex.: Cimento CP II" />
+            </label>
+            <label className={styles.campo}>
+              Unidade
+              <input value={novoUnd} onChange={e => setNovoUnd(e.target.value)} placeholder="sc, kg, un…" />
+            </label>
+            <label className={styles.campo}>
+              Categoria
+              <select value={novaCategoria} onChange={e => setNovaCategoria(e.target.value as CategoriaMaterial)}>
+                <option value="material">Material</option>
+                <option value="epi">EPI</option>
+                <option value="escritorio">Escritório</option>
+              </select>
+            </label>
+          </div>
+          <div className={styles.acoesInline}>
+            <button className={styles.btnSecundario} onClick={() => setCriandoMaterial(false)}>Cancelar</button>
+            <button className={styles.btnPrincipal} onClick={criarMaterial} disabled={salvandoMaterial}>
+              {salvandoMaterial ? 'Criando…' : 'Criar material'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Quantidade *
+          <input type="number" min="0" step="0.01" value={quantidade} onChange={e => setQuantidade(e.target.value)} />
+        </label>
+        <label className={styles.campo}>
+          Observação
+          <input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Opcional" />
+        </label>
+      </div>
+
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Pedido de compra (opcional)
+          <select value={pedidoSel} onChange={e => selecionarPedido(e.target.value)}>
+            <option value="">Sem vínculo — entrada avulsa</option>
+            {(pedidos ?? []).map(p => (
+              <option key={p.id} value={p.id}>
+                {String(p.numero).padStart(3, '0')}{p.descricao ? ` — ${p.descricao}` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={styles.campo}>
+          Item do pedido
+          <select value={itemSel} onChange={e => setItemSel(e.target.value)} disabled={!pedidoSel || carregandoItens}>
+            <option value="">{carregandoItens ? 'Carregando…' : 'Selecione…'}</option>
+            {itensPedido.map(it => (
+              <option key={it.id} value={it.id}>
+                {it.descricao_item} — falta receber {faltaReceber(it)} {it.und ?? ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+      <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
+        {salvando ? 'Salvando…' : 'Registrar entrada'}
+      </button>
     </div>
   )
 }

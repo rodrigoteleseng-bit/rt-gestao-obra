@@ -1,7 +1,14 @@
 # Fase 5 — Qualidade (Pendências + FVS) · Registro de entrega
 
-> Status: **entregue em 09–10/07/2026 — aguardando teste de campo com dados reais e aceite formal do Rodrigo.**
-> Os dois sub-módulos do grupo Qualidade. Banco de dados de teste zerado em 10/07/2026 (ver seção ao final) — o teste de campo pendente agora é com dados reais da obra.
+> Status: **concluída e ACEITA em 11/07/2026** — validada pelo Rodrigo com dados reais da obra (FVS de Alvenaria/Reboco e pendências reais); ele segue acompanhando em uso contínuo.
+> Os dois sub-módulos do grupo Qualidade. Banco de dados de teste zerado em 10/07/2026 (ver seção ao final).
+
+## Ajustes finais no aceite (11/07/2026)
+
+1. **Chapisco na FVS-004 Alvenaria** (migração `20260711_fvs_chapisco.sql`): duas seções novas — "Chapisco — pré-requisitos" (6 itens: alvenaria aprovada, encunhamento, elétrica/hidráulica embutidas, impermeabilização, tela nas ligações estrutura×alvenaria) e "Chapisco — execução" (4 itens). Usa a conferência por partes ("Aguardando"): alvenaria num dia, chapisco em outro. As FVS de alvenaria já abertas ganharam as seções automaticamente. Na FVS-008 Reboco, os 2 itens de execução sobre chapisco foram desativados e viraram o pré-requisito único "Chapisco aplicado, curado e conferido (FVS-004)" — a resposta "conforme" já dada em campo foi copiada para o item novo com autor/data originais.
+2. **Responsável nas pendências automáticas** (migração `20260711_fvs_pendencia_responsavel.sql`): `concluir_verificacao_fvs` ganhou `p_responsavel` (9 args — DROP explícito da versão de 8 para não criar sobrecarga ambígua). No app, o painel de assinatura mostra o campo "Responsável pela correção" quando há item NC (um responsável por rodada). No detalhe da pendência, o responsável ficou editável (definir/alterar) enquanto a pendência estiver ativa.
+3. **Filtro por responsável** na lista de pendências, ao lado do filtro de unidade, com opção "Sem responsável".
+4. Correção de casing: `FvsForm.tsx` no disco divergia do git (Windows mascara), quebrando o typecheck local.
 
 ## Decisões aprovadas (09/07/2026)
 

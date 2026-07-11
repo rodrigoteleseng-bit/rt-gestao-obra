@@ -88,7 +88,8 @@
   gap: 10px;
 }
 
-.itemGrid .campo { margin-bottom: 0; }
+.itemGrid .campo { margin-bottom: 0; min-width: 0; }
+.itemGrid .campo input { width: 100%; min-width: 0; box-sizing: border-box; }
 
 .autocompleteWrap { position: relative; }
 

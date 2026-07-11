@@ -405,8 +405,8 @@
 
 .sugestaoCodigo { color: var(--cinza-600); font-size: 11px; margin-right: 6px; }
 
-.vinculoOk { color: #1e6b2e; font-size: 11px; margin-top: 4px; }
-.vinculoAusente { color: #a35c00; font-size: 11px; margin-top: 4px; }
+.vinculoOk { color: var(--sucesso); font-size: 11px; margin-top: 4px; }
+.vinculoAusente { color: var(--alerta); font-size: 11px; margin-top: 4px; }
 
 /* ── mobile ── */
 @media (max-width: 640px) {

@@ -332,26 +332,50 @@ function PainelEntrada({ materiais, onFechar, onMaterialCriado, onSucesso }: Pai
     }
     setSalvandoMaterial(true)
     setMsg(null)
-    const { data: codigo, error: eCodigo } = await supabase.rpc('proximo_codigo_material', { p_obra: obraAtiva.id })
-    if (eCodigo || !codigo) {
+    const isDuplicidade = (e: { message?: string; code?: string } | null | undefined) =>
+      !!e && (e.code === '23505' || (e.message ?? '').includes('duplicate key'))
+
+    async function tentarInserir() {
+      const { data: codigo, error: eCodigo } = await supabase.rpc('proximo_codigo_material', { p_obra: obraAtiva!.id })
+      if (eCodigo || !codigo) {
+        return { novo: null, error: eCodigo, falhaCodigo: true as const }
+      }
+      const { data: novo, error } = await supabase.from('materiais').insert({
+        obra_id: obraAtiva!.id,
+        codigo,
+        nome: novoNome.trim(),
+        und: novoUnd.trim() || 'un',
+        categoria: novaCategoria,
+      }).select().single()
+      return { novo, error, falhaCodigo: false as const }
+    }
+
+    let resultado = await tentarInserir()
+    if (resultado.falhaCodigo) {
       setSalvandoMaterial(false)
-      setMsg({ tipo: 'erro', texto: `Falha ao gerar código: ${eCodigo?.message}` })
+      setMsg({ tipo: 'erro', texto: `Falha ao gerar código: ${resultado.error?.message}` })
       return
     }
-    const { data: novo, error } = await supabase.from('materiais').insert({
-      obra_id: obraAtiva.id,
-      codigo,
-      nome: novoNome.trim(),
-      und: novoUnd.trim() || 'un',
-      categoria: novaCategoria,
-    }).select().single()
+    if (resultado.error && isDuplicidade(resultado.error)) {
+      resultado = await tentarInserir()
+      if (resultado.falhaCodigo) {
+        setSalvandoMaterial(false)
+        setMsg({ tipo: 'erro', texto: `Falha ao gerar código: ${resultado.error?.message}` })
+        return
+      }
+      if (resultado.error && isDuplicidade(resultado.error)) {
+        setSalvandoMaterial(false)
+        setMsg({ tipo: 'erro', texto: 'Outro usuário criou um material ao mesmo tempo — tente novamente.' })
+        return
+      }
+    }
     setSalvandoMaterial(false)
-    if (error || !novo) {
-      setMsg({ tipo: 'erro', texto: `Falha ao criar material: ${error?.message}` })
+    if (resultado.error || !resultado.novo) {
+      setMsg({ tipo: 'erro', texto: `Falha ao criar material: ${resultado.error?.message}` })
       return
     }
-    onMaterialCriado(novo)
-    escolherMaterial(novo)
+    onMaterialCriado(resultado.novo)
+    escolherMaterial(resultado.novo)
     setCriandoMaterial(false)
     setNovoNome(''); setNovoUnd(''); setNovaCategoria('material')
   }
@@ -496,11 +520,15 @@ function PainelEntrada({ materiais, onFechar, onMaterialCriado, onSucesso }: Pai
           Item do pedido
           <select value={itemSel} onChange={e => setItemSel(e.target.value)} disabled={!pedidoSel || carregandoItens}>
             <option value="">{carregandoItens ? 'Carregando…' : 'Selecione…'}</option>
-            {itensPedido.map(it => (
-              <option key={it.id} value={it.id}>
-                {it.descricao_item} — falta receber {faltaReceber(it)} {it.und ?? ''}
-              </option>
-            ))}
+            {itensPedido.map(it => {
+              const falta = faltaReceber(it)
+              const jaRecebido = falta <= 0
+              return (
+                <option key={it.id} value={it.id} disabled={jaRecebido}>
+                  {it.descricao_item} — {jaRecebido ? 'já recebido' : `falta receber ${falta} ${it.und ?? ''}`}
+                </option>
+              )
+            })}
           </select>
         </label>
       </div>

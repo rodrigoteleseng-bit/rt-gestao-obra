@@ -12,6 +12,18 @@
 - Cadastro de fornecedores reaproveitável entre pedidos.
 - Numeração sequencial por obra: obra piloto começa em 065 (64 pedidos já feitos fora do app antes da Fase 6); obras novas começam em 001.
 
+## Refinamentos pós-entrega (10–11/07/2026, uso real pelo Rodrigo)
+
+- Campo **Aplicação** separado do Item, com autocomplete que mostra a lista completa do orçamento ao focar; rótulo do prazo virou "Data na Obra".
+- **PDF do pedido de compra** com identidade RT, nome de arquivo no padrão do Rodrigo.
+- Itens do pedido **editáveis enquanto rascunho** (adicionar/remover/alterar). O pedido sai de rascunho automaticamente ao registrar a 1ª cotação (`em_cotacao`) — a partir daí os itens travam.
+- **Importar CSV de cotação:** botão na tela de cotação que lê um CSV com fornecedor, condição de pagamento, prazo e preços por item. Trabalha em dupla com a skill `leitura-cotacao-fornecedor` (instalada): Rodrigo anexa o orçamento do fornecedor (PDF/foto) numa conversa, a skill extrai os dados e gera o CSV pronto para importar.
+- Correções de layout: breakpoint mobile do formulário; campo Data na Obra não estoura mais o cartão no desktop (`min-width: 0` nos campos da grade de itens — input date tem largura mínima nativa grande).
+
+## Exclusão de pedido de teste
+
+Não existe exclusão pelo app (por desenho — rastreabilidade, §6 do CLAUDE.md; o app só oferece cancelamento com motivo). Para apagar um pedido de teste: DELETE direto no banco (itens/cotações/recebimentos caem por `ON DELETE CASCADE`), apagar anexos do Storage (bucket `cotacoes-nf`, pasta = id do pedido) e **decrementar `pedidos_compra_seq`** para devolver o número consumido.
+
 ## Fora de escopo (spec separada)
 
 - Almoxarifado (entrada/saída de estoque, empréstimo de ferramentas).

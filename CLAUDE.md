@@ -14,11 +14,12 @@
 - **Fase 2 (Cronograma + Avanço físico): concluída e aceita** (09/07/2026) — detalhes em `docs/fase2.md`. Inclui medição por quantidade (m, m², m³, unid.), carga automática de quantidades do orçamento (897 tarefas preenchidas).
 - **Fase 4 (RDO): concluída e aceita** (09/07/2026, teste de campo positivo) — detalhes em `docs/fase4.md`. Inclui carimbo GPS nas fotos, áudio, ditado, assinatura digital, PDF com identidade RT, banner de RDOs não assinados, integração automática com Galeria.
 - **Fase 5 (Qualidade — Pendências + FVS): entregue em 09–10/07/2026, aguardando teste de campo com dados reais e aceite** — detalhes em `docs/fase5.md`. Pendências: fluxo aberta → em correção → resolvida, fotos GPS, histórico imutável. FVS: 17 modelos seedados (renumerados p/ sequência da obra, pré-requisitos sempre primeiro) + 2 novos (Reboco, Forro), item NC gera pendência automática, rodadas de verificação com estado "Aguardando" (conferência por partes), assinatura digital na conclusão, PDF próprio, "Aprovada com restrição", mapa da qualidade, exclusão pelo admin, integração automática com RDO. Cliente não vê o módulo.
+- **Fase 6 (Suprimentos — Compras): entregue em 10/07/2026, aguardando teste de campo com pedido real e aceite** — detalhes em `docs/fase6_compras.md`. Pedido com itens vinculados ao orçamento (autocomplete + campo Aplicação), numeração iniciando em 065, cotações por fornecedor com anexo obrigatório, comparação lado a lado, vencedor por item, aprovação (admin), envio, recebimento por item, conferência com NF, cancelamento/encerramento, PDF do pedido, importação de CSV de cotação (via skill `leitura-cotacao-fornecedor`). **Almoxarifado fica para spec separada.** Em 11/07 Rodrigo iniciou o teste de campo com um pedido real.
 - **Fase 7 (Extras) — parcial:** Galeria de Fotos implementada (09/07/2026) — detalhes em `docs/fase7_extras.md`. Demais extras pendentes.
 - **Dashboard reestruturado (09/07/2026):** RDO agrupa Galeria + Efetivo; card "Qualidade" agrupa FVS + Pendências. Sidebar com seções visuais.
 - **Paleta corrigida para o manual de marca oficial (10/07/2026)** — navy `#1A3248`, terracota `#C49A7A` (era um tom improvisado desde a Fase 0). Ver §1 e `docs/fase0.md`.
 - **Reset de dados de teste (10/07/2026):** a pedido do Rodrigo, FVS/Pendências/RDO/Avanços físicos/Galeria foram apagados definitivamente para começar o lançamento real (17 modelos de FVS, cronograma e orçamento preservados). Detalhes em `docs/fase5.md`.
-- **Próxima etapa:** aceite formal da Fase 5 com dados reais de obra; depois seguir para Suprimentos (Fase 6), Medições ou Financeiro (Fase 3, decidido por último pelo Rodrigo — não é predecessora de nada).
+- **Próxima etapa:** aceite formal das Fases 5 (Qualidade) e 6 (Compras) com dados reais de obra; depois seguir para Almoxarifado (completa a Fase 6), Medições ou Financeiro (Fase 3, decidido por último pelo Rodrigo — não é predecessora de nada).
 - Ao iniciar qualquer fase, ler `docs/faseN.md` das fases anteriores relevantes em vez de redescobrir o código.
 
 ## 1. Contexto do negócio
@@ -160,6 +161,7 @@ Respondidas em 07/07/2026 [extraído]:
 
 ---
 
+*Versão 1.4 — 11/07/2026 — §0 registra a Fase 6 (Compras) entregue em 10/07/2026 com refinamentos de 10–11/07 (campo Aplicação, PDF do pedido, edição em rascunho, importação de CSV de cotação via skill `leitura-cotacao-fornecedor`, correções de layout); próxima etapa atualizada (aceites das Fases 5 e 6 pendentes; Almoxarifado em spec separada).*
 *Versão 1.3 — 10/07/2026 — Fases 2, 4 e 5 (parcial) registradas; §1 corrige a paleta para os hex exatos do manual de marca oficial (skill `rt-manual-marca`) e referencia a fonte de verdade; §4 adiciona tabela de skills RT/Engenhar.IA e quando acionar cada uma; §5 nota a antecipação de FVS/Galeria para as fases 5/4; §0 registra o reset de dados de teste de 10/07/2026 (FVS/Pendências/RDO/Avanços/Galeria zerados a pedido do Rodrigo, modelos de FVS/cronograma/orçamento preservados).*
 *Versão 1.2 — 07/07/2026 — Fases 0 e 1 concluídas e aceitas; adiciona §0 Estado atual apontando para docs/fase0.md e docs/fase1.md; lacunas do §9 atualizadas com as respostas do Rodrigo; cliente vê valores confirmado; hospedagem Vercel definida.*
 *Versão 1.1 — 07/07/2026 — inclui módulo Compras na Fase 6 (Suprimentos) com conferência tripla cotação x recebimento x NF.*

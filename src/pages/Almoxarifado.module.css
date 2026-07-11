@@ -302,7 +302,16 @@
 .topoAcoes {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+.itemLinhaReq {
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 10px;
 }
 
 .btnPrincipal {

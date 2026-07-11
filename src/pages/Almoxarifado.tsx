@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import {
   supabase, type Material, type CategoriaMaterial, type EstoqueMovimento, type Unidade,
-  type PedidoCompra, type PedidoCompraItem,
+  type PedidoCompra, type PedidoCompraItem, type CronogramaTarefa,
 } from '../lib/supabase'
 import styles from './Almoxarifado.module.css'
 
@@ -86,6 +86,8 @@ function AbaEstoque() {
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
   const [mostrarEntrada, setMostrarEntrada] = useState(false)
+  const [mostrarSaida, setMostrarSaida] = useState(false)
+  const [mostrarRequisicao, setMostrarRequisicao] = useState(false)
 
   useEffect(() => {
     if (!obraAtiva) return
@@ -158,6 +160,8 @@ function AbaEstoque() {
   return (
     <div>
       <div className={styles.topoAcoes}>
+        <button className={styles.btnSecundario} onClick={() => setMostrarSaida(true)}>− Saída avulsa</button>
+        <button className={styles.btnSecundario} onClick={() => setMostrarRequisicao(true)}>📋 Lançar requisição</button>
         <button className={styles.btnPrincipal} onClick={() => setMostrarEntrada(true)}>+ Entrada de material</button>
       </div>
 
@@ -170,6 +174,34 @@ function AbaEstoque() {
             await recarregarSaldos()
             setMostrarEntrada(false)
             setMsg({ tipo: 'ok', texto: 'Entrada registrada.' })
+          }}
+        />
+      )}
+
+      {mostrarSaida && (
+        <PainelSaida
+          materiais={materiais}
+          saldos={saldos}
+          unidades={unidades}
+          onFechar={() => setMostrarSaida(false)}
+          onSucesso={async () => {
+            await recarregarSaldos()
+            setMostrarSaida(false)
+            setMsg({ tipo: 'ok', texto: 'Saída registrada.' })
+          }}
+        />
+      )}
+
+      {mostrarRequisicao && (
+        <PainelRequisicao
+          materiais={materiais}
+          saldos={saldos}
+          unidades={unidades}
+          onFechar={() => setMostrarRequisicao(false)}
+          onSucesso={async (numero) => {
+            await recarregarSaldos()
+            setMostrarRequisicao(false)
+            setMsg({ tipo: 'ok', texto: `Requisição ${String(numero).padStart(5, '0')} lançada.` })
           }}
         />
       )}
@@ -536,6 +568,420 @@ function PainelEntrada({ materiais, onFechar, onMaterialCriado, onSucesso }: Pai
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
       <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
         {salvando ? 'Salvando…' : 'Registrar entrada'}
+      </button>
+    </div>
+  )
+}
+
+// ---------- Saída avulsa ----------
+
+interface PainelSaidaProps {
+  materiais: Material[]
+  saldos: Map<string, number>
+  unidades: Unidade[]
+  onFechar: () => void
+  onSucesso: () => void
+}
+
+function PainelSaida({ materiais, saldos, unidades, onFechar, onSucesso }: PainelSaidaProps) {
+  const { obraAtiva } = useObra()
+
+  const [buscaMaterial, setBuscaMaterial] = useState('')
+  const [materialId, setMaterialId] = useState<string | null>(null)
+  const [sugestoesAbertas, setSugestoesAbertas] = useState(false)
+
+  const [quantidade, setQuantidade] = useState('')
+  const [unidadeId, setUnidadeId] = useState('')
+  const [retiradoPor, setRetiradoPor] = useState('')
+  const [requisicaoNumero, setRequisicaoNumero] = useState('')
+  const [tarefaId, setTarefaId] = useState('')
+  const [tarefasUnidade, setTarefasUnidade] = useState<CronogramaTarefa[]>([])
+  const [aplicacao, setAplicacao] = useState('')
+  const [observacao, setObservacao] = useState('')
+
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  useEffect(() => {
+    setTarefaId('')
+    if (!unidadeId) { setTarefasUnidade([]); return }
+    supabase.from('cronograma_tarefas').select('*')
+      .eq('unidade_id', unidadeId).eq('ativo', true).eq('resumo', false).order('ordem')
+      .then(({ data }) => setTarefasUnidade(data ?? []))
+  }, [unidadeId])
+
+  function sugestoesMateriais(): Material[] {
+    const t = buscaMaterial.trim().toLowerCase()
+    if (!t) return materiais
+    return materiais.filter(m => m.nome.toLowerCase().includes(t) || m.codigo.toLowerCase().includes(t))
+  }
+
+  function escolherMaterial(m: Material) {
+    setMaterialId(m.id)
+    setBuscaMaterial(`${m.codigo} — ${m.nome}`)
+    setSugestoesAbertas(false)
+  }
+
+  const materialSelecionado = materialId ? materiais.find(m => m.id === materialId) ?? null : null
+  const saldoAtual = materialSelecionado ? saldos.get(materialSelecionado.id) ?? 0 : null
+
+  async function salvar() {
+    if (!obraAtiva) return
+    if (!materialId) {
+      setMsg({ tipo: 'erro', texto: 'Selecione o material.' })
+      return
+    }
+    const qtd = Number(quantidade)
+    if (!qtd || qtd <= 0) {
+      setMsg({ tipo: 'erro', texto: 'Informe uma quantidade maior que zero.' })
+      return
+    }
+    if (saldoAtual !== null && qtd > saldoAtual) {
+      setMsg({ tipo: 'erro', texto: `Saldo insuficiente: saldo atual ${saldoAtual} ${materialSelecionado?.und ?? ''}.` })
+      return
+    }
+    if (!unidadeId) {
+      setMsg({ tipo: 'erro', texto: 'Selecione a unidade de destino.' })
+      return
+    }
+    if (!retiradoPor.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe quem retirou o material.' })
+      return
+    }
+    setSalvando(true)
+    setMsg(null)
+    const { error } = await supabase.from('estoque_movimentos').insert({
+      obra_id: obraAtiva.id,
+      material_id: materialId,
+      tipo: 'saida',
+      quantidade: qtd,
+      unidade_id: unidadeId,
+      retirado_por: retiradoPor.trim(),
+      requisicao_numero: requisicaoNumero ? Number(requisicaoNumero) : null,
+      tarefa_id: tarefaId || null,
+      aplicacao: aplicacao.trim() || null,
+      observacao: observacao.trim() || null,
+    })
+    setSalvando(false)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: error.message })
+      return
+    }
+    onSucesso()
+  }
+
+  const sugestoes = sugestoesAbertas ? sugestoesMateriais() : []
+
+  return (
+    <div className={styles.painelForm}>
+      <div className={styles.painelHeader}>
+        <h2>Saída avulsa de estoque</h2>
+        <button className={styles.btnFechar} onClick={onFechar}>✕</button>
+      </div>
+
+      <div className={styles.campo}>
+        Material *
+        <div className={styles.autocompleteWrap}>
+          <input
+            value={buscaMaterial}
+            onChange={e => { setBuscaMaterial(e.target.value); setMaterialId(null); setSugestoesAbertas(true) }}
+            onFocus={() => setSugestoesAbertas(true)}
+            onBlur={() => setTimeout(() => setSugestoesAbertas(false), 150)}
+            placeholder="Buscar por código ou nome…"
+          />
+          {sugestoes.length > 0 && (
+            <div className={styles.sugestoes}>
+              {sugestoes.map(m => (
+                <button key={m.id} className={styles.sugestao} onMouseDown={() => escolherMaterial(m)}>
+                  <span className={styles.sugestaoCodigo}>{m.codigo}</span>{m.nome}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {materialSelecionado
+          ? <span className={styles.vinculoOk}>✓ saldo atual: {saldoAtual} {materialSelecionado.und}</span>
+          : <span className={styles.vinculoAusente}>⚠ nenhum material selecionado</span>}
+      </div>
+
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Quantidade *
+          <input type="number" min="0" step="0.01" max={saldoAtual ?? undefined}
+            value={quantidade} onChange={e => setQuantidade(e.target.value)} />
+        </label>
+        <label className={styles.campo}>
+          Unidade destino *
+          <select value={unidadeId} onChange={e => setUnidadeId(e.target.value)}>
+            <option value="">Selecione…</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
+        </label>
+        <label className={styles.campo}>
+          Quem retirou *
+          <input value={retiradoPor} onChange={e => setRetiradoPor(e.target.value)} placeholder="Nome" />
+        </label>
+      </div>
+
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Nº requisição
+          <input type="number" min="0" step="1" value={requisicaoNumero}
+            onChange={e => setRequisicaoNumero(e.target.value)} placeholder="Opcional" />
+        </label>
+        <label className={styles.campo}>
+          Tarefa
+          <select value={tarefaId} onChange={e => setTarefaId(e.target.value)} disabled={!unidadeId}>
+            <option value="">Opcional</option>
+            {tarefasUnidade.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
+          </select>
+        </label>
+        <label className={styles.campo}>
+          Aplicação
+          <input value={aplicacao} onChange={e => setAplicacao(e.target.value)} placeholder="Ex.: reboco fachada" />
+        </label>
+      </div>
+
+      <label className={styles.campo}>
+        Observação
+        <input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Opcional" />
+      </label>
+
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+      <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
+        {salvando ? 'Salvando…' : 'Registrar saída'}
+      </button>
+    </div>
+  )
+}
+
+// ---------- Lançar requisição preenchida ----------
+
+interface ItemRequisicao {
+  chave: string
+  buscaMaterial: string
+  materialId: string | null
+  sugestoesAbertas: boolean
+  quantidade: string
+  aplicacao: string
+  enviado: boolean
+}
+
+function itemRequisicaoVazio(): ItemRequisicao {
+  return {
+    chave: crypto.randomUUID(),
+    buscaMaterial: '',
+    materialId: null,
+    sugestoesAbertas: false,
+    quantidade: '',
+    aplicacao: '',
+    enviado: false,
+  }
+}
+
+interface PainelRequisicaoProps {
+  materiais: Material[]
+  saldos: Map<string, number>
+  unidades: Unidade[]
+  onFechar: () => void
+  onSucesso: (numero: number) => void
+}
+
+function PainelRequisicao({ materiais, saldos, unidades, onFechar, onSucesso }: PainelRequisicaoProps) {
+  const { obraAtiva } = useObra()
+
+  const [requisicaoNumero, setRequisicaoNumero] = useState('')
+  const [unidadeId, setUnidadeId] = useState('')
+  const [retiradoPor, setRetiradoPor] = useState('')
+  const [dataRequisicao, setDataRequisicao] = useState(() => new Date().toISOString().slice(0, 10))
+
+  const [itens, setItens] = useState<ItemRequisicao[]>([itemRequisicaoVazio()])
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  function atualizarItem(chave: string, patch: Partial<ItemRequisicao>) {
+    setItens(prev => prev.map(it => it.chave === chave ? { ...it, ...patch } : it))
+  }
+
+  function escolherMaterial(chave: string, m: Material) {
+    atualizarItem(chave, { materialId: m.id, buscaMaterial: `${m.codigo} — ${m.nome}`, sugestoesAbertas: false })
+  }
+
+  function removerItem(chave: string) {
+    setItens(prev => prev.length > 1 ? prev.filter(it => it.chave !== chave) : prev)
+  }
+
+  function sugestoesPara(texto: string): Material[] {
+    const t = texto.trim().toLowerCase()
+    if (!t) return materiais
+    return materiais.filter(m => m.nome.toLowerCase().includes(t) || m.codigo.toLowerCase().includes(t))
+  }
+
+  function nomeMaterial(id: string | null): string {
+    if (!id) return 'material não identificado'
+    const m = materiais.find(mm => mm.id === id)
+    return m ? `${m.codigo} — ${m.nome}` : 'material não identificado'
+  }
+
+  async function salvar() {
+    if (!obraAtiva) return
+    const numero = Number(requisicaoNumero)
+    if (!numero || numero <= 0) {
+      setMsg({ tipo: 'erro', texto: 'Informe o número da folha de requisição.' })
+      return
+    }
+    if (!unidadeId) {
+      setMsg({ tipo: 'erro', texto: 'Selecione a unidade de destino.' })
+      return
+    }
+    if (!retiradoPor.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe quem retirou o material.' })
+      return
+    }
+    const pendentes = itens.filter(it => !it.enviado && it.materialId && Number(it.quantidade) > 0)
+    if (pendentes.length === 0) {
+      setMsg({ tipo: 'erro', texto: 'Adicione ao menos um item com material e quantidade.' })
+      return
+    }
+
+    setSalvando(true)
+    setMsg(null)
+
+    const atualizados = [...itens]
+    let erroInfo: { indice: number; nome: string; texto: string } | null = null
+
+    for (let i = 0; i < atualizados.length; i++) {
+      const it = atualizados[i]
+      if (it.enviado) continue
+      if (!it.materialId || !(Number(it.quantidade) > 0)) continue
+      const { error } = await supabase.from('estoque_movimentos').insert({
+        obra_id: obraAtiva.id,
+        material_id: it.materialId,
+        tipo: 'saida',
+        quantidade: Number(it.quantidade),
+        unidade_id: unidadeId,
+        retirado_por: retiradoPor.trim(),
+        requisicao_numero: numero,
+        aplicacao: it.aplicacao.trim() || null,
+      })
+      if (error) {
+        erroInfo = { indice: i, nome: nomeMaterial(it.materialId), texto: error.message }
+        break
+      }
+      atualizados[i] = { ...it, enviado: true }
+    }
+
+    setItens(atualizados)
+    setSalvando(false)
+
+    const totalEnviados = atualizados.filter(it => it.enviado).length
+
+    if (erroInfo) {
+      const posicao = erroInfo.indice + 1
+      let prefixo = ''
+      if (totalEnviados === 1) prefixo = 'Item 1 lançado; '
+      else if (totalEnviados === 2) prefixo = 'Itens 1 e 2 lançados; '
+      else if (totalEnviados > 2) prefixo = `Itens 1 a ${totalEnviados} lançados; `
+      setMsg({
+        tipo: 'erro',
+        texto: `${prefixo}item ${posicao} (${erroInfo.nome}) falhou: ${erroInfo.texto}. Os já lançados NÃO são desfeitos — confira o extrato.`,
+      })
+      return
+    }
+
+    onSucesso(numero)
+  }
+
+  return (
+    <div className={styles.painelForm}>
+      <div className={styles.painelHeader}>
+        <h2>Lançar requisição preenchida</h2>
+        <button className={styles.btnFechar} onClick={onFechar}>✕</button>
+      </div>
+
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Nº da folha *
+          <input type="number" min="1" step="1" value={requisicaoNumero}
+            onChange={e => setRequisicaoNumero(e.target.value)} placeholder="Ex.: 401" />
+        </label>
+        <label className={styles.campo}>
+          Unidade destino *
+          <select value={unidadeId} onChange={e => setUnidadeId(e.target.value)}>
+            <option value="">Selecione…</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
+        </label>
+        <label className={styles.campo}>
+          Quem retirou *
+          <input value={retiradoPor} onChange={e => setRetiradoPor(e.target.value)} placeholder="Nome" />
+        </label>
+        <label className={styles.campo}>
+          Data
+          <input type="date" value={dataRequisicao} onChange={e => setDataRequisicao(e.target.value)} />
+        </label>
+      </div>
+
+      <div className={styles.blocoAninhado}>
+        <h2 style={{ marginBottom: 8 }}>Itens</h2>
+        {itens.map(it => {
+          const sugestoes = it.sugestoesAbertas ? sugestoesPara(it.buscaMaterial) : []
+          const materialSelecionado = it.materialId ? materiais.find(m => m.id === it.materialId) ?? null : null
+          const saldoAtual = materialSelecionado ? saldos.get(materialSelecionado.id) ?? null : null
+          return (
+            <div key={it.chave} className={styles.itemLinhaReq} style={{ opacity: it.enviado ? 0.6 : 1 }}>
+              <div className={styles.linha2}>
+                <div className={styles.campo}>
+                  Material *
+                  <div className={styles.autocompleteWrap}>
+                    <input
+                      value={it.buscaMaterial}
+                      disabled={it.enviado}
+                      onChange={e => atualizarItem(it.chave, { buscaMaterial: e.target.value, materialId: null, sugestoesAbertas: true })}
+                      onFocus={() => atualizarItem(it.chave, { sugestoesAbertas: true })}
+                      onBlur={() => setTimeout(() => atualizarItem(it.chave, { sugestoesAbertas: false }), 150)}
+                      placeholder="Buscar por código ou nome…"
+                    />
+                    {sugestoes.length > 0 && (
+                      <div className={styles.sugestoes}>
+                        {sugestoes.map(m => (
+                          <button key={m.id} className={styles.sugestao} onMouseDown={() => escolherMaterial(it.chave, m)}>
+                            <span className={styles.sugestaoCodigo}>{m.codigo}</span>{m.nome}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {materialSelecionado
+                    ? <span className={styles.vinculoOk}>✓ saldo atual: {saldoAtual} {materialSelecionado.und}</span>
+                    : <span className={styles.vinculoAusente}>⚠ sem material</span>}
+                </div>
+                <label className={styles.campo}>
+                  Quantidade *
+                  <input type="number" min="0" step="0.01" value={it.quantidade} disabled={it.enviado}
+                    onChange={e => atualizarItem(it.chave, { quantidade: e.target.value })} />
+                </label>
+                <label className={styles.campo}>
+                  Aplicação
+                  <input value={it.aplicacao} disabled={it.enviado} placeholder="Opcional"
+                    onChange={e => atualizarItem(it.chave, { aplicacao: e.target.value })} />
+                </label>
+              </div>
+              {it.enviado && <span className={styles.vinculoOk}>✓ já lançado</span>}
+              {!it.enviado && itens.length > 1 && (
+                <button className={styles.btnSecundario} onClick={() => removerItem(it.chave)}>Remover item</button>
+              )}
+            </div>
+          )
+        })}
+        <button className={styles.btnSecundario} onClick={() => setItens(prev => [...prev, itemRequisicaoVazio()])}>
+          + Adicionar item
+        </button>
+      </div>
+
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+      <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
+        {salvando ? 'Salvando…' : 'Lançar requisição'}
       </button>
     </div>
   )

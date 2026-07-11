@@ -3,8 +3,9 @@ import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import {
   supabase, type Material, type CategoriaMaterial, type EstoqueMovimento, type Unidade,
-  type PedidoCompra, type PedidoCompraItem, type CronogramaTarefa,
+  type PedidoCompra, type PedidoCompraItem, type CronogramaTarefa, type RequisicaoBloco,
 } from '../lib/supabase'
+import { gerarPdfBlocoRequisicoes } from '../lib/requisicoesPdf'
 import styles from './Almoxarifado.module.css'
 
 type Aba = 'estoque' | 'ferramentas' | 'requisicoes'
@@ -56,13 +57,132 @@ export default function Almoxarifado() {
 
       {aba === 'estoque' && <AbaEstoque />}
       {aba === 'ferramentas' && <EmBreve texto="Empréstimo e devolução de ferramentas em breve." />}
-      {aba === 'requisicoes' && <EmBreve texto="Blocos de requisição em breve." />}
+      {aba === 'requisicoes' && <AbaRequisicoes />}
     </div>
   )
 }
 
 function EmBreve({ texto }: { texto: string }) {
   return <p className={styles.vazio}>{texto}</p>
+}
+
+// ---------- Requisições: blocos de PDF pré-numerados ----------
+
+function AbaRequisicoes() {
+  const { obraAtiva } = useObra()
+
+  const [blocos, setBlocos] = useState<RequisicaoBloco[]>([])
+  const [autores, setAutores] = useState<Map<string, string>>(new Map())
+  const [carregando, setCarregando] = useState(true)
+
+  const [quantidade, setQuantidade] = useState('50')
+  const [gerando, setGerando] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function carregarBlocos() {
+    if (!obraAtiva) return
+    setCarregando(true)
+    const { data } = await supabase.from('requisicoes_blocos').select('*')
+      .eq('obra_id', obraAtiva.id).order('criado_em', { ascending: false })
+    const lista = data ?? []
+    setBlocos(lista)
+    const ids = [...new Set(lista.map(b => b.criado_por))]
+    if (ids.length) {
+      const { data: perfis } = await supabase.from('perfis_usuario').select('id, nome').in('id', ids)
+      setAutores(new Map((perfis ?? []).map(u => [u.id, u.nome])))
+    } else {
+      setAutores(new Map())
+    }
+    setCarregando(false)
+  }
+
+  useEffect(() => { carregarBlocos() }, [obraAtiva])
+
+  async function gerarBloco() {
+    if (!obraAtiva) return
+    const qtd = Number(quantidade)
+    if (!qtd || qtd <= 0) {
+      setMsg({ tipo: 'erro', texto: 'Informe uma quantidade maior que zero.' })
+      return
+    }
+    setGerando(true)
+    setMsg(null)
+    const { data, error } = await supabase.rpc('gerar_bloco_requisicoes', { p_obra: obraAtiva.id, p_qtd: qtd })
+    setGerando(false)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: error.message })
+      return
+    }
+    const faixa = Array.isArray(data) ? data[0] : data
+    if (!faixa) {
+      setMsg({ tipo: 'erro', texto: 'Falha inesperada ao gerar o bloco.' })
+      return
+    }
+    gerarPdfBlocoRequisicoes({
+      obraNome: obraAtiva.nome,
+      numeroInicial: faixa.numero_inicial,
+      numeroFinal: faixa.numero_final,
+    })
+    setMsg({
+      tipo: 'ok',
+      texto: `Bloco ${String(faixa.numero_inicial).padStart(5, '0')} a ${String(faixa.numero_final).padStart(5, '0')} gerado.`,
+    })
+    await carregarBlocos()
+  }
+
+  function baixarBloco(b: RequisicaoBloco) {
+    if (!obraAtiva) return
+    gerarPdfBlocoRequisicoes({
+      obraNome: obraAtiva.nome,
+      numeroInicial: b.numero_inicial,
+      numeroFinal: b.numero_final,
+    })
+  }
+
+  return (
+    <div>
+      <div className={styles.painelForm} style={{ marginBottom: 20 }}>
+        <h2 style={{ marginBottom: 8 }}>Gerar bloco de requisições</h2>
+        <p className={styles.sub}>
+          Gera folhas de requisição em branco, numeradas em sequência (00001, 00002…), para impressão e uso manual na obra.
+        </p>
+        <div className={styles.linha2}>
+          <label className={styles.campo}>
+            Quantidade de folhas (1 a 500)
+            <input type="number" min="1" max="500" step="1" value={quantidade}
+              onChange={e => setQuantidade(e.target.value)} />
+          </label>
+        </div>
+        {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+        <button className={styles.btnPrincipal} onClick={gerarBloco} disabled={gerando}>
+          {gerando ? 'Gerando…' : 'Gerar bloco'}
+        </button>
+      </div>
+
+      <h2 style={{ marginBottom: 8 }}>Blocos gerados</h2>
+      {carregando && <p className={styles.vazio}>Carregando…</p>}
+      {!carregando && blocos.length === 0 && <p className={styles.vazio}>Nenhum bloco gerado ainda.</p>}
+      {!carregando && blocos.length > 0 && (
+        <div className={styles.lista}>
+          {blocos.map(b => (
+            <div key={b.id} className={styles.linha}>
+              <div className={styles.linhaInfo}>
+                <div className={styles.linhaTopo}>
+                  <span className={styles.linhaCodigo}>
+                    {String(b.numero_inicial).padStart(5, '0')}–{String(b.numero_final).padStart(5, '0')}
+                  </span>
+                </div>
+                <div className={styles.linhaDesc}>
+                  {autores.get(b.criado_por) ?? '?'} · {fmtDataHora(b.criado_em)}
+                </div>
+              </div>
+              <button className={styles.btnSecundario} onClick={() => baixarBloco(b)}>⬇ PDF</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function AbaEstoque() {

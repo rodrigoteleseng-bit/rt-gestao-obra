@@ -439,8 +439,15 @@ const ESTADO_LABEL: Record<EstadoFerramenta, string> = {
   atraso: 'Em atraso',
 }
 
+function dataLocalISO(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dia = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dia}`
+}
+
 function dataHoje(): string {
-  return new Date().toISOString().slice(0, 10)
+  return dataLocalISO(new Date())
 }
 
 function diasEntre(dataIsoInicio: string, dataIsoFim: string): number {
@@ -449,7 +456,7 @@ function diasEntre(dataIsoInicio: string, dataIsoFim: string): number {
 
 function estadoDoEmprestimo(emprestimo: FerramentaEmprestimo | undefined): { estado: EstadoFerramenta; dias: number } {
   if (!emprestimo) return { estado: 'disponivel', dias: 0 }
-  const dataRetirada = emprestimo.retirada_em.slice(0, 10)
+  const dataRetirada = dataLocalISO(new Date(emprestimo.retirada_em))
   const hoje = dataHoje()
   const dias = diasEntre(dataRetirada, hoje)
   return { estado: dataRetirada < hoje ? 'atraso' : 'emprestada', dias }
@@ -538,11 +545,12 @@ function AbaFerramentas() {
     if (!perfil) return
     if (!window.confirm('Confirma a devolução desta ferramenta?')) return
     setMsg(null)
-    const { error } = await supabase.from('ferramenta_emprestimos')
+    const { data, error } = await supabase.from('ferramenta_emprestimos')
       .update({ devolvida_em: new Date().toISOString(), devolvida_recebida_por: perfil.id })
-      .eq('id', emprestimo.id)
-    if (error) {
-      setMsg({ tipo: 'erro', texto: `Falha ao registrar devolução: ${error.message}` })
+      .eq('id', emprestimo.id).is('devolvida_em', null).select()
+    if (error || !data || data.length === 0) {
+      setMsg({ tipo: 'erro', texto: error?.message ?? 'Este empréstimo já foi devolvido por outra pessoa.' })
+      await carregar()
       return
     }
     await carregar()

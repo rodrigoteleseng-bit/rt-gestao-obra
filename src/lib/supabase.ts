@@ -377,3 +377,31 @@ export interface RecebimentoNf {
   criado_em: string
   criado_por: string
 }
+
+export type CategoriaMaterial = 'material' | 'epi' | 'escritorio'
+export type TipoMovimentoEstoque = 'entrada' | 'saida'
+export interface Material {
+  id: string; obra_id: string; codigo: string; nome: string
+  descricao: string | null; und: string; categoria: CategoriaMaterial
+  estoque_minimo: number | null; ativo: boolean; criado_por: string; criado_em: string
+}
+export interface EstoqueMovimento {
+  id: string; obra_id: string; material_id: string; tipo: TipoMovimentoEstoque
+  quantidade: number; pedido_item_id: string | null; requisicao_numero: number | null
+  unidade_id: string | null; retirado_por: string | null; tarefa_id: string | null
+  aplicacao: string | null; observacao: string | null; ativo: boolean
+  criado_por: string; criado_em: string
+}
+export interface Ferramenta {
+  id: string; obra_id: string; nome: string; descricao: string | null
+  ativo: boolean; criado_por: string; criado_em: string
+}
+export interface FerramentaEmprestimo {
+  id: string; ferramenta_id: string; retirado_por: string; unidade_id: string | null
+  observacao: string | null; retirada_em: string; devolvida_em: string | null
+  devolvida_recebida_por: string | null; criado_por: string; criado_em: string
+}
+export interface RequisicaoBloco {
+  id: string; obra_id: string; numero_inicial: number; numero_final: number
+  criado_por: string; criado_em: string
+}

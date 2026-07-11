@@ -83,7 +83,7 @@ export function gerarPdfBlocoRequisicoes(d: DadosPdfBlocoRequisicoes): void {
 
     pdf.setFillColor('#F0EBE3')
     pdf.rect(ML, y, LARG, alturaCab, 'F')
-    pdf.setDrawColor('#C9C2B6')
+    pdf.setDrawColor('#E0DAD0')
     pdf.setLineWidth(0.3)
     pdf.rect(ML, y, LARG, alturaCab)
     pdf.setFont('helvetica', 'bold')
@@ -98,16 +98,16 @@ export function gerarPdfBlocoRequisicoes(d: DadosPdfBlocoRequisicoes): void {
 
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(9)
-    pdf.setTextColor('#999999')
+    pdf.setTextColor('#E0DAD0')
     for (let i = 1; i <= nLinhas; i++) {
-      pdf.setDrawColor('#C9C2B6')
+      pdf.setDrawColor('#E0DAD0')
       pdf.setLineWidth(0.25)
       pdf.rect(ML, y, LARG, alturaLinha)
       pdf.line(colX.desc, y, colX.desc, y + alturaLinha)
       pdf.line(colX.cod, y, colX.cod, y + alturaLinha)
       pdf.line(colX.qtd, y, colX.qtd, y + alturaLinha)
       pdf.line(colX.aplic, y, colX.aplic, y + alturaLinha)
-      pdf.setTextColor('#999999')
+      pdf.setTextColor('#E0DAD0')
       pdf.text(String(i), colX.num + colW.num / 2, y + alturaLinha - 2, { align: 'center' })
       y += alturaLinha
     }
@@ -137,7 +137,7 @@ export function gerarPdfBlocoRequisicoes(d: DadosPdfBlocoRequisicoes): void {
     pdf.text('ENGENHEIRO RESPONSÁVEL', ML + assinLarg + 10, y + 4)
 
     // borda externa da ficha
-    pdf.setDrawColor('#C9C2B6')
+    pdf.setDrawColor('#E0DAD0')
     pdf.setLineWidth(0.4)
     pdf.rect(ML, topo, LARG, altura)
   }

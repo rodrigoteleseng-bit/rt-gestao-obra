@@ -105,6 +105,10 @@ function AbaRequisicoes() {
       setMsg({ tipo: 'erro', texto: 'Informe uma quantidade maior que zero.' })
       return
     }
+    if (qtd > 500) {
+      setMsg({ tipo: 'erro', texto: 'Quantidade deve ser entre 1 e 500.' })
+      return
+    }
     setGerando(true)
     setMsg(null)
     const { data, error } = await supabase.rpc('gerar_bloco_requisicoes', { p_obra: obraAtiva.id, p_qtd: qtd })

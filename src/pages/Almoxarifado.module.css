@@ -201,9 +201,9 @@
   white-space: nowrap;
 }
 
-.chip_material { background: #e4e9f0; color: var(--navy); }
+.chip_material { background: var(--azul-gelo); color: var(--navy); }
 .chip_epi { background: #fdf3d7; color: #8a6d1a; }
-.chip_escritorio { background: #e8e2f5; color: #5a3d99; }
+.chip_escritorio { background: var(--terracota-light); color: var(--branco); }
 .chip_entrada { background: #e3f4e3; color: #1e6b2e; }
 .chip_saida { background: #fdeaea; color: #a33030; }
 

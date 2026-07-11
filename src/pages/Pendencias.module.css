@@ -105,6 +105,9 @@
 .contAtivo { border-color: var(--navy); background: #f4f6fa; }
 
 .filtros {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
   margin-bottom: 12px;
 }
 

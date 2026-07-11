@@ -25,6 +25,7 @@ export default function Pendencias() {
   const [carregando, setCarregando] = useState(true)
   const [filtroUnidade, setFiltroUnidade] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<StatusPendencia | ''>('')
+  const [filtroResp, setFiltroResp] = useState('') // '' = todos · '__sem__' = sem responsável · nome
 
   useEffect(() => {
     if (!obraAtiva) return
@@ -51,10 +52,17 @@ export default function Pendencias() {
     return Math.round((new Date(hoje).getTime() - new Date(p.prazo).getTime()) / 86400000)
   }
 
+  const responsaveis = useMemo(
+    () => [...new Set(pendencias.map(p => p.responsavel).filter((r): r is string => !!r))]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [pendencias]
+  )
+
   const filtradas = useMemo(() => {
     const lista = pendencias.filter(p =>
       (!filtroUnidade || p.unidade_id === filtroUnidade) &&
-      (!filtroStatus || p.status === filtroStatus)
+      (!filtroStatus || p.status === filtroStatus) &&
+      (!filtroResp || (filtroResp === '__sem__' ? !p.responsavel : p.responsavel === filtroResp))
     )
     // vencidas primeiro, depois por prazo mais próximo, depois mais recentes
     return lista.sort((a, b) => {
@@ -66,7 +74,7 @@ export default function Pendencias() {
       if (!a.prazo && b.prazo) return 1
       return b.criado_em.localeCompare(a.criado_em)
     })
-  }, [pendencias, filtroUnidade, filtroStatus, hoje])
+  }, [pendencias, filtroUnidade, filtroStatus, filtroResp, hoje])
 
   const contagem = useMemo(() => ({
     aberta: pendencias.filter(p => p.status === 'aberta').length,
@@ -114,6 +122,11 @@ export default function Pendencias() {
         <select value={filtroUnidade} onChange={e => setFiltroUnidade(e.target.value)} className={styles.selectFiltro}>
           <option value="">Todas as unidades</option>
           {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+        </select>
+        <select value={filtroResp} onChange={e => setFiltroResp(e.target.value)} className={styles.selectFiltro}>
+          <option value="">Todos os responsáveis</option>
+          <option value="__sem__">Sem responsável</option>
+          {responsaveis.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
       </div>
 

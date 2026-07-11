@@ -4,6 +4,7 @@ import { useObra } from '../contexts/ObraContext'
 import {
   supabase, type Material, type CategoriaMaterial, type EstoqueMovimento, type Unidade,
   type PedidoCompra, type PedidoCompraItem, type CronogramaTarefa, type RequisicaoBloco,
+  type Ferramenta, type FerramentaEmprestimo,
 } from '../lib/supabase'
 import { gerarPdfBlocoRequisicoes } from '../lib/requisicoesPdf'
 import styles from './Almoxarifado.module.css'
@@ -56,7 +57,7 @@ export default function Almoxarifado() {
       </div>
 
       {aba === 'estoque' && <AbaEstoque />}
-      {aba === 'ferramentas' && <EmBreve texto="Empréstimo e devolução de ferramentas em breve." />}
+      {aba === 'ferramentas' && <AbaFerramentas />}
       {aba === 'requisicoes' && <AbaRequisicoes />}
     </div>
   )
@@ -423,6 +424,380 @@ function AbaEstoque() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ---------- Ferramentas: empréstimo, devolução e atraso ----------
+
+type EstadoFerramenta = 'disponivel' | 'emprestada' | 'atraso'
+type FiltroEstadoFerramenta = '' | EstadoFerramenta
+
+const ESTADO_LABEL: Record<EstadoFerramenta, string> = {
+  disponivel: 'Disponível',
+  emprestada: 'Emprestada',
+  atraso: 'Em atraso',
+}
+
+function dataHoje(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function diasEntre(dataIsoInicio: string, dataIsoFim: string): number {
+  return Math.round((Date.parse(dataIsoFim) - Date.parse(dataIsoInicio)) / 86400000)
+}
+
+function estadoDoEmprestimo(emprestimo: FerramentaEmprestimo | undefined): { estado: EstadoFerramenta; dias: number } {
+  if (!emprestimo) return { estado: 'disponivel', dias: 0 }
+  const dataRetirada = emprestimo.retirada_em.slice(0, 10)
+  const hoje = dataHoje()
+  const dias = diasEntre(dataRetirada, hoje)
+  return { estado: dataRetirada < hoje ? 'atraso' : 'emprestada', dias }
+}
+
+function AbaFerramentas() {
+  const { perfil } = useAuth()
+  const { obraAtiva } = useObra()
+
+  const [ferramentas, setFerramentas] = useState<Ferramenta[]>([])
+  const [emprestimosAbertos, setEmprestimosAbertos] = useState<Map<string, FerramentaEmprestimo>>(new Map())
+  const [unidades, setUnidades] = useState<Unidade[]>([])
+  const [carregando, setCarregando] = useState(true)
+
+  const [busca, setBusca] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstadoFerramenta>('')
+
+  const [mostrarNova, setMostrarNova] = useState(false)
+  const [ferramentaEmprestando, setFerramentaEmprestando] = useState<Ferramenta | null>(null)
+  const [ferramentaSel, setFerramentaSel] = useState<Ferramenta | null>(null)
+  const [historico, setHistorico] = useState<FerramentaEmprestimo[]>([])
+  const [autores, setAutores] = useState<Map<string, string>>(new Map())
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false)
+
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function carregar() {
+    if (!obraAtiva) return
+    setCarregando(true)
+    const [f, e, u] = await Promise.all([
+      supabase.from('ferramentas').select('*').eq('obra_id', obraAtiva.id).eq('ativo', true).order('nome'),
+      supabase.from('ferramenta_emprestimos').select('*').is('devolvida_em', null),
+      supabase.from('unidades').select('*').eq('obra_id', obraAtiva.id).order('ordem'),
+    ])
+    setFerramentas(f.data ?? [])
+    setEmprestimosAbertos(new Map((e.data ?? []).map(em => [em.ferramenta_id, em])))
+    setUnidades(u.data ?? [])
+    setCarregando(false)
+  }
+
+  useEffect(() => { carregar() }, [obraAtiva])
+
+  const nomeUnidade = useMemo(() => new Map(unidades.map(u => [u.id, u.nome])), [unidades])
+
+  const linhas = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+    return ferramentas
+      .map(f => {
+        const emprestimo = emprestimosAbertos.get(f.id)
+        const { estado, dias } = estadoDoEmprestimo(emprestimo)
+        return { ferramenta: f, emprestimo, estado, dias }
+      })
+      .filter(l =>
+        (!termo || l.ferramenta.nome.toLowerCase().includes(termo)) &&
+        (!filtroEstado || l.estado === filtroEstado)
+      )
+      .sort((a, b) => {
+        const peso: Record<EstadoFerramenta, number> = { atraso: 0, emprestada: 1, disponivel: 2 }
+        if (peso[a.estado] !== peso[b.estado]) return peso[a.estado] - peso[b.estado]
+        return a.ferramenta.nome.localeCompare(b.ferramenta.nome)
+      })
+  }, [ferramentas, emprestimosAbertos, busca, filtroEstado])
+
+  function ferramentaCriada(f: Ferramenta) {
+    setFerramentas(prev => [...prev, f].sort((a, b) => a.nome.localeCompare(b.nome)))
+  }
+
+  async function abrirHistorico(f: Ferramenta) {
+    setFerramentaSel(f)
+    setMsg(null)
+    setCarregandoHistorico(true)
+    const { data: hist } = await supabase.from('ferramenta_emprestimos').select('*')
+      .eq('ferramenta_id', f.id).order('retirada_em', { ascending: false })
+    setHistorico(hist ?? [])
+    const ids = [...new Set((hist ?? []).map(h => h.devolvida_recebida_por).filter((id): id is string => !!id))]
+    if (ids.length) {
+      const { data: perfis } = await supabase.from('perfis_usuario').select('id, nome').in('id', ids)
+      setAutores(new Map((perfis ?? []).map(u => [u.id, u.nome])))
+    } else {
+      setAutores(new Map())
+    }
+    setCarregandoHistorico(false)
+  }
+
+  async function devolver(emprestimo: FerramentaEmprestimo) {
+    if (!perfil) return
+    if (!window.confirm('Confirma a devolução desta ferramenta?')) return
+    setMsg(null)
+    const { error } = await supabase.from('ferramenta_emprestimos')
+      .update({ devolvida_em: new Date().toISOString(), devolvida_recebida_por: perfil.id })
+      .eq('id', emprestimo.id)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Falha ao registrar devolução: ${error.message}` })
+      return
+    }
+    await carregar()
+    setMsg({ tipo: 'ok', texto: 'Devolução registrada.' })
+    if (ferramentaSel?.id === emprestimo.ferramenta_id) await abrirHistorico(ferramentaSel)
+  }
+
+  return (
+    <div>
+      <div className={styles.topoAcoes}>
+        <button className={styles.btnPrincipal} onClick={() => setMostrarNova(true)}>+ Nova ferramenta</button>
+      </div>
+
+      {mostrarNova && (
+        <PainelNovaFerramenta
+          onFechar={() => setMostrarNova(false)}
+          onSucesso={(f) => {
+            ferramentaCriada(f)
+            setMostrarNova(false)
+            setMsg({ tipo: 'ok', texto: 'Ferramenta cadastrada.' })
+          }}
+        />
+      )}
+
+      {ferramentaEmprestando && (
+        <PainelEmprestimo
+          ferramenta={ferramentaEmprestando}
+          unidades={unidades}
+          onFechar={() => setFerramentaEmprestando(null)}
+          onSucesso={async () => {
+            setFerramentaEmprestando(null)
+            await carregar()
+            setMsg({ tipo: 'ok', texto: 'Empréstimo registrado.' })
+          }}
+        />
+      )}
+
+      <div className={styles.filtros}>
+        <input className={styles.busca} value={busca} onChange={e => setBusca(e.target.value)}
+          placeholder="Buscar ferramenta pelo nome…" />
+        <select className={styles.selectFiltro} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value as FiltroEstadoFerramenta)}>
+          <option value="">Todos os estados</option>
+          <option value="disponivel">Disponível</option>
+          <option value="emprestada">Emprestada</option>
+          <option value="atraso">Em atraso</option>
+        </select>
+      </div>
+
+      {msg && !ferramentaSel && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+
+      {carregando && <p className={styles.vazio}>Carregando…</p>}
+      {!carregando && linhas.length === 0 && (
+        <p className={styles.vazio}>
+          {ferramentas.length === 0 ? 'Nenhuma ferramenta cadastrada.' : 'Nenhuma ferramenta com esses filtros.'}
+        </p>
+      )}
+
+      {!carregando && linhas.length > 0 && (
+        <div className={styles.lista}>
+          {linhas.map(({ ferramenta: f, emprestimo, estado, dias }) => (
+            <div key={f.id} className={`${styles.linha} ${ferramentaSel?.id === f.id ? styles.linhaAtiva : ''}`}
+              onClick={() => abrirHistorico(f)}>
+              <div className={styles.linhaInfo}>
+                <div className={styles.linhaTopo}>
+                  <span className={styles.linhaNome}>{f.nome}</span>
+                </div>
+                {f.descricao && <div className={styles.linhaDesc}>{f.descricao}</div>}
+                {emprestimo && (
+                  <div className={styles.linhaDesc}>
+                    {emprestimo.retirado_por}
+                    {emprestimo.unidade_id ? ` · ${nomeUnidade.get(emprestimo.unidade_id) ?? '?'}` : ''}
+                    {estado === 'atraso' ? ` · há ${dias} dia${dias === 1 ? '' : 's'}` : ' · desde hoje'}
+                  </div>
+                )}
+              </div>
+              <div className={styles.linhaMeta}>
+                <span className={`${styles.chip} ${styles[`chip_${estado}`]}`}>{ESTADO_LABEL[estado]}</span>
+                {estado === 'disponivel' && (
+                  <button className={styles.btnSecundario} onClick={(e) => { e.stopPropagation(); setFerramentaEmprestando(f) }}>
+                    Emprestar
+                  </button>
+                )}
+                {emprestimo && (
+                  <button className={styles.btnSecundario} onClick={(e) => { e.stopPropagation(); devolver(emprestimo) }}>
+                    Devolver
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {ferramentaSel && (
+        <div className={styles.painelExtrato}>
+          <div className={styles.painelHeader}>
+            <h2>{ferramentaSel.nome} — histórico</h2>
+            <button className={styles.btnFechar} onClick={() => setFerramentaSel(null)}>✕</button>
+          </div>
+
+          {carregandoHistorico && <p className={styles.vazio}>Carregando histórico…</p>}
+          {!carregandoHistorico && historico.length === 0 && <p className={styles.vazio}>Nenhum empréstimo registrado.</p>}
+
+          {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+
+          {!carregandoHistorico && historico.length > 0 && (
+            <div className={styles.timeline}>
+              {historico.map(h => (
+                <div key={h.id} className={styles.movLinha}>
+                  <div className={styles.movTopo}>
+                    <span className={`${styles.chip} ${styles[`chip_${h.devolvida_em ? 'devolvida' : 'aberto'}`]}`}>
+                      {h.devolvida_em ? 'Devolvida' : 'Em aberto'}
+                    </span>
+                  </div>
+                  <div className={styles.movDetalhes}>
+                    <span>Retirado por: {h.retirado_por}</span>
+                    {h.unidade_id && <span>Destino: {nomeUnidade.get(h.unidade_id) ?? '?'}</span>}
+                    {h.observacao && <span>Obs.: {h.observacao}</span>}
+                  </div>
+                  <div className={styles.movRodape}>
+                    <span>
+                      Retirada: {fmtDataHora(h.retirada_em)}
+                      {h.devolvida_em ? ` · Devolvida: ${fmtDataHora(h.devolvida_em)} (recebido por ${autores.get(h.devolvida_recebida_por ?? '') ?? '?'})` : ''}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface PainelNovaFerramentaProps {
+  onFechar: () => void
+  onSucesso: (f: Ferramenta) => void
+}
+
+function PainelNovaFerramenta({ onFechar, onSucesso }: PainelNovaFerramentaProps) {
+  const { obraAtiva } = useObra()
+  const [nome, setNome] = useState('')
+  const [descricao, setDescricao] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function salvar() {
+    if (!obraAtiva) return
+    if (!nome.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe o nome da ferramenta.' })
+      return
+    }
+    setSalvando(true)
+    setMsg(null)
+    const { data, error } = await supabase.from('ferramentas').insert({
+      obra_id: obraAtiva.id,
+      nome: nome.trim(),
+      descricao: descricao.trim() || null,
+    }).select().single()
+    setSalvando(false)
+    if (error || !data) {
+      setMsg({ tipo: 'erro', texto: `Falha ao cadastrar: ${error?.message}` })
+      return
+    }
+    onSucesso(data)
+  }
+
+  return (
+    <div className={styles.painelForm}>
+      <div className={styles.painelHeader}>
+        <h2>Nova ferramenta</h2>
+        <button className={styles.btnFechar} onClick={onFechar}>✕</button>
+      </div>
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Nome *
+          <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex.: Furadeira 01" />
+        </label>
+        <label className={styles.campo}>
+          Descrição
+          <input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Opcional" />
+        </label>
+      </div>
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+      <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
+        {salvando ? 'Salvando…' : 'Cadastrar ferramenta'}
+      </button>
+    </div>
+  )
+}
+
+interface PainelEmprestimoProps {
+  ferramenta: Ferramenta
+  unidades: Unidade[]
+  onFechar: () => void
+  onSucesso: () => void
+}
+
+function PainelEmprestimo({ ferramenta, unidades, onFechar, onSucesso }: PainelEmprestimoProps) {
+  const [retiradoPor, setRetiradoPor] = useState('')
+  const [unidadeId, setUnidadeId] = useState('')
+  const [observacao, setObservacao] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function salvar() {
+    if (!retiradoPor.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe quem levou a ferramenta.' })
+      return
+    }
+    setSalvando(true)
+    setMsg(null)
+    const { error } = await supabase.from('ferramenta_emprestimos').insert({
+      ferramenta_id: ferramenta.id,
+      retirado_por: retiradoPor.trim(),
+      unidade_id: unidadeId || null,
+      observacao: observacao.trim() || null,
+    })
+    setSalvando(false)
+    if (error) {
+      const jaEmprestada = error.code === '23505' || (error.message ?? '').includes('unique_emprestimo_aberto')
+      setMsg({ tipo: 'erro', texto: jaEmprestada ? 'Ferramenta já emprestada.' : `Falha ao registrar empréstimo: ${error.message}` })
+      return
+    }
+    onSucesso()
+  }
+
+  return (
+    <div className={styles.painelForm}>
+      <div className={styles.painelHeader}>
+        <h2>Emprestar — {ferramenta.nome}</h2>
+        <button className={styles.btnFechar} onClick={onFechar}>✕</button>
+      </div>
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Quem levou *
+          <input value={retiradoPor} onChange={e => setRetiradoPor(e.target.value)} placeholder="Nome" />
+        </label>
+        <label className={styles.campo}>
+          Unidade
+          <select value={unidadeId} onChange={e => setUnidadeId(e.target.value)}>
+            <option value="">Opcional</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
+        </label>
+        <label className={styles.campo}>
+          Observação
+          <input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Opcional" />
+        </label>
+      </div>
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+      <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
+        {salvando ? 'Salvando…' : 'Registrar empréstimo'}
+      </button>
     </div>
   )
 }

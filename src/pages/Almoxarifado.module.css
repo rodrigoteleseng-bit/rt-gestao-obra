@@ -206,6 +206,11 @@
 .chip_escritorio { background: var(--terracota-light); color: var(--branco); }
 .chip_entrada { background: #e3f4e3; color: #1e6b2e; }
 .chip_saida { background: #fdeaea; color: #a33030; }
+.chip_disponivel { background: #e3f4e3; color: var(--sucesso); }
+.chip_emprestada { background: #fdf3d7; color: var(--alerta); }
+.chip_atraso { background: #fbe1de; color: var(--erro); font-weight: 800; }
+.chip_devolvida { background: #e3f4e3; color: var(--sucesso); }
+.chip_aberto { background: #fdf3d7; color: var(--alerta); }
 
 /* ── painel de extrato ── */
 .painelExtrato {

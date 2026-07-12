@@ -79,7 +79,7 @@ export function gerarPdfBlocoRequisicoes(d: DadosPdfBlocoRequisicoes): void {
     const colW = { num: 9, desc: 82, cod: 30, qtd: 20, aplic: LARG - (9 + 82 + 30 + 20) }
     const alturaCab = 6.5
     const alturaLinha = 6.2
-    const nLinhas = 7
+    const nLinhas = 10
 
     pdf.setFillColor('#F0EBE3')
     pdf.rect(ML, y, LARG, alturaCab, 'F')
@@ -133,8 +133,8 @@ export function gerarPdfBlocoRequisicoes(d: DadosPdfBlocoRequisicoes): void {
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(7.5)
     pdf.setTextColor(CINZA)
-    pdf.text('MESTRE DE OBRAS', ML, y + 4)
-    pdf.text('ENGENHEIRO RESPONSÁVEL', ML + assinLarg + 10, y + 4)
+    pdf.text('MESTRE DE OBRAS / ENCARREGADO', ML + assinLarg / 2, y + 4, { align: 'center' })
+    pdf.text('ENGENHEIRO RESPONSÁVEL', ML + assinLarg + 10 + assinLarg / 2, y + 4, { align: 'center' })
 
     // borda externa da ficha
     pdf.setDrawColor('#E0DAD0')

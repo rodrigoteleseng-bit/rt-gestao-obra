@@ -6,6 +6,21 @@ import { supabase, type Unidade } from '../lib/supabase'
 import { dataLocalISO, dataHoje, diasEntre } from '../lib/almoxarifado'
 import styles from './Dashboard.module.css'
 
+function calcularSemana(dataInicio: string, dataFimPrevista: string): { atual: number; total: number } {
+  const hoje = dataHoje()
+  const diasDesdeInicio = diasEntre(dataInicio, hoje)
+  const diasTotais = diasEntre(dataInicio, dataFimPrevista)
+  const atual = Math.max(1, Math.floor(diasDesdeInicio / 7) + 1)
+  const total = Math.max(atual, Math.ceil(diasTotais / 7))
+  return { atual, total }
+}
+
+function formatarDataExtenso(iso: string): string {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR', {
+    weekday: 'long', day: '2-digit', month: 'long',
+  })
+}
+
 interface FerramentaAtraso {
   emprestimoId: string
   nomeFerramenta: string
@@ -154,10 +169,31 @@ export default function Dashboard() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.boas_vindas}>
-        <h1>Olá, {perfil?.nome?.split(' ')[0]} 👋</h1>
-        <p>Bem-vindo ao painel de gestão de obra da RT Engenharia.</p>
-      </div>
+      {obra && (
+        <div className={styles.hero}>
+          <div className={styles.heroData}>{formatarDataExtenso(dataHoje())}</div>
+          <h1>Olá, {perfil?.nome?.split(' ')[0]}</h1>
+          <div className={styles.heroObra}>{obra.nome} — {obra.cidade}{obra.cidade && obra.estado ? ' — ' : ''}{obra.estado}</div>
+          {obra.data_inicio && obra.data_fim_prevista && (
+            <div className={styles.heroMetricas}>
+              <div className={styles.heroMet}>
+                <div className={styles.heroLab}>Prazo</div>
+                <div className={styles.heroVal}>{new Date(obra.data_fim_prevista + 'T00:00:00').toLocaleDateString('pt-BR')}</div>
+              </div>
+              <div className={styles.heroMet}>
+                <div className={styles.heroLab}>Semana</div>
+                <div className={styles.heroVal}>
+                  {calcularSemana(obra.data_inicio, obra.data_fim_prevista).atual}/{calcularSemana(obra.data_inicio, obra.data_fim_prevista).total}
+                </div>
+              </div>
+              <div className={styles.heroMet}>
+                <div className={styles.heroLab}>Restam</div>
+                <div className={styles.heroVal}>{Math.max(0, diasEntre(dataHoje(), obra.data_fim_prevista))}d</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {ferramentasAtraso.length > 0 && (
         <button className={styles.bannerAlerta} onClick={() => navigate('/almoxarifado')}>
@@ -191,33 +227,6 @@ export default function Dashboard() {
             {chamadaHoje.presentes} de {chamadaHoje.total} presentes hoje.
           </span>
         </button>
-      )}
-
-      {obra && (
-        <div className={styles.obraCard}>
-          <div className={styles.obraHeader}>
-            <div>
-              <div className={styles.obraLabel}>Obra ativa</div>
-              <div className={styles.obraNome}>{obra.nome}</div>
-              <div className={styles.obraEndereco}>{obra.cidade} — {obra.estado}</div>
-            </div>
-            <div className={styles.obraBadge}>{obra.status}</div>
-          </div>
-          <div className={styles.obraStats}>
-            <div className={styles.stat}>
-              <div className={styles.statNum}>{sobrados.length}</div>
-              <div className={styles.statLabel}>Sobrados</div>
-            </div>
-            <div className={styles.stat}>
-              <div className={styles.statNum}>{unidades.length}</div>
-              <div className={styles.statLabel}>Unidades total</div>
-            </div>
-            <div className={styles.stat}>
-              <div className={styles.statNum}>—</div>
-              <div className={styles.statLabel}>% concluído</div>
-            </div>
-          </div>
-        </div>
       )}
 
       <h2 className={styles.secaoTitulo}>Módulos</h2>

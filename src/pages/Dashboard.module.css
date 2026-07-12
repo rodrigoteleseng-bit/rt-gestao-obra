@@ -3,18 +3,67 @@
   margin: 0 auto;
 }
 
-.boas_vindas {
-  margin-bottom: 24px;
+.hero {
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-dark) 100%);
+  color: var(--branco);
+  border-radius: var(--radius-lg);
+  padding: 24px 24px 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--sombra-md);
 }
 
-.boas_vindas h1 {
+.heroData {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--azul-gelo);
+  font-weight: 500;
+}
+
+.hero h1 {
+  font-family: var(--font-titulo);
+  font-weight: 700;
   font-size: 24px;
-  margin-bottom: 4px;
+  margin: 6px 0 2px;
 }
 
-.boas_vindas p {
-  color: var(--cinza-600);
-  font-size: 14px;
+.heroObra {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.heroMetricas {
+  display: flex;
+  gap: 0;
+  margin-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  padding-top: 14px;
+}
+
+.heroMet {
+  flex: 1;
+  min-width: 0;
+}
+
+.heroMet + .heroMet {
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  padding-left: 14px;
+}
+
+.heroLab {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--azul-gelo);
+  font-weight: 500;
+}
+
+.heroVal {
+  font-family: var(--font-titulo);
+  font-weight: 600;
+  font-size: 17px;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── BANNER DE ALERTA ── */
@@ -73,74 +122,6 @@
   font-weight: 600;
   color: var(--navy);
   line-height: 1.5;
-}
-
-/* ── OBRA CARD ── */
-.obraCard {
-  background: var(--navy);
-  color: var(--branco);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  margin-bottom: 32px;
-}
-
-.obraHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-}
-
-.obraLabel {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.5);
-  margin-bottom: 4px;
-}
-
-.obraNome {
-  font-family: var(--font-titulo);
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.obraEndereco {
-  font-size: 13px;
-  color: rgba(255,255,255,0.6);
-  margin-top: 4px;
-}
-
-.obraBadge {
-  background: var(--terracota);
-  color: var(--branco);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 4px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.obraStats {
-  display: flex;
-  gap: 32px;
-}
-
-.stat {}
-
-.statNum {
-  font-family: var(--font-titulo);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--branco);
-}
-
-.statLabel {
-  font-size: 12px;
-  color: rgba(255,255,255,0.5);
-  margin-top: 2px;
 }
 
 /* ── MÓDULOS ── */

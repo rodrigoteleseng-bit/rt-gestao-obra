@@ -421,12 +421,30 @@ export default function RDOForm() {
     desenhouRef.current = false
   }
 
+  // Fase 7: quando o efetivo em tela vem da chamada de presença, ele é
+  // sintético (agrupado a partir de efetivo_presencas) e nunca foi gravado
+  // em rdo_efetivo. Sem isso, o RDO assinado (documento imutável) congela
+  // com efetivo vazio, mesmo tendo pessoas presentes na chamada do dia.
+  async function materializarEfetivoDaChamada() {
+    if (!rdo || !chamadaDia || efetivo.length === 0) return true
+    const { error } = await supabase.from('rdo_efetivo').insert(
+      efetivo.map(e => ({ rdo_id: rdo.id, funcao: e.funcao, quantidade: e.quantidade, empresa: e.empresa }))
+    )
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Erro ao registrar efetivo da chamada: ${error.message}` })
+      return false
+    }
+    return true
+  }
+
   async function assinarFechar() {
     if (!rdo || !desenhouRef.current || !nomeAssinante.trim()) {
       setMsg({ tipo: 'erro', texto: 'Desenhe a assinatura e confirme o nome antes de fechar.' })
       return
     }
     setSalvando(true)
+    const materializou = await materializarEfetivoDaChamada()
+    if (!materializou) { setSalvando(false); return }
     const geo = await obterPosicao()
     const ok = await salvarCabecalho({
       status: 'assinado',

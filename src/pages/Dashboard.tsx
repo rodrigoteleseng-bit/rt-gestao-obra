@@ -89,6 +89,8 @@ export default function Dashboard() {
   const [cardAberto, setCardAberto] = useState<string | null>(null)
   const [ferramentasAtraso, setFerramentasAtraso] = useState<FerramentaAtraso[]>([])
   const [chamadaHoje, setChamadaHoje] = useState<ChamadaHoje | null>(null)
+  const [pedidosAguardando, setPedidosAguardando] = useState(0)
+  const [pendenciasAbertas, setPendenciasAbertas] = useState(0)
 
   useEffect(() => {
     if (!obra) {
@@ -136,6 +138,36 @@ export default function Dashboard() {
         setFerramentasAtraso(atrasadas)
       })
   }, [obra, vePainelAlmoxarifado])
+
+  const veCompras = perfil?.papel !== 'cliente' && temModulo('compras')
+
+  useEffect(() => {
+    if (!obra || !veCompras) {
+      setPedidosAguardando(0)
+      return
+    }
+    supabase.from('pedidos_compra')
+      .select('id', { count: 'exact', head: true })
+      .eq('obra_id', obra.id)
+      .eq('status', 'em_cotacao')
+      .eq('ativo', true)
+      .then(({ count }) => setPedidosAguardando(count ?? 0))
+  }, [obra, veCompras])
+
+  const vePendencias = perfil?.papel !== 'cliente' && temModulo('pendencias')
+
+  useEffect(() => {
+    if (!obra || !vePendencias) {
+      setPendenciasAbertas(0)
+      return
+    }
+    supabase.from('pendencias')
+      .select('id', { count: 'exact', head: true })
+      .eq('obra_id', obra.id)
+      .in('status', ['aberta', 'em_correcao'])
+      .eq('ativo', true)
+      .then(({ count }) => setPendenciasAbertas(count ?? 0))
+  }, [obra, vePendencias])
 
   const veEfetivo = perfil?.papel !== 'cliente' && temModulo('efetivo')
 

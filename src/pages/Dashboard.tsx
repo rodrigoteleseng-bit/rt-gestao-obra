@@ -13,6 +13,12 @@ interface FerramentaAtraso {
   dias: number
 }
 
+interface ChamadaHoje {
+  feita: boolean
+  presentes: number
+  total: number
+}
+
 interface SubModulo {
   label: string
   icon: string
@@ -67,6 +73,7 @@ export default function Dashboard() {
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [cardAberto, setCardAberto] = useState<string | null>(null)
   const [ferramentasAtraso, setFerramentasAtraso] = useState<FerramentaAtraso[]>([])
+  const [chamadaHoje, setChamadaHoje] = useState<ChamadaHoje | null>(null)
 
   useEffect(() => {
     if (!obra) {
@@ -115,6 +122,34 @@ export default function Dashboard() {
       })
   }, [obra, vePainelAlmoxarifado])
 
+  const veEfetivo = perfil?.papel !== 'cliente' && temModulo('efetivo')
+
+  useEffect(() => {
+    if (!obra || !veEfetivo) {
+      setChamadaHoje(null)
+      return
+    }
+    supabase.from('trabalhadores').select('id').eq('obra_id', obra.id).eq('ativo', true)
+      .then(({ data: trabalhadores }) => {
+        const total = trabalhadores?.length ?? 0
+        if (total === 0) {
+          setChamadaHoje(null)
+          return
+        }
+        supabase.from('efetivo_chamadas').select('id').eq('obra_id', obra.id).eq('data', dataHoje()).maybeSingle()
+          .then(({ data: chamada }) => {
+            if (!chamada) {
+              setChamadaHoje({ feita: false, presentes: 0, total })
+              return
+            }
+            supabase.from('efetivo_presencas').select('presente').eq('chamada_id', chamada.id).eq('presente', true)
+              .then(({ data: presencas }) => {
+                setChamadaHoje({ feita: true, presentes: presencas?.length ?? 0, total })
+              })
+          })
+      })
+  }, [obra, veEfetivo])
+
   const sobrados = unidades.filter(u => u.tipo === 'sobrado')
 
   return (
@@ -136,6 +171,24 @@ export default function Dashboard() {
               </span>
             ))}
             {ferramentasAtraso.length > 3 && ` e mais ${ferramentasAtraso.length - 3}`}
+          </span>
+        </button>
+      )}
+
+      {chamadaHoje && !chamadaHoje.feita && (
+        <button className={styles.bannerInfo} onClick={() => navigate('/efetivo')}>
+          <span className={styles.bannerIcon}>👷</span>
+          <span className={styles.bannerTextoInfo}>
+            Chamada de hoje ainda não foi feita ({chamadaHoje.total} trabalhador{chamadaHoje.total > 1 ? 'es' : ''} cadastrado{chamadaHoje.total > 1 ? 's' : ''}).
+          </span>
+        </button>
+      )}
+
+      {chamadaHoje?.feita && (
+        <button className={styles.bannerInfo} onClick={() => navigate('/efetivo')}>
+          <span className={styles.bannerIcon}>👷</span>
+          <span className={styles.bannerTextoInfo}>
+            {chamadaHoje.presentes} de {chamadaHoje.total} presentes hoje.
           </span>
         </button>
       )}

@@ -405,3 +405,29 @@ export interface RequisicaoBloco {
   id: string; obra_id: string; numero_inicial: number; numero_final: number
   criado_por: string; criado_em: string
 }
+export interface Trabalhador {
+  id: string
+  obra_id: string
+  nome: string
+  funcao: string
+  empresa: string | null
+  data_admissao: string | null
+  ativo: boolean
+  criado_por: string
+  criado_em: string
+}
+export interface EfetivoChamada {
+  id: string
+  obra_id: string
+  data: string
+  criado_por: string
+  criado_em: string
+}
+export interface EfetivoPresenca {
+  id: string
+  chamada_id: string
+  trabalhador_id: string
+  presente: boolean
+  criado_por: string
+  criado_em: string
+}

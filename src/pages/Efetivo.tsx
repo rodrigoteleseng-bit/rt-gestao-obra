@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
-import { supabase, type Trabalhador } from '../lib/supabase'
+import { supabase, type EfetivoPresenca, type Trabalhador } from '../lib/supabase'
+import { dataHoje } from '../lib/almoxarifado'
 import styles from './Efetivo.module.css'
 
 type Aba = 'trabalhadores' | 'chamada'
@@ -39,7 +40,7 @@ export default function Efetivo() {
       </div>
 
       {aba === 'trabalhadores' && <AbaTrabalhadores />}
-      {aba === 'chamada' && <p className={styles.vazio}>Em breve.</p>}
+      {aba === 'chamada' && <AbaChamada irParaTrabalhadores={() => setAba('trabalhadores')} />}
     </div>
   )
 }
@@ -232,6 +233,161 @@ function PainelNovoTrabalhador({ funcoes, onFechar, onSucesso }: PainelNovoTraba
       <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
         {salvando ? 'Salvando…' : 'Cadastrar trabalhador'}
       </button>
+    </div>
+  )
+}
+
+interface AbaChamadaProps {
+  irParaTrabalhadores: () => void
+}
+
+function AbaChamada({ irParaTrabalhadores }: AbaChamadaProps) {
+  const { obraAtiva } = useObra()
+
+  const [dataChamada, setDataChamada] = useState(dataHoje())
+  const [trabalhadores, setTrabalhadores] = useState<Trabalhador[]>([])
+  const [presencas, setPresencas] = useState<Map<string, boolean>>(new Map())
+  const [chamadaId, setChamadaId] = useState<string | null>(null)
+  const [carregando, setCarregando] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function carregar() {
+    if (!obraAtiva) return
+    setCarregando(true)
+    setMsg(null)
+
+    const { data: trabsData } = await supabase.from('trabalhadores').select('*')
+      .eq('obra_id', obraAtiva.id).eq('ativo', true).order('nome')
+    const trabs = trabsData ?? []
+    setTrabalhadores(trabs)
+
+    const { data: chamada } = await supabase.from('efetivo_chamadas').select('*')
+      .eq('obra_id', obraAtiva.id).eq('data', dataChamada).maybeSingle()
+
+    const map = new Map<string, boolean>()
+    trabs.forEach(t => map.set(t.id, true))
+
+    if (chamada) {
+      setChamadaId(chamada.id)
+      const { data: presencasData } = await supabase.from('efetivo_presencas').select('*')
+        .eq('chamada_id', chamada.id)
+      ;(presencasData as EfetivoPresenca[] | null)?.forEach(p => map.set(p.trabalhador_id, p.presente))
+    } else {
+      setChamadaId(null)
+    }
+
+    setPresencas(map)
+    setCarregando(false)
+  }
+
+  useEffect(() => { carregar() }, [obraAtiva, dataChamada])
+
+  function alternarPresenca(trabalhadorId: string) {
+    setPresencas(prev => {
+      const next = new Map(prev)
+      next.set(trabalhadorId, !next.get(trabalhadorId))
+      return next
+    })
+  }
+
+  const presentesCount = useMemo(
+    () => [...presencas.values()].filter(Boolean).length,
+    [presencas]
+  )
+
+  async function salvar() {
+    if (!obraAtiva || trabalhadores.length === 0) return
+    setSalvando(true)
+    setMsg(null)
+
+    try {
+      let cId = chamadaId
+      if (!cId) {
+        const { data, error } = await supabase.from('efetivo_chamadas')
+          .insert({ obra_id: obraAtiva.id, data: dataChamada })
+          .select().single()
+        if (error || !data) throw new Error(error?.message ?? 'Falha ao criar a chamada.')
+        cId = data.id
+        setChamadaId(cId)
+
+        const registros = trabalhadores.map(t => ({
+          chamada_id: cId, trabalhador_id: t.id, presente: presencas.get(t.id) ?? true,
+        }))
+        const { error: errPres } = await supabase.from('efetivo_presencas').insert(registros)
+        if (errPres) throw new Error(errPres.message)
+      } else {
+        const registros = trabalhadores.map(t => ({
+          chamada_id: cId, trabalhador_id: t.id, presente: presencas.get(t.id) ?? true,
+        }))
+        const { error: errPres } = await supabase.from('efetivo_presencas')
+          .upsert(registros, { onConflict: 'chamada_id,trabalhador_id' })
+        if (errPres) throw new Error(errPres.message)
+      }
+
+      setMsg({
+        tipo: 'ok',
+        texto: `Chamada de ${fmtData(dataChamada)} salva: ${presentesCount} de ${trabalhadores.length} presentes.`,
+      })
+    } catch (e) {
+      setMsg({ tipo: 'erro', texto: `Erro ao salvar: ${(e as Error).message}` })
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className={styles.chamadaTopo}>
+        <label className={styles.campoData}>
+          Data
+          <input type="date" value={dataChamada} max={dataHoje()}
+            onChange={e => setDataChamada(e.target.value)} />
+        </label>
+        {!carregando && trabalhadores.length > 0 && (
+          <span className={styles.contador}>{presentesCount} de {trabalhadores.length} presentes</span>
+        )}
+      </div>
+
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+
+      {carregando && <p className={styles.vazio}>Carregando…</p>}
+
+      {!carregando && trabalhadores.length === 0 && (
+        <div className={styles.vazio}>
+          <p>Nenhum trabalhador cadastrado. Vá para a aba Trabalhadores.</p>
+          <button className={styles.btnPrincipal} onClick={irParaTrabalhadores}>Ir para Trabalhadores</button>
+        </div>
+      )}
+
+      {!carregando && trabalhadores.length > 0 && (
+        <>
+          <div className={styles.lista}>
+            {trabalhadores.map(t => {
+              const presente = presencas.get(t.id) ?? true
+              return (
+                <div key={t.id} className={styles.linha}>
+                  <div className={styles.linhaInfo}>
+                    <div className={styles.linhaTopo}>
+                      <span className={styles.linhaNome}>{t.nome}</span>
+                      <span className={styles.chip}>{t.funcao}</span>
+                    </div>
+                  </div>
+                  <button
+                    className={presente ? styles.btnPresente : styles.btnAusente}
+                    onClick={() => alternarPresenca(t.id)}
+                  >
+                    {presente ? 'Presente' : 'Ausente'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+          <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
+            {salvando ? 'Salvando…' : 'Salvar chamada'}
+          </button>
+        </>
+      )}
     </div>
   )
 }

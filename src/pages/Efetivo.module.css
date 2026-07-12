@@ -243,6 +243,64 @@
 .linha2 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
 .linha2 .campo { margin-bottom: 0; }
 
+/* ── chamada ── */
+.chamadaTopo {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.campoData {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cinza-600);
+}
+
+.campoData input {
+  padding: 10px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--branco);
+}
+
+.contador {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.btnPresente {
+  background: var(--sucesso);
+  color: var(--branco);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btnAusente {
+  background: var(--erro);
+  color: var(--branco);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* ── mobile ── */
 @media (max-width: 640px) {
   .linha {

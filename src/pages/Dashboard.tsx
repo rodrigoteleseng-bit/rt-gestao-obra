@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
-import { supabase, type Unidade, type Rdo } from '../lib/supabase'
+import { supabase, type Rdo } from '../lib/supabase'
 import { dataLocalISO, dataHoje, diasEntre } from '../lib/almoxarifado'
 import styles from './Dashboard.module.css'
 
@@ -97,7 +97,6 @@ export default function Dashboard() {
   const { perfil, temModulo } = useAuth()
   const { obraAtiva: obra } = useObra()
   const navigate = useNavigate()
-  const [unidades, setUnidades] = useState<Unidade[]>([])
   const [cardAberto, setCardAberto] = useState<string | null>(null)
   const [ferramentasAtraso, setFerramentasAtraso] = useState<FerramentaAtraso[]>([])
   const [chamadaHoje, setChamadaHoje] = useState<ChamadaHoje | null>(null)
@@ -137,15 +136,6 @@ export default function Dashboard() {
         })
       })
   }, [obra, veRdo])
-
-  useEffect(() => {
-    if (!obra) {
-      setUnidades([])
-      return
-    }
-    supabase.from('unidades').select('*').eq('obra_id', obra.id).order('ordem')
-      .then(({ data }) => setUnidades(data ?? []))
-  }, [obra])
 
   const vePainelAlmoxarifado = perfil?.papel !== 'cliente' && temModulo('almoxarifado')
 
@@ -242,8 +232,6 @@ export default function Dashboard() {
           })
       })
   }, [obra, veEfetivo])
-
-  const sobrados = unidades.filter(u => u.tipo === 'sobrado')
 
   return (
     <div className={styles.page}>

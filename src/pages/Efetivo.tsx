@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import { supabase, type EfetivoPresenca, type Trabalhador } from '../lib/supabase'
@@ -252,15 +252,18 @@ function AbaChamada({ irParaTrabalhadores }: AbaChamadaProps) {
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
+  const dataChamadaRef = useRef(dataChamada)
+  useEffect(() => { dataChamadaRef.current = dataChamada }, [dataChamada])
+
   async function carregar() {
     if (!obraAtiva) return
+    const dataRequisicao = dataChamada
     setCarregando(true)
     setMsg(null)
 
     const { data: trabsData } = await supabase.from('trabalhadores').select('*')
       .eq('obra_id', obraAtiva.id).eq('ativo', true).order('nome')
     const trabs = trabsData ?? []
-    setTrabalhadores(trabs)
 
     const { data: chamada } = await supabase.from('efetivo_chamadas').select('*')
       .eq('obra_id', obraAtiva.id).eq('data', dataChamada).maybeSingle()
@@ -268,15 +271,18 @@ function AbaChamada({ irParaTrabalhadores }: AbaChamadaProps) {
     const map = new Map<string, boolean>()
     trabs.forEach(t => map.set(t.id, true))
 
+    let novoChamadaId: string | null = null
     if (chamada) {
-      setChamadaId(chamada.id)
+      novoChamadaId = chamada.id
       const { data: presencasData } = await supabase.from('efetivo_presencas').select('*')
         .eq('chamada_id', chamada.id)
       ;(presencasData as EfetivoPresenca[] | null)?.forEach(p => map.set(p.trabalhador_id, p.presente))
-    } else {
-      setChamadaId(null)
     }
 
+    if (dataChamadaRef.current !== dataRequisicao) return // resposta obsoleta (data trocou durante o carregamento), ignora
+
+    setTrabalhadores(trabs)
+    setChamadaId(novoChamadaId)
     setPresencas(map)
     setCarregando(false)
   }

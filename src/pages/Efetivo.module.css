@@ -37,14 +37,14 @@
 }
 
 .msgOk {
-  color: #1e6b2e;
+  color: var(--sucesso);
   font-weight: 600;
   font-size: 14px;
   padding: 6px 0;
 }
 
 .msgErro {
-  color: #a33030;
+  color: var(--erro);
   font-weight: 600;
   font-size: 13px;
   padding: 6px 0;
@@ -170,8 +170,8 @@
 
 .btnInativar {
   background: none;
-  border: 1.5px solid #a33030;
-  color: #a33030;
+  border: 1.5px solid var(--erro);
+  color: var(--erro);
   border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 600;

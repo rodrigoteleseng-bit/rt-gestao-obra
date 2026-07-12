@@ -84,6 +84,7 @@ export default function CompraForm() {
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
   const [recebimentos, setRecebimentos] = useState<RecebimentoNf[]>([])
   const [carregandoPedido, setCarregandoPedido] = useState(!novo)
+  const [somaAlmoxarifado, setSomaAlmoxarifado] = useState<Map<string, number>>(new Map())
 
   useEffect(() => {
     if (!novo && id) carregarPedido(id)
@@ -108,6 +109,22 @@ export default function CompraForm() {
       setCotacoesItens(coti ?? [])
     } else {
       setCotacoesItens([])
+    }
+    // Conferência tripla: soma independente direto de estoque_movimentos, não o campo
+    // derivado quantidade_recebida (mantido por trigger) — precisa comparar 3 fontes distintas.
+    if (p && its && its.length > 0 && ['recebido_parcial', 'recebido_total', 'conferido_nf', 'encerrado'].includes(p.status)) {
+      const { data: movs } = await supabase.from('estoque_movimentos')
+        .select('pedido_item_id, quantidade')
+        .in('pedido_item_id', its.map(i => i.id))
+        .eq('tipo', 'entrada').eq('ativo', true)
+      const mapa = new Map<string, number>()
+      for (const m of movs ?? []) {
+        if (!m.pedido_item_id) continue
+        mapa.set(m.pedido_item_id, (mapa.get(m.pedido_item_id) ?? 0) + m.quantidade)
+      }
+      setSomaAlmoxarifado(mapa)
+    } else {
+      setSomaAlmoxarifado(new Map())
     }
     setCarregandoPedido(false)
   }
@@ -186,6 +203,7 @@ export default function CompraForm() {
       <DetalhePedido
         pedido={pedido} itens={itensPedido} cotacoes={cotacoes} cotacoesItens={cotacoesItens}
         fornecedores={fornecedores} recebimentos={recebimentos} servicos={servicos}
+        somaAlmoxarifado={somaAlmoxarifado}
         obraNome={obraAtiva?.nome ?? '—'} onRecarregar={() => carregarPedido(pedido.id)}
       />
     )
@@ -293,11 +311,12 @@ interface DetalhePedidoProps {
   fornecedores: Fornecedor[]
   recebimentos: RecebimentoNf[]
   servicos: Servico[]
+  somaAlmoxarifado: Map<string, number>
   obraNome: string
   onRecarregar: () => void
 }
 
-function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, recebimentos, servicos, obraNome, onRecarregar }: DetalhePedidoProps) {
+function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, recebimentos, servicos, somaAlmoxarifado, obraNome, onRecarregar }: DetalhePedidoProps) {
   const navigate = useNavigate()
   const { perfil, temModulo } = useAuth()
   const podeEditar = perfil?.papel === 'admin' || temModulo('compras')
@@ -984,12 +1003,13 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
               {itens.map(it => {
                 const preco = precoVencedorDoItem(it)
                 const valorAprovado = preco !== null ? it.quantidade_pedida * preco : null
-                const valorAlmoxarifado = preco !== null ? it.quantidade_recebida * preco : null
+                const qtdAlmoxarifado = somaAlmoxarifado.get(it.id) ?? 0
+                const valorAlmoxarifado = preco !== null ? qtdAlmoxarifado * preco : null
                 const nfAnexada = recebimentos.length > 0
 
                 const avisos: string[] = []
-                if (it.quantidade_recebida !== it.quantidade_pedida) {
-                  avisos.push(`recebido no almoxarifado (${it.quantidade_recebida} ${it.und}) ≠ aprovado (${it.quantidade_pedida} ${it.und})`)
+                if (qtdAlmoxarifado !== it.quantidade_pedida) {
+                  avisos.push(`recebido no almoxarifado (${qtdAlmoxarifado} ${it.und}) ≠ aprovado (${it.quantidade_pedida} ${it.und})`)
                 }
                 if (it.valor_recebido !== null && valorAprovado !== null && it.valor_recebido !== valorAprovado) {
                   avisos.push(`valor da NF (R$ ${it.valor_recebido.toFixed(2)}) ≠ valor aprovado (R$ ${valorAprovado.toFixed(2)})`)
@@ -1005,7 +1025,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
                         : <div className={styles.msgInfo}>preço vencedor não definido</div>}
                     </td>
                     <td>
-                      {it.quantidade_recebida} {it.und}
+                      {qtdAlmoxarifado} {it.und}
                       {valorAlmoxarifado !== null && <div>~R$ {valorAlmoxarifado.toFixed(2)} (a preço aprovado)</div>}
                     </td>
                     <td>

@@ -5,8 +5,10 @@ import { useObra } from '../contexts/ObraContext'
 import {
   supabase, type Rdo, type RdoAtividade, type RdoEfetivo, type RdoFoto, type RdoAudio,
   type Unidade, type CronogramaTarefa, type AvancoFisico, type CondicaoClima,
+  type EfetivoChamada, type Trabalhador,
 } from '../lib/supabase'
 import { obterPosicao, sha256Hex, carimbarFoto, fmtCoord, fmtDuracao } from '../lib/rdo'
+import { agruparPresencasComoEfetivo } from '../lib/efetivo'
 import styles from './RDO.module.css'
 
 const fmtData = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
@@ -46,6 +48,7 @@ export default function RDOForm() {
   const [rdo, setRdo] = useState<Rdo | null>(null)
   const [atividades, setAtividades] = useState<RdoAtividade[]>([])
   const [efetivo, setEfetivo] = useState<RdoEfetivo[]>([])
+  const [chamadaDia, setChamadaDia] = useState<EfetivoChamada | null>(null)
   const [fotos, setFotos] = useState<RdoFoto[]>([])
   const [audios, setAudios] = useState<RdoAudio[]>([])
   const [avancosDia, setAvancosDia] = useState<AvancoDoDia[]>([])
@@ -122,6 +125,23 @@ export default function RDOForm() {
     setFotos(fts.data ?? [])
     setAudios(auds.data ?? [])
     setUnidades(unis.data ?? [])
+
+    // Fase 7: se já existe chamada nominal de presença para a data do RDO,
+    // ela passa a ser a fonte de verdade do efetivo (substitui o efet.data
+    // acima). Sem chamada para a data, o comportamento permanece o de hoje
+    // (efetivo vem de rdo_efetivo, editável manualmente).
+    const { data: chamada } = await supabase.from('efetivo_chamadas').select('*')
+      .eq('obra_id', r.obra_id).eq('data', r.data).maybeSingle()
+    setChamadaDia(chamada ?? null)
+    if (chamada) {
+      const { data: pres } = await supabase.from('efetivo_presencas')
+        .select('presente, trabalhadores(id, nome, funcao, empresa, obra_id, ativo, criado_por, criado_em, data_admissao)')
+        .eq('chamada_id', chamada.id)
+      const comTrabalhador = ((pres ?? []) as unknown as { presente: boolean; trabalhadores: Trabalhador | null }[])
+        .filter(p => p.trabalhadores)
+        .map(p => ({ trabalhador: p.trabalhadores as Trabalhador, presente: p.presente }))
+      setEfetivo(agruparPresencasComoEfetivo(comTrabalhador))
+    }
 
     // avanços físicos lançados com data de referência = dia do RDO
     const { data: avs } = await supabase.from('avancos_fisicos').select('*')
@@ -499,13 +519,23 @@ export default function RDOForm() {
       {/* Efetivo */}
       <section className={styles.bloco}>
         <h2>Efetivo do dia {efetivo.length > 0 && <span className={styles.totalEfetivo}>({efetivo.reduce((a, e) => a + e.quantidade, 0)} pessoas)</span>}</h2>
+        {!chamadaDia && podeEditar && (
+          <p className={styles.avisoPendentes}>
+            Chamada do dia ainda não feita. <button className={styles.btnRemover} onClick={() => navigate('/efetivo')}>Fazer chamada</button>
+          </p>
+        )}
+        {chamadaDia && podeEditar && (
+          <p className={styles.subBloco}>
+            Efetivo vindo da chamada de presença do dia. <button className={styles.btnRemover} onClick={() => navigate('/efetivo')}>Editar chamada</button>
+          </p>
+        )}
         {efetivo.map(e => (
           <div key={e.id} className={styles.itemLinha}>
             <span className={styles.itemTexto}><strong>{e.quantidade}×</strong> {e.funcao}{e.empresa ? ` — ${e.empresa}` : ''}</span>
-            {podeEditar && <button className={styles.btnRemover} onClick={() => removerEfetivo(e.id)}>✕</button>}
+            {podeEditar && !chamadaDia && <button className={styles.btnRemover} onClick={() => removerEfetivo(e.id)}>✕</button>}
           </div>
         ))}
-        {podeEditar && funcaoSel === null && (
+        {podeEditar && !chamadaDia && funcaoSel === null && (
           <div className={styles.chipsFuncoes}>
             {FUNCOES_SUGERIDAS.map(f => (
               <button key={f} className={styles.chipFuncao} onClick={() => { setFuncaoSel(f); setNovoEfetivo({ funcao: '', quantidade: '', empresa: '' }) }}>
@@ -517,7 +547,7 @@ export default function RDOForm() {
             </button>
           </div>
         )}
-        {podeEditar && funcaoSel !== null && (
+        {podeEditar && !chamadaDia && funcaoSel !== null && (
           <div className={styles.linhaCampos}>
             {funcaoSel === ''
               ? <input autoFocus placeholder="Função" value={novoEfetivo.funcao}

@@ -130,17 +130,25 @@ export default function RDOForm() {
     // ela passa a ser a fonte de verdade do efetivo (substitui o efet.data
     // acima). Sem chamada para a data, o comportamento permanece o de hoje
     // (efetivo vem de rdo_efetivo, editável manualmente).
-    const { data: chamada } = await supabase.from('efetivo_chamadas').select('*')
-      .eq('obra_id', r.obra_id).eq('data', r.data).maybeSingle()
-    setChamadaDia(chamada ?? null)
-    if (chamada) {
-      const { data: pres } = await supabase.from('efetivo_presencas')
-        .select('presente, trabalhadores(id, nome, funcao, empresa, obra_id, ativo, criado_por, criado_em, data_admissao)')
-        .eq('chamada_id', chamada.id)
-      const comTrabalhador = ((pres ?? []) as unknown as { presente: boolean; trabalhadores: Trabalhador | null }[])
-        .filter(p => p.trabalhadores)
-        .map(p => ({ trabalhador: p.trabalhadores as Trabalhador, presente: p.presente }))
-      setEfetivo(agruparPresencasComoEfetivo(comTrabalhador))
+    // Só se aplica a RDO em rascunho: um RDO assinado é imutável, então o
+    // efetivo fica congelado no que foi assinado (rdo_efetivo) mesmo que a
+    // chamada daquele dia seja criada/editada depois da assinatura.
+    if (r.status === 'rascunho') {
+      const { data: chamada } = await supabase.from('efetivo_chamadas').select('*')
+        .eq('obra_id', r.obra_id).eq('data', r.data).maybeSingle()
+      setChamadaDia(chamada ?? null)
+      if (chamada) {
+        const { data: pres } = await supabase.from('efetivo_presencas')
+          .select('presente, trabalhadores(id, nome, funcao, empresa, obra_id, ativo, criado_por, criado_em, data_admissao)')
+          .eq('chamada_id', chamada.id)
+        // embed to-one via Postgrest; sem generics Database, TS infere array — trabalhador_id é UNIQUE por FK simples, sempre 1 objeto
+        const comTrabalhador = ((pres ?? []) as unknown as { presente: boolean; trabalhadores: Trabalhador | null }[])
+          .filter(p => p.trabalhadores)
+          .map(p => ({ trabalhador: p.trabalhadores as Trabalhador, presente: p.presente }))
+        setEfetivo(agruparPresencasComoEfetivo(comTrabalhador))
+      }
+    } else {
+      setChamadaDia(null)
     }
 
     // avanços físicos lançados com data de referência = dia do RDO

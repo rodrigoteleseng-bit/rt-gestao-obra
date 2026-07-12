@@ -227,39 +227,36 @@ export default function Dashboard() {
         </div>
       )}
 
-      {ferramentasAtraso.length > 0 && (
-        <button className={styles.bannerAlerta} onClick={() => navigate('/almoxarifado')}>
-          <span className={styles.bannerIcon}>🔧</span>
-          <span className={styles.bannerTexto}>
-            {ferramentasAtraso.length} ferramenta{ferramentasAtraso.length > 1 ? 's' : ''} não devolvida{ferramentasAtraso.length > 1 ? 's' : ''}:{' '}
-            {ferramentasAtraso.slice(0, 3).map((f, i) => (
-              <span key={f.emprestimoId}>
-                {i > 0 && ', '}
-                {f.nomeFerramenta} ({f.retiradoPor}, há {f.dias} dia{f.dias > 1 ? 's' : ''})
-              </span>
-            ))}
-            {ferramentasAtraso.length > 3 && ` e mais ${ferramentasAtraso.length - 3}`}
-          </span>
-        </button>
-      )}
-
-      {chamadaHoje && !chamadaHoje.feita && (
-        <button className={styles.bannerInfo} onClick={() => navigate('/efetivo')}>
-          <span className={styles.bannerIcon}>👷</span>
-          <span className={styles.bannerTextoInfo}>
-            Chamada de hoje ainda não foi feita ({chamadaHoje.total} trabalhador{chamadaHoje.total > 1 ? 'es' : ''} cadastrado{chamadaHoje.total > 1 ? 's' : ''}).
-          </span>
-        </button>
-      )}
-
-      {chamadaHoje?.feita && (
-        <button className={styles.bannerInfo} onClick={() => navigate('/efetivo')}>
-          <span className={styles.bannerIcon}>👷</span>
-          <span className={styles.bannerTextoInfo}>
-            {chamadaHoje.presentes} de {chamadaHoje.total} presentes hoje.
-          </span>
-        </button>
-      )}
+      <div className={styles.kpis}>
+        {veEfetivo && chamadaHoje && (
+          <button className={`${styles.kpi} ${styles.kpiEfetivo}`} onClick={() => navigate('/efetivo')}>
+            <div className={styles.kpiNum}>{chamadaHoje.presentes}<span className={styles.kpiNumSub}>/{chamadaHoje.total}</span></div>
+            <div className={styles.kpiLab}>Efetivo hoje</div>
+            <div className={styles.kpiDet}>{chamadaHoje.feita ? 'chamada feita' : 'chamada não feita'}</div>
+          </button>
+        )}
+        {veCompras && (
+          <button className={`${styles.kpi} ${styles.kpiPedidos}`} onClick={() => navigate('/compras')}>
+            <div className={styles.kpiNum}>{pedidosAguardando}</div>
+            <div className={styles.kpiLab}>Pedidos</div>
+            <div className={styles.kpiDet}>aguardando aprovação</div>
+          </button>
+        )}
+        {vePendencias && (
+          <button className={`${styles.kpi} ${styles.kpiPend}`} onClick={() => navigate('/pendencias')}>
+            <div className={styles.kpiNum}>{pendenciasAbertas}</div>
+            <div className={styles.kpiLab}>Pendências</div>
+            <div className={styles.kpiDet}>abertas na obra</div>
+          </button>
+        )}
+        {ferramentasAtraso.length > 0 && (
+          <button className={`${styles.kpi} ${styles.kpiAlerta}`} onClick={() => navigate('/almoxarifado')}>
+            <div className={styles.kpiNum}>{ferramentasAtraso.length}</div>
+            <div className={styles.kpiLab}>Ferramenta{ferramentasAtraso.length > 1 ? 's' : ''}</div>
+            <div className={styles.kpiDet}>não devolvida{ferramentasAtraso.length > 1 ? 's' : ''} — {ferramentasAtraso[0].nomeFerramenta}{ferramentasAtraso.length > 1 ? ` e mais ${ferramentasAtraso.length - 1}` : ''}</div>
+          </button>
+        )}
+      </div>
 
       <h2 className={styles.secaoTitulo}>Módulos</h2>
       <div className={styles.grid}>

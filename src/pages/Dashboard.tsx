@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
-import { supabase, type Unidade } from '../lib/supabase'
+import { supabase, type Unidade, type Rdo } from '../lib/supabase'
 import { dataLocalISO, dataHoje, diasEntre } from '../lib/almoxarifado'
 import styles from './Dashboard.module.css'
 
@@ -32,6 +32,13 @@ interface ChamadaHoje {
   feita: boolean
   presentes: number
   total: number
+}
+
+interface RdoHojeResumo {
+  status: Rdo['status']
+  climaManha: Rdo['clima_manha']
+  climaTarde: Rdo['clima_tarde']
+  fotos: { url: string; legenda: string | null }[]
 }
 
 interface SubModulo {
@@ -91,6 +98,40 @@ export default function Dashboard() {
   const [chamadaHoje, setChamadaHoje] = useState<ChamadaHoje | null>(null)
   const [pedidosAguardando, setPedidosAguardando] = useState(0)
   const [pendenciasAbertas, setPendenciasAbertas] = useState(0)
+  const [rdoHoje, setRdoHoje] = useState<RdoHojeResumo | null>(null)
+  const veRdo = temModulo('rdo')
+
+  useEffect(() => {
+    if (!obra || !veRdo) {
+      setRdoHoje(null)
+      return
+    }
+    supabase.from('rdos').select('id, status, clima_manha, clima_tarde')
+      .eq('obra_id', obra.id).eq('data', dataHoje()).eq('ativo', true).maybeSingle()
+      .then(async ({ data: rdo }) => {
+        if (!rdo) {
+          setRdoHoje(null)
+          return
+        }
+        const { data: fotos } = await supabase.from('rdo_fotos')
+          .select('path, legenda, capturada_em')
+          .eq('rdo_id', rdo.id).eq('ativo', true)
+          .order('capturada_em', { ascending: false })
+          .limit(2)
+        const fotosComUrl = await Promise.all(
+          (fotos ?? []).map(async f => {
+            const { data } = await supabase.storage.from('rdo').createSignedUrl(f.path, 3600)
+            return { url: data?.signedUrl ?? '', legenda: f.legenda }
+          })
+        )
+        setRdoHoje({
+          status: rdo.status,
+          climaManha: rdo.clima_manha,
+          climaTarde: rdo.clima_tarde,
+          fotos: fotosComUrl.filter(f => f.url),
+        })
+      })
+  }, [obra, veRdo])
 
   useEffect(() => {
     if (!obra) {
@@ -257,6 +298,41 @@ export default function Dashboard() {
           </button>
         )}
       </div>
+
+      {veRdo && (
+        <>
+          <h2 className={styles.secaoTitulo}>RDO de hoje</h2>
+          {rdoHoje ? (
+            <div className={styles.widget}>
+              <div className={styles.widgetHead}>
+                <b>Relatório Diário</b>
+                <span className={`${styles.widgetBadge} ${rdoHoje.status === 'assinado' ? styles.badgeOk : styles.badgeRascunho}`}>
+                  {rdoHoje.status === 'assinado' ? 'Assinado' : 'Rascunho'}
+                </span>
+              </div>
+              {(rdoHoje.climaManha || rdoHoje.climaTarde) && (
+                <div className={styles.widgetClima}>
+                  {rdoHoje.climaManha && <span>Manhã: <b>{rdoHoje.climaManha}</b></span>}
+                  {rdoHoje.climaTarde && <span>Tarde: <b>{rdoHoje.climaTarde}</b></span>}
+                </div>
+              )}
+              {rdoHoje.fotos.length > 0 && (
+                <div className={styles.widgetFotos}>
+                  {rdoHoje.fotos.map((f, i) => (
+                    <img key={i} src={f.url} alt={f.legenda ?? 'Foto do RDO'} className={styles.widgetFoto} />
+                  ))}
+                </div>
+              )}
+              <button className={styles.widgetVer} onClick={() => navigate('/rdo')}>Abrir RDO →</button>
+            </div>
+          ) : (
+            <div className={styles.widget}>
+              <p className={styles.widgetVazio}>Nenhum RDO lançado hoje ainda.</p>
+              <button className={styles.widgetVer} onClick={() => navigate('/rdo')}>Lançar RDO →</button>
+            </div>
+          )}
+        </>
+      )}
 
       <h2 className={styles.secaoTitulo}>Módulos</h2>
       <div className={styles.grid}>

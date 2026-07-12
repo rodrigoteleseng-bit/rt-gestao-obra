@@ -68,6 +68,14 @@
 - Rastreabilidade: todo registro de `estoque_movimentos`, `ferramenta_emprestimos` e `requisicoes_blocos` grava `criado_por` e `criado_em`; devolução de ferramenta grava `devolvida_recebida_por` e `devolvida_em`; nenhum UPDATE após devolução (histórico imutável).
 - Dados de teste inseridos durante a verificação das Tasks 7 e 8 (empréstimos, cadeia de pedido/cotação/NF sintética) foram removidos via SQL após a confirmação visual — sem alteração de dados reais do Rodrigo.
 
+## Ajustes pós-entrega (12/07/2026, uso real pelo Rodrigo)
+
+- **PDF de requisição:** 7 → **10 linhas de itens por ficha** (cabe 2 pedidos por folha impressa) e assinatura "MESTRE DE OBRAS" renomeada para **"MESTRE DE OBRAS / ENCARREGADO"**, centralizada sob a linha (a de "ENGENHEIRO RESPONSÁVEL" também passou a centralizar).
+- **Esclarecimentos de uso** (dúvidas reais do Rodrigo testando):
+  - A Entrada só oferece vínculo com pedidos `aprovado|enviado|recebido_parcial` — um pedido em `rascunho` (sem cotação lançada) não aparece na lista até avançar no fluxo de Compras.
+  - Saída avulsa (1 item, sem folha) e Lançar requisição (N itens, transcrição de folha assinada) são o mesmo tipo de movimento por dentro; a diferença é só o volume/origem do lançamento.
+  - Unidade destino e quem retirou são obrigatórios em toda saída — o sistema bloqueia com mensagem clara ("Selecione a unidade de destino.") antes de gravar, nunca falha silenciosamente. Usar a unidade "Canteiro de Obras" para retiradas sem sobrado específico.
+
 ## Fora de escopo (registrado na spec, não entregue nesta fase)
 
 - Assinatura digital na requisição.

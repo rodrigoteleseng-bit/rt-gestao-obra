@@ -426,16 +426,19 @@ export default function RDOForm() {
   // em rdo_efetivo. Sem isso, o RDO assinado (documento imutável) congela
   // com efetivo vazio, mesmo tendo pessoas presentes na chamada do dia.
   async function materializarEfetivoDaChamada() {
-    if (!rdo || !chamadaDia || efetivo.length === 0) return true
+    if (!rdo || !chamadaDia) return true
     // Desativa lançamentos manuais pré-existentes deste RDO antes de gravar
     // as linhas da chamada — evita duplicar efetivo ativo (manual + chamada)
-    // no documento assinado (imutável).
+    // no documento assinado (imutável). Deve rodar mesmo se a chamada resultar
+    // em zero presentes: a chamada é a fonte declarada do dia, e um efetivo
+    // manual antigo não pode ficar ativo divergindo do que a tela mostrou.
     const { error: eDesativa } = await supabase.from('rdo_efetivo')
       .update({ ativo: false }).eq('rdo_id', rdo.id).eq('ativo', true)
     if (eDesativa) {
       setMsg({ tipo: 'erro', texto: `Erro ao consolidar efetivo: ${eDesativa.message}` })
       return false
     }
+    if (efetivo.length === 0) return true
     const { error } = await supabase.from('rdo_efetivo').insert(
       efetivo.map(e => ({ rdo_id: rdo.id, funcao: e.funcao, quantidade: e.quantidade, empresa: e.empresa }))
     )

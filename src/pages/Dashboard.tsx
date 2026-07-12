@@ -75,9 +75,14 @@ const CARDS_MODULOS: CardModulo[] = [
       { label: 'Efetivo', icon: '👷', path: '/efetivo', moduloKey: 'efetivo' },
     ],
   },
-  { key: 'financeiro', label: 'Financeiro', icon: '💰', desc: 'Notas fiscais e gastos', path: '/financeiro' },
-  { key: 'compras', label: 'Compras', icon: '🛒', desc: 'Pedidos e cotações', path: '/compras' },
-  { key: 'almoxarifado', label: 'Almoxarifado', icon: '📦', desc: 'Materiais e ferramentas', path: '/almoxarifado' },
+  {
+    key: 'suprimentos', label: 'Suprimentos', icon: '📦', desc: 'Compras e almoxarifado',
+    multiKey: ['compras', 'almoxarifado'],
+    subs: [
+      { label: 'Compras', icon: '🛒', path: '/compras', moduloKey: 'compras' },
+      { label: 'Almoxarifado', icon: '📦', path: '/almoxarifado', moduloKey: 'almoxarifado' },
+    ],
+  },
   {
     key: 'qualidade', label: 'Qualidade', icon: '🏷️', desc: 'FVS, checklists e pendências de obra',
     multiKey: ['fvs', 'pendencias'],
@@ -386,6 +391,10 @@ export default function Dashboard() {
             </div>
           )
         })}
+      </div>
+
+      <div className={styles.futuro}>
+        <b>Em preparação:</b> Financeiro (Fase 3), Medições, Definições de Projeto, Projetos, Planejamento (lookahead/PPC) e Tarefas.
       </div>
 
       <p className={styles.versao}>Fase 0 — Fundação · v0.1 · Dados de {new Date().toLocaleDateString('pt-BR')}</p>

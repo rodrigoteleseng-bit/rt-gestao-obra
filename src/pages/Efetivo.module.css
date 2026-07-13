@@ -168,6 +168,24 @@
   color: var(--navy);
 }
 
+.linhaAcoes {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btnEditar {
+  background: none;
+  border: 1.5px solid var(--navy);
+  color: var(--navy);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .btnInativar {
   background: none;
   border: 1.5px solid var(--erro);

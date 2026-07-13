@@ -54,7 +54,7 @@ function AbaTrabalhadores() {
   const [carregando, setCarregando] = useState(true)
   const [busca, setBusca] = useState('')
   const [filtroFuncao, setFiltroFuncao] = useState('')
-  const [mostrarNovo, setMostrarNovo] = useState(false)
+  const [painel, setPainel] = useState<'novo' | Trabalhador | null>(null)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
   async function carregar() {
@@ -81,8 +81,12 @@ function AbaTrabalhadores() {
     )
   }, [trabalhadores, busca, filtroFuncao])
 
-  function trabalhadorCriado(t: Trabalhador) {
-    setTrabalhadores(prev => [...prev, t].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')))
+  function trabalhadorSalvo(t: Trabalhador) {
+    setTrabalhadores(prev => {
+      const existe = prev.some(x => x.id === t.id)
+      const lista = existe ? prev.map(x => x.id === t.id ? t : x) : [...prev, t]
+      return lista.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+    })
   }
 
   async function inativar(t: Trabalhador) {
@@ -101,18 +105,20 @@ function AbaTrabalhadores() {
     <div>
       {podeEditar && (
         <div className={styles.topoAcoes}>
-          <button className={styles.btnPrincipal} onClick={() => setMostrarNovo(true)}>+ Novo trabalhador</button>
+          <button className={styles.btnPrincipal} onClick={() => setPainel('novo')}>+ Novo trabalhador</button>
         </div>
       )}
 
-      {mostrarNovo && (
+      {painel && (
         <PainelNovoTrabalhador
           funcoes={funcoes}
-          onFechar={() => setMostrarNovo(false)}
+          trabalhador={painel === 'novo' ? undefined : painel}
+          onFechar={() => setPainel(null)}
           onSucesso={(t) => {
-            trabalhadorCriado(t)
-            setMostrarNovo(false)
-            setMsg({ tipo: 'ok', texto: 'Trabalhador cadastrado.' })
+            const editando = painel !== 'novo'
+            trabalhadorSalvo(t)
+            setPainel(null)
+            setMsg({ tipo: 'ok', texto: editando ? 'Trabalhador atualizado.' : 'Trabalhador cadastrado.' })
           }}
         />
       )}
@@ -150,7 +156,10 @@ function AbaTrabalhadores() {
                 </div>
               </div>
               {podeEditar && (
-                <button className={styles.btnInativar} onClick={() => inativar(t)}>Inativar</button>
+                <div className={styles.linhaAcoes}>
+                  <button className={styles.btnEditar} onClick={() => setPainel(t)}>Editar</button>
+                  <button className={styles.btnInativar} onClick={() => inativar(t)}>Inativar</button>
+                </div>
               )}
             </div>
           ))}
@@ -162,16 +171,18 @@ function AbaTrabalhadores() {
 
 interface PainelNovoTrabalhadorProps {
   funcoes: string[]
+  trabalhador?: Trabalhador
   onFechar: () => void
   onSucesso: (t: Trabalhador) => void
 }
 
-function PainelNovoTrabalhador({ funcoes, onFechar, onSucesso }: PainelNovoTrabalhadorProps) {
+function PainelNovoTrabalhador({ funcoes, trabalhador, onFechar, onSucesso }: PainelNovoTrabalhadorProps) {
   const { obraAtiva } = useObra()
-  const [nome, setNome] = useState('')
-  const [funcao, setFuncao] = useState('')
-  const [empresa, setEmpresa] = useState('')
-  const [dataAdmissao, setDataAdmissao] = useState('')
+  const editando = !!trabalhador
+  const [nome, setNome] = useState(trabalhador?.nome ?? '')
+  const [funcao, setFuncao] = useState(trabalhador?.funcao ?? '')
+  const [empresa, setEmpresa] = useState(trabalhador?.empresa ?? '')
+  const [dataAdmissao, setDataAdmissao] = useState(trabalhador?.data_admissao ?? '')
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
@@ -187,16 +198,18 @@ function PainelNovoTrabalhador({ funcoes, onFechar, onSucesso }: PainelNovoTraba
     }
     setSalvando(true)
     setMsg(null)
-    const { data, error } = await supabase.from('trabalhadores').insert({
-      obra_id: obraAtiva.id,
+    const dados = {
       nome: nome.trim(),
       funcao: funcao.trim(),
       empresa: empresa.trim() || null,
       data_admissao: dataAdmissao || null,
-    }).select().single()
+    }
+    const { data, error } = editando
+      ? await supabase.from('trabalhadores').update(dados).eq('id', trabalhador!.id).select().single()
+      : await supabase.from('trabalhadores').insert({ obra_id: obraAtiva.id, ...dados }).select().single()
     setSalvando(false)
     if (error || !data) {
-      setMsg({ tipo: 'erro', texto: `Falha ao cadastrar: ${error?.message}` })
+      setMsg({ tipo: 'erro', texto: `Falha ao salvar: ${error?.message}` })
       return
     }
     onSucesso(data)
@@ -205,7 +218,7 @@ function PainelNovoTrabalhador({ funcoes, onFechar, onSucesso }: PainelNovoTraba
   return (
     <div className={styles.painelForm}>
       <div className={styles.painelHeader}>
-        <h2>Novo trabalhador</h2>
+        <h2>{editando ? 'Editar trabalhador' : 'Novo trabalhador'}</h2>
         <button className={styles.btnFechar} onClick={onFechar}>✕</button>
       </div>
       <div className={styles.linha2}>
@@ -231,7 +244,7 @@ function PainelNovoTrabalhador({ funcoes, onFechar, onSucesso }: PainelNovoTraba
       </div>
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
       <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
-        {salvando ? 'Salvando…' : 'Cadastrar trabalhador'}
+        {salvando ? 'Salvando…' : editando ? 'Salvar alterações' : 'Cadastrar trabalhador'}
       </button>
     </div>
   )

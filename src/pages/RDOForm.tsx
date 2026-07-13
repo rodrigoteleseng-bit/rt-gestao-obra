@@ -243,7 +243,8 @@ export default function RDOForm() {
     setFuncaoSel(null)
   }
   async function removerEfetivo(eId: string) {
-    await supabase.from('rdo_efetivo').update({ ativo: false }).eq('id', eId)
+    const { error } = await supabase.from('rdo_efetivo').update({ ativo: false }).eq('id', eId)
+    if (error) { setMsg({ tipo: 'erro', texto: `Erro ao remover: ${error.message}` }); return }
     setEfetivo(prev => prev.filter(e => e.id !== eId))
   }
 
@@ -268,7 +269,8 @@ export default function RDOForm() {
     setNovaAtividade({ unidade: novaAtividade.unidade, tarefa: '', descricao: '' })
   }
   async function removerAtividade(aId: string) {
-    await supabase.from('rdo_atividades').update({ ativo: false }).eq('id', aId)
+    const { error } = await supabase.from('rdo_atividades').update({ ativo: false }).eq('id', aId)
+    if (error) { setMsg({ tipo: 'erro', texto: `Erro ao remover: ${error.message}` }); return }
     setAtividades(prev => prev.filter(a => a.id !== aId))
   }
 
@@ -314,7 +316,8 @@ export default function RDOForm() {
     setFotos(prev => prev.map(x => x.id === f.id ? { ...x, legenda } : x))
   }
   async function removerFoto(fId: string) {
-    await supabase.from('rdo_fotos').update({ ativo: false }).eq('id', fId)
+    const { error } = await supabase.from('rdo_fotos').update({ ativo: false }).eq('id', fId)
+    if (error) { setMsg({ tipo: 'erro', texto: `Erro ao remover: ${error.message}` }); return }
     setFotos(prev => prev.filter(f => f.id !== fId))
   }
 
@@ -357,7 +360,8 @@ export default function RDOForm() {
     }
   }
   async function removerAudio(aId: string) {
-    await supabase.from('rdo_audios').update({ ativo: false }).eq('id', aId)
+    const { error } = await supabase.from('rdo_audios').update({ ativo: false }).eq('id', aId)
+    if (error) { setMsg({ tipo: 'erro', texto: `Erro ao remover: ${error.message}` }); return }
     setAudios(prev => prev.filter(a => a.id !== aId))
   }
 

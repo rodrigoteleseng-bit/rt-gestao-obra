@@ -15,6 +15,7 @@ import Galeria from './pages/Galeria'
 import Pendencias from './pages/Pendencias'
 import PendenciaForm from './pages/PendenciaForm'
 import Fornecedores from './pages/Fornecedores'
+import Empreiteiros from './pages/Empreiteiros'
 import DadosObra from './pages/DadosObra'
 import Definicoes from './pages/Definicoes'
 import Compras from './pages/Compras'
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route path="pendencias/:id" element={<PendenciaForm />} />
         <Route path="definicoes" element={<Definicoes />} />
         <Route path="fornecedores" element={<Fornecedores />} />
+        <Route path="empreiteiros" element={<Empreiteiros />} />
         <Route path="medicoes" element={<EmConstrucao modulo="Medições de Empreiteiros" fase={7} />} />
         <Route path="contratos" element={<EmConstrucao modulo="Controle de Contratos" fase={7} />} />
         <Route path="fvs" element={<FvsPage />} />

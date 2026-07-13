@@ -19,6 +19,7 @@ import Empreiteiros from './pages/Empreiteiros'
 import DadosObra from './pages/DadosObra'
 import Definicoes from './pages/Definicoes'
 import Compras from './pages/Compras'
+import Contratos from './pages/Contratos'
 import CompraForm from './pages/CompraForm'
 import FvsPage from './pages/Fvs'
 import FvsForm from './pages/FvsForm'
@@ -60,7 +61,7 @@ function AppRoutes() {
         <Route path="fornecedores" element={<Fornecedores />} />
         <Route path="empreiteiros" element={<Empreiteiros />} />
         <Route path="medicoes" element={<EmConstrucao modulo="Medições de Empreiteiros" fase={7} />} />
-        <Route path="contratos" element={<EmConstrucao modulo="Controle de Contratos" fase={7} />} />
+        <Route path="contratos" element={<Contratos />} />
         <Route path="fvs" element={<FvsPage />} />
         <Route path="fvs/:id" element={<FvsForm />} />
         <Route path="galeria" element={<Galeria />} />

@@ -171,6 +171,8 @@ export default function Definicoes() {
         )}
       </div>
 
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+
       {podeEditar && formAberto && (
         <div className={styles.bloco}>
           <div className={styles.campos}>
@@ -206,7 +208,6 @@ export default function Definicoes() {
               </label>
             </div>
           </div>
-          {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
           <div className={styles.acoesForm}>
             <button className={styles.btnNova} onClick={salvar} disabled={salvando}>
               {salvando ? 'Salvando…' : editandoId ? 'Salvar alterações' : '+ Cadastrar definição'}

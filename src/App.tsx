@@ -15,6 +15,7 @@ import Galeria from './pages/Galeria'
 import Pendencias from './pages/Pendencias'
 import PendenciaForm from './pages/PendenciaForm'
 import Fornecedores from './pages/Fornecedores'
+import DadosObra from './pages/DadosObra'
 import Compras from './pages/Compras'
 import CompraForm from './pages/CompraForm'
 import FvsPage from './pages/Fvs'
@@ -41,6 +42,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="usuarios" element={<Usuarios />} />
+        <Route path="dados-obra" element={<DadosObra />} />
         <Route path="orcamento" element={<Orcamento />} />
         <Route path="cronograma" element={<Cronograma />} />
         <Route path="avanco" element={<Avanco />} />

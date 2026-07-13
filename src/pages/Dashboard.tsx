@@ -379,6 +379,19 @@ export default function Dashboard() {
             </div>
           )
         })}
+        {perfil?.papel === 'admin' && (
+          <div
+            className={`${styles.card} ${styles.cardAtivo} ${styles.cardClicavel}`}
+            onClick={() => navigate('/dados-obra')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => { if (e.key === 'Enter') navigate('/dados-obra') }}
+          >
+            <div className={styles.cardIcon}>🏗️</div>
+            <div className={styles.cardNome}>Dados da Obra</div>
+            <div className={styles.cardDesc}>Cadastro, endereço, datas e status</div>
+          </div>
+        )}
       </div>
 
       <div className={styles.futuro}>

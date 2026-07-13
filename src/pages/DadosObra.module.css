@@ -1,0 +1,103 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+.page h1 { font-size: 20px; margin-bottom: 4px; }
+
+.sub {
+  color: var(--cinza-600);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.btnPrincipal {
+  background: var(--terracota);
+  color: var(--branco);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btnPrincipal:disabled { opacity: 0.6; cursor: default; }
+
+.btnSecundario {
+  background: none;
+  border: 1.5px solid var(--cinza-200);
+  color: var(--navy);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.card {
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cardInfo { flex: 1; min-width: 0; }
+
+.cardNome {
+  font-weight: 700;
+  color: var(--navy);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cardMeta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--cinza-600);
+  margin-top: 4px;
+}
+
+.badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--cinza-100);
+  color: var(--cinza-600);
+}
+
+.badgeAtiva { background: #e6f4ec; color: var(--sucesso); }
+
+.selo {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--terracota-dark);
+  border: 1px solid var(--terracota);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.vazio { color: var(--cinza-600); font-size: 14px; padding: 12px 0; }
+
+.msgOk { color: #1e6b2e; font-weight: 600; font-size: 13px; padding: 6px 0; }
+.msgErro { color: #a33030; font-weight: 600; font-size: 13px; padding: 6px 0; }

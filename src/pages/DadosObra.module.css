@@ -101,3 +101,53 @@
 
 .msgOk { color: #1e6b2e; font-weight: 600; font-size: 13px; padding: 6px 0; }
 .msgErro { color: #a33030; font-weight: 600; font-size: 13px; padding: 6px 0; }
+
+.bloco {
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--sombra-sm);
+}
+
+.campos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.linha {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.campo {
+  display: flex;
+  flex: 1;
+  min-width: 160px;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cinza-600);
+}
+
+.campo input, .campo select, .campo textarea {
+  padding: 10px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.campo textarea { resize: vertical; min-height: 60px; }
+
+.campo input:focus, .campo select:focus, .campo textarea:focus { border-color: var(--navy); outline: none; }
+
+.acoesForm {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}

@@ -8,7 +8,7 @@ export const supabase = createClient(url, key)
 export type PapelUsuario = 'admin' | 'equipe' | 'cliente'
 export type ModuloApp =
   | 'rdo' | 'avanco' | 'pendencias' | 'almoxarifado' | 'financeiro' | 'compras'
-  | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas'
+  | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas' | 'definicoes'
 export type StatusObra = 'ativa' | 'pausada' | 'concluida' | 'arquivada'
 export type TipoUnidade = 'sobrado' | 'portaria' | 'area_comum' | 'canteiro' | 'outro'
 
@@ -210,6 +210,26 @@ export interface PendenciaFoto {
   capturada_em: string
   hash_sha256: string
   ativo: boolean
+}
+
+export type StatusDefinicao = 'pendente' | 'resolvida'
+
+export interface DefinicaoProjeto {
+  id: string
+  obra_id: string
+  unidade_id: string | null
+  titulo: string
+  local_ambiente: string | null
+  descricao: string | null
+  responsavel: string | null
+  prazo: string | null
+  status: StatusDefinicao
+  decisao: string | null
+  resolvida_em: string | null
+  resolvida_por: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
 }
 
 export type StatusFvs = 'em_andamento' | 'aprovada' | 'aprovada_restricao' | 'reprovada'

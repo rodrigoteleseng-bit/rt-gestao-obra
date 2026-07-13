@@ -7,6 +7,7 @@ import {
   type Ferramenta, type FerramentaEmprestimo,
 } from '../lib/supabase'
 import { gerarPdfBlocoRequisicoes } from '../lib/requisicoesPdf'
+import { gerarPdfEstoque } from '../lib/estoquePdf'
 import { dataLocalISO, dataHoje, diasEntre } from '../lib/almoxarifado'
 import styles from './Almoxarifado.module.css'
 
@@ -214,6 +215,7 @@ function AbaEstoque() {
   const [mostrarEntrada, setMostrarEntrada] = useState(false)
   const [mostrarSaida, setMostrarSaida] = useState(false)
   const [mostrarRequisicao, setMostrarRequisicao] = useState(false)
+  const [menuImpressaoAberto, setMenuImpressaoAberto] = useState(false)
 
   useEffect(() => {
     if (!obraAtiva) return
@@ -269,6 +271,19 @@ function AbaEstoque() {
     setMateriais(prev => [...prev, m].sort((a, b) => a.nome.localeCompare(b.nome)))
   }
 
+  function imprimirEstoque(categoria: CategoriaMaterial) {
+    const itens = materiais
+      .filter(m => m.categoria === categoria)
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+      .map(m => ({ codigo: m.codigo, nome: m.nome, und: m.und, saldo: saldos.get(m.id) ?? 0 }))
+    gerarPdfEstoque({
+      categoriaLabel: CATEGORIA_LABEL[categoria],
+      obraNome: obraAtiva?.nome ?? '',
+      itens,
+    })
+    setMenuImpressaoAberto(false)
+  }
+
   async function inativarMovimento(mv: EstoqueMovimento) {
     if (!window.confirm('Inativar este movimento? Ele deixa de contar no saldo, mas o registro é mantido no histórico (exclusão lógica).')) return
     const { error } = await supabase.from('estoque_movimentos').update({ ativo: false }).eq('id', mv.id)
@@ -288,6 +303,22 @@ function AbaEstoque() {
       <div className={styles.topoAcoes}>
         <button className={styles.btnSecundario} onClick={() => setMostrarSaida(true)}>− Saída avulsa</button>
         <button className={styles.btnSecundario} onClick={() => setMostrarRequisicao(true)}>📋 Lançar requisição</button>
+        <div className={styles.autocompleteWrap}>
+          <button
+            className={styles.btnSecundario}
+            onClick={() => setMenuImpressaoAberto(a => !a)}
+            onBlur={() => setTimeout(() => setMenuImpressaoAberto(false), 150)}
+          >
+            🖨️ Imprimir estoque
+          </button>
+          {menuImpressaoAberto && (
+            <div className={styles.sugestoes}>
+              <button className={styles.sugestao} onMouseDown={() => imprimirEstoque('material')}>Material</button>
+              <button className={styles.sugestao} onMouseDown={() => imprimirEstoque('epi')}>EPI</button>
+              <button className={styles.sugestao} onMouseDown={() => imprimirEstoque('escritorio')}>Escritório</button>
+            </div>
+          )}
+        </div>
         <button className={styles.btnPrincipal} onClick={() => setMostrarEntrada(true)}>+ Entrada de material</button>
       </div>
 

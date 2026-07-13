@@ -1,0 +1,232 @@
+.page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+.page h1 { font-size: 20px; margin-bottom: 4px; }
+
+.sub {
+  color: var(--cinza-600);
+  font-size: 13px;
+  max-width: 640px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.btnNova {
+  background: var(--terracota);
+  color: var(--branco);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btnSecundario {
+  background: var(--branco);
+  color: var(--navy);
+  border: 1.5px solid var(--navy);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vazio { color: var(--cinza-600); font-size: 14px; padding: 12px 0; }
+
+.contadores {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.contador {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--cinza-200);
+  background: var(--branco);
+  cursor: pointer;
+}
+
+.contNum {
+  font-family: var(--font-titulo);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.contLabel { font-size: 11px; font-weight: 600; }
+
+.cont_pendente .contNum, .cont_pendente .contLabel { color: #8a6d1a; }
+.cont_resolvida .contNum, .cont_resolvida .contLabel { color: #1e6b2e; }
+
+.contAtivo { border-color: var(--navy); background: #f4f6fa; }
+
+.filtros {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.selectFiltro {
+  padding: 10px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: var(--branco);
+  min-width: 200px;
+}
+
+.card {
+  width: 100%;
+  display: block;
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 13px 16px;
+  margin-bottom: 8px;
+  box-shadow: var(--sombra-sm);
+  text-align: left;
+}
+
+.cardVencida { border-color: #d98080; background: #fffafa; }
+
+.cardTopo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.cardTitulo {
+  font-family: var(--font-titulo);
+  font-weight: 700;
+  color: var(--navy);
+  font-size: 14px;
+}
+
+.cardMeta {
+  font-size: 12px;
+  color: var(--cinza-600);
+  margin-bottom: 5px;
+}
+
+.cardDesc {
+  font-size: 13px;
+  color: var(--cinza-800);
+  margin-bottom: 7px;
+}
+
+.cardRodape {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--cinza-600);
+}
+
+.prazoVencido { color: #a33030; font-weight: 700; }
+
+.chip {
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.chip_pendente { background: #fdf3d7; color: #8a6d1a; }
+.chip_resolvida { background: #e3f4e3; color: #1e6b2e; }
+
+.bloco {
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--sombra-sm);
+}
+
+.campos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.linha2 {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.campo {
+  display: flex;
+  flex: 1;
+  min-width: 160px;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cinza-600);
+}
+
+.campo input, .campo select, .campo textarea {
+  padding: 10px 12px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--branco);
+}
+
+.campo textarea { resize: vertical; min-height: 60px; }
+
+.campo input:focus, .campo select:focus, .campo textarea:focus {
+  border-color: var(--navy);
+  outline: none;
+}
+
+.acoesForm {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.btnResolver {
+  background: #1e6b2e;
+  color: var(--branco);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.blocoResolver {
+  background: var(--cinza-100);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  margin-top: 8px;
+}
+
+.msgOk { color: #1e6b2e; font-weight: 600; font-size: 13px; padding: 6px 0; }
+.msgErro { color: #a33030; font-weight: 600; font-size: 13px; padding: 6px 0; }

@@ -16,6 +16,7 @@ import Pendencias from './pages/Pendencias'
 import PendenciaForm from './pages/PendenciaForm'
 import Fornecedores from './pages/Fornecedores'
 import DadosObra from './pages/DadosObra'
+import Definicoes from './pages/Definicoes'
 import Compras from './pages/Compras'
 import CompraForm from './pages/CompraForm'
 import FvsPage from './pages/Fvs'
@@ -54,6 +55,7 @@ function AppRoutes() {
         <Route path="almoxarifado" element={<Almoxarifado />} />
         <Route path="pendencias" element={<Pendencias />} />
         <Route path="pendencias/:id" element={<PendenciaForm />} />
+        <Route path="definicoes" element={<Definicoes />} />
         <Route path="fornecedores" element={<Fornecedores />} />
         <Route path="medicoes" element={<EmConstrucao modulo="Medições de Empreiteiros" fase={7} />} />
         <Route path="contratos" element={<EmConstrucao modulo="Controle de Contratos" fase={7} />} />

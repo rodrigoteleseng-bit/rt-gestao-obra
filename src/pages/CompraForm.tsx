@@ -48,6 +48,20 @@ interface ItemEditavel {
   removido: boolean
 }
 
+// Supabase limita 1000 linhas por consulta — pagina até trazer tudo
+async function carregarTodosServicos(): Promise<Servico[]> {
+  const todos: Servico[] = []
+  const PAGINA = 1000
+  for (let de = 0; ; de += PAGINA) {
+    const { data } = await supabase.from('servicos').select('*').eq('ativo', true).order('codigo')
+      .range(de, de + PAGINA - 1)
+    const lote = data ?? []
+    todos.push(...lote)
+    if (lote.length < PAGINA) break
+  }
+  return todos
+}
+
 function itemEditVazio(): ItemEditavel {
   return {
     id: null,
@@ -130,8 +144,7 @@ export default function CompraForm() {
   }
 
   useEffect(() => {
-    supabase.from('servicos').select('*').eq('ativo', true).order('codigo')
-      .then(({ data }) => setServicos(data ?? []))
+    carregarTodosServicos().then(setServicos)
   }, [])
 
   function sugestoesPara(texto: string): Servico[] {

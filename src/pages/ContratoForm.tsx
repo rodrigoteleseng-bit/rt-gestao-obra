@@ -42,6 +42,20 @@ function itemEditVazio(): ItemEditavel {
   return { ...itemVazio(), id: null, removido: false }
 }
 
+// Supabase limita 1000 linhas por consulta — pagina até trazer tudo
+async function carregarTodosServicos(): Promise<Servico[]> {
+  const todos: Servico[] = []
+  const PAGINA = 1000
+  for (let de = 0; ; de += PAGINA) {
+    const { data } = await supabase.from('servicos').select('*').eq('ativo', true).order('codigo')
+      .range(de, de + PAGINA - 1)
+    const lote = data ?? []
+    todos.push(...lote)
+    if (lote.length < PAGINA) break
+  }
+  return todos
+}
+
 export default function ContratoForm() {
   const { id } = useParams()
   const novo = id === 'novo'
@@ -68,10 +82,10 @@ export default function ContratoForm() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('servicos').select('*').eq('ativo', true).order('codigo'),
+      carregarTodosServicos(),
       supabase.from('empreiteiros').select('*').eq('ativo', true).order('nome'),
-    ]).then(([s, e]) => {
-      setServicos(s.data ?? [])
+    ]).then(([svcs, e]) => {
+      setServicos(svcs)
       setEmpreiteiros(e.data ?? [])
     })
   }, [])

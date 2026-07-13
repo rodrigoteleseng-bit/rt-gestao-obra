@@ -452,3 +452,49 @@ export interface EfetivoPresenca {
   criado_por: string
   criado_em: string
 }
+
+export type StatusContrato = 'rascunho' | 'ativo' | 'encerrado'
+
+export interface Empreiteiro {
+  id: string
+  nome: string
+  documento: string | null
+  contato: string | null
+  especialidade: string | null
+  pix: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface Contrato {
+  id: string
+  obra_id: string
+  numero: string
+  empreiteiro_id: string
+  objeto: string
+  condicao_pagamento: string | null
+  retencao_pct: number | null
+  valor_total: number
+  status: StatusContrato
+  ativado_por: string | null
+  ativado_em: string | null
+  encerrado_por: string | null
+  encerrado_em: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface ContratoItem {
+  id: string
+  contrato_id: string
+  servico_id: string
+  unidade_id: string
+  quantidade: number
+  valor_unitario: number
+  valor_total: number
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}

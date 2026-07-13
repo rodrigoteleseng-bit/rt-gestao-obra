@@ -6,6 +6,7 @@ interface ObraContextType {
   obraAtiva: Obra | null
   selecionarObra: (id: string) => void
   carregando: boolean
+  recarregar: () => void
 }
 
 const ObraContext = createContext<ObraContextType>({
@@ -13,6 +14,7 @@ const ObraContext = createContext<ObraContextType>({
   obraAtiva: null,
   selecionarObra: () => {},
   carregando: true,
+  recarregar: () => {},
 })
 
 const STORAGE_KEY = 'rt-obra-ativa'
@@ -22,7 +24,7 @@ export function ObraProvider({ children }: { children: ReactNode }) {
   const [obraAtiva, setObraAtiva] = useState<Obra | null>(null)
   const [carregando, setCarregando] = useState(true)
 
-  useEffect(() => {
+  function carregarObras(usarLocalStorage: boolean) {
     supabase
       .from('obras')
       .select('*')
@@ -31,11 +33,16 @@ export function ObraProvider({ children }: { children: ReactNode }) {
       .then(({ data }) => {
         const lista = data ?? []
         setObras(lista)
-        const salva = localStorage.getItem(STORAGE_KEY)
-        const inicial = lista.find(o => o.id === salva) ?? lista[0] ?? null
-        setObraAtiva(inicial)
+        setObraAtiva(prev => {
+          const salva = usarLocalStorage ? localStorage.getItem(STORAGE_KEY) : (prev?.id ?? null)
+          return lista.find(o => o.id === salva) ?? lista[0] ?? null
+        })
         setCarregando(false)
       })
+  }
+
+  useEffect(() => {
+    carregarObras(true)
   }, [])
 
   function selecionarObra(id: string) {
@@ -46,8 +53,12 @@ export function ObraProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function recarregar() {
+    carregarObras(false)
+  }
+
   return (
-    <ObraContext.Provider value={{ obras, obraAtiva, selecionarObra, carregando }}>
+    <ObraContext.Provider value={{ obras, obraAtiva, selecionarObra, carregando, recarregar }}>
       {children}
     </ObraContext.Provider>
   )

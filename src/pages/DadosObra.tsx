@@ -14,7 +14,7 @@ const LABEL_STATUS: Record<StatusObra, string> = {
 
 export default function DadosObra() {
   const { perfil } = useAuth()
-  const { obraAtiva } = useObra()
+  const { obraAtiva, recarregar } = useObra()
   const navigate = useNavigate()
 
   const [obras, setObras] = useState<Obra[]>([])
@@ -90,6 +90,7 @@ export default function DadosObra() {
     setMsg({ tipo: 'ok', texto: editandoId ? 'Obra atualizada.' : 'Obra cadastrada.' })
     setFormAberto(false)
     carregar()
+    recarregar()
   }
 
   if (perfil?.papel !== 'admin') {

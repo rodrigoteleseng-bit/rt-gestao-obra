@@ -148,6 +148,7 @@ export default function Definicoes() {
       status: 'resolvida',
       decisao: decisaoTexto.trim() || null,
       resolvida_em: new Date().toISOString(),
+      resolvida_por: perfil?.id,
     }).eq('id', id)
     setResolvendo(false)
     if (error) {

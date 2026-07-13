@@ -4,7 +4,7 @@ import { useObra } from '../contexts/ObraContext'
 import {
   supabase, type Material, type CategoriaMaterial, type EstoqueMovimento, type Unidade,
   type PedidoCompra, type PedidoCompraItem, type CronogramaTarefa, type RequisicaoBloco,
-  type Ferramenta, type FerramentaEmprestimo,
+  type Ferramenta, type FerramentaEmprestimo, type Fornecedor,
 } from '../lib/supabase'
 import { gerarPdfBlocoRequisicoes } from '../lib/requisicoesPdf'
 import { gerarPdfEstoque } from '../lib/estoquePdf'
@@ -200,6 +200,7 @@ function AbaEstoque() {
   const [materiais, setMateriais] = useState<Material[]>([])
   const [saldos, setSaldos] = useState<Map<string, number>>(new Map())
   const [unidades, setUnidades] = useState<Unidade[]>([])
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
   const [carregando, setCarregando] = useState(true)
 
   const [busca, setBusca] = useState('')
@@ -224,15 +225,18 @@ function AbaEstoque() {
       supabase.from('materiais').select('*').eq('obra_id', obraAtiva.id).eq('ativo', true).order('nome'),
       supabase.from('estoque_saldos').select('*'),
       supabase.from('unidades').select('*').eq('obra_id', obraAtiva.id).order('ordem'),
-    ]).then(([m, s, u]) => {
+      supabase.from('fornecedores').select('*').eq('ativo', true).order('nome'),
+    ]).then(([m, s, u, f]) => {
       setMateriais(m.data ?? [])
       setSaldos(new Map((s.data ?? []).map((r: { material_id: string; saldo: number }) => [r.material_id, r.saldo])))
       setUnidades(u.data ?? [])
+      setFornecedores(f.data ?? [])
       setCarregando(false)
     })
   }, [obraAtiva])
 
   const nomeUnidade = useMemo(() => new Map(unidades.map(u => [u.id, u.nome])), [unidades])
+  const nomeFornecedor = useMemo(() => new Map(fornecedores.map(f => [f.id, f.nome])), [fornecedores])
 
   const abaixoMinimo = (m: Material) => m.estoque_minimo !== null && (saldos.get(m.id) ?? 0) < m.estoque_minimo
 
@@ -325,6 +329,7 @@ function AbaEstoque() {
       {mostrarEntrada && (
         <PainelEntrada
           materiais={materiais}
+          fornecedores={fornecedores}
           onFechar={() => setMostrarEntrada(false)}
           onMaterialCriado={materialCriado}
           onSucesso={async () => {
@@ -439,6 +444,8 @@ function AbaEstoque() {
                   <div className={styles.movDetalhes}>
                     {mv.requisicao_numero !== null && <span>Req. {String(mv.requisicao_numero).padStart(5, '0')}</span>}
                     {mv.pedido_item_id !== null && <span>Pedido de compra</span>}
+                    {mv.fornecedor_id !== null && <span>Fornecedor: {nomeFornecedor.get(mv.fornecedor_id) ?? '?'}</span>}
+                    {mv.numero_nf && <span>NF: {mv.numero_nf}</span>}
                     {mv.unidade_id !== null && <span>Destino: {nomeUnidade.get(mv.unidade_id) ?? '?'}</span>}
                     {mv.retirado_por && <span>Retirado por: {mv.retirado_por}</span>}
                     {mv.aplicacao && <span>Aplicação: {mv.aplicacao}</span>}
@@ -831,12 +838,13 @@ const PEDIDO_STATUS_VINCULAVEL: PedidoCompra['status'][] = ['aprovado', 'enviado
 
 interface PainelEntradaProps {
   materiais: Material[]
+  fornecedores: Fornecedor[]
   onFechar: () => void
   onMaterialCriado: (m: Material) => void
   onSucesso: () => void
 }
 
-function PainelEntrada({ materiais, onFechar, onMaterialCriado, onSucesso }: PainelEntradaProps) {
+function PainelEntrada({ materiais, fornecedores, onFechar, onMaterialCriado, onSucesso }: PainelEntradaProps) {
   const { obraAtiva } = useObra()
 
   const [buscaMaterial, setBuscaMaterial] = useState('')
@@ -851,6 +859,8 @@ function PainelEntrada({ materiais, onFechar, onMaterialCriado, onSucesso }: Pai
 
   const [quantidade, setQuantidade] = useState('')
   const [observacao, setObservacao] = useState('')
+  const [fornecedorSel, setFornecedorSel] = useState('')
+  const [numeroNf, setNumeroNf] = useState('')
 
   const [pedidos, setPedidos] = useState<PedidoCompra[] | null>(null)
   const [pedidoSel, setPedidoSel] = useState('')
@@ -971,6 +981,8 @@ function PainelEntrada({ materiais, onFechar, onMaterialCriado, onSucesso }: Pai
       tipo: 'entrada',
       quantidade: qtd,
       pedido_item_id: itemSel || null,
+      fornecedor_id: fornecedorSel || null,
+      numero_nf: numeroNf.trim() || null,
       observacao: observacao.trim() || null,
     })
     setSalvando(false)
@@ -1057,6 +1069,20 @@ function PainelEntrada({ materiais, onFechar, onMaterialCriado, onSucesso }: Pai
         <label className={styles.campo}>
           Observação
           <input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Opcional" />
+        </label>
+      </div>
+
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Fornecedor (opcional)
+          <select value={fornecedorSel} onChange={e => setFornecedorSel(e.target.value)}>
+            <option value="">Selecione…</option>
+            {fornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+        </label>
+        <label className={styles.campo}>
+          Nº da NF (opcional)
+          <input value={numeroNf} onChange={e => setNumeroNf(e.target.value)} placeholder="Ex.: 12345" />
         </label>
       </div>
 

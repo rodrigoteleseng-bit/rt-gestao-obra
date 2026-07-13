@@ -392,10 +392,23 @@ export default function Dashboard() {
             <div className={styles.cardDesc}>Cadastro, endereço, datas e status</div>
           </div>
         )}
+        {(perfil?.papel === 'admin' || perfil?.papel === 'cliente' || temModulo('definicoes')) && (
+          <div
+            className={`${styles.card} ${styles.cardAtivo} ${styles.cardClicavel}`}
+            onClick={() => navigate('/definicoes')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={e => { if (e.key === 'Enter') navigate('/definicoes') }}
+          >
+            <div className={styles.cardIcon}>📐</div>
+            <div className={styles.cardNome}>Definições de Projeto</div>
+            <div className={styles.cardDesc}>Decisões pendentes do cliente</div>
+          </div>
+        )}
       </div>
 
       <div className={styles.futuro}>
-        <b>Em preparação:</b> Financeiro (Fase 3), Medições, Definições de Projeto, Projetos, Planejamento (lookahead/PPC) e Tarefas.
+        <b>Em preparação:</b> Financeiro (Fase 3), Medições, Projetos, Planejamento (lookahead/PPC) e Tarefas.
       </div>
 
       <p className={styles.versao}>Fase 0 — Fundação · v0.1 · Dados de {new Date().toLocaleDateString('pt-BR')}</p>

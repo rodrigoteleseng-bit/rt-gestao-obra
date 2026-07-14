@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Backup semanal: dump do banco (schema public) + todos os buckets do Storage,
-// compactados num .zip e enviados pro Google Drive via conta de serviço.
+// compactados num .zip e enviados pro Google Drive via OAuth2 autorizado como a
+// própria conta pessoal do Rodrigo (não uma conta de serviço — ver docs/backup-setup.md
+// e scripts/gerar-token-drive.js sobre o porquê).
 // Rodado pelo workflow .github/workflows/backup-semanal.yml — nunca rodar
 // manualmente contra produção sem entender que ele lê o banco inteiro e todos
 // os buckets (não escreve nada no Supabase).
@@ -15,7 +17,9 @@ const {
   SUPABASE_DB_URL,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
-  GOOGLE_SERVICE_ACCOUNT_JSON,
+  GOOGLE_OAUTH_CLIENT_ID,
+  GOOGLE_OAUTH_CLIENT_SECRET,
+  GOOGLE_OAUTH_REFRESH_TOKEN,
   GOOGLE_DRIVE_FOLDER_ID,
 } = process.env
 
@@ -25,21 +29,25 @@ function exigir(nome, valor) {
 }
 
 async function baixarPasta(supabase, bucket, caminhoRemoto, dirLocal) {
-  const { data: itens, error } = await supabase.storage.from(bucket).list(caminhoRemoto, { limit: 1000 })
-  if (error) throw new Error(`Falha ao listar ${bucket}/${caminhoRemoto}: ${error.message}`)
-
   mkdirSync(dirLocal, { recursive: true })
-  for (const item of itens ?? []) {
-    const caminhoItemRemoto = caminhoRemoto ? `${caminhoRemoto}/${item.name}` : item.name
-    if (item.id === null) {
-      // pasta (sem id de arquivo) — desce recursivamente
-      await baixarPasta(supabase, bucket, caminhoItemRemoto, join(dirLocal, item.name))
-    } else {
-      const { data: arquivo, error: eDownload } = await supabase.storage.from(bucket).download(caminhoItemRemoto)
-      if (eDownload) throw new Error(`Falha ao baixar ${bucket}/${caminhoItemRemoto}: ${eDownload.message}`)
-      const buffer = Buffer.from(await arquivo.arrayBuffer())
-      writeFileSync(join(dirLocal, item.name), buffer)
+  const TAMANHO_PAGINA = 1000
+  for (let offset = 0; ; offset += TAMANHO_PAGINA) {
+    const { data: itens, error } = await supabase.storage.from(bucket)
+      .list(caminhoRemoto, { limit: TAMANHO_PAGINA, offset })
+    if (error) throw new Error(`Falha ao listar ${bucket}/${caminhoRemoto}: ${error.message}`)
+    for (const item of itens ?? []) {
+      const caminhoItemRemoto = caminhoRemoto ? `${caminhoRemoto}/${item.name}` : item.name
+      if (item.id === null) {
+        // pasta (sem id de arquivo) — desce recursivamente
+        await baixarPasta(supabase, bucket, caminhoItemRemoto, join(dirLocal, item.name))
+      } else {
+        const { data: arquivo, error: eDownload } = await supabase.storage.from(bucket).download(caminhoItemRemoto)
+        if (eDownload) throw new Error(`Falha ao baixar ${bucket}/${caminhoItemRemoto}: ${eDownload.message}`)
+        const buffer = Buffer.from(await arquivo.arrayBuffer())
+        writeFileSync(join(dirLocal, item.name), buffer)
+      }
     }
+    if ((itens ?? []).length < TAMANHO_PAGINA) break
   }
 }
 
@@ -64,12 +72,9 @@ function compactar(dirOrigem, caminhoZip) {
 }
 
 async function enviarParaDrive(caminhoArquivo, nomeArquivo) {
-  const credenciais = JSON.parse(GOOGLE_SERVICE_ACCOUNT_JSON)
-  const auth = new google.auth.GoogleAuth({
-    credentials: credenciais,
-    scopes: ['https://www.googleapis.com/auth/drive'],
-  })
-  const drive = google.drive({ version: 'v3', auth })
+  const oauth2Client = new google.auth.OAuth2(GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET)
+  oauth2Client.setCredentials({ refresh_token: GOOGLE_OAUTH_REFRESH_TOKEN })
+  const drive = google.drive({ version: 'v3', auth: oauth2Client })
   await drive.files.create({
     requestBody: { name: nomeArquivo, parents: [GOOGLE_DRIVE_FOLDER_ID] },
     media: { mimeType: 'application/zip', body: createReadStream(caminhoArquivo) },
@@ -80,7 +85,9 @@ async function main() {
   exigir('SUPABASE_DB_URL', SUPABASE_DB_URL)
   exigir('SUPABASE_URL', SUPABASE_URL)
   exigir('SUPABASE_SERVICE_ROLE_KEY', SUPABASE_SERVICE_ROLE_KEY)
-  exigir('GOOGLE_SERVICE_ACCOUNT_JSON', GOOGLE_SERVICE_ACCOUNT_JSON)
+  exigir('GOOGLE_OAUTH_CLIENT_ID', GOOGLE_OAUTH_CLIENT_ID)
+  exigir('GOOGLE_OAUTH_CLIENT_SECRET', GOOGLE_OAUTH_CLIENT_SECRET)
+  exigir('GOOGLE_OAUTH_REFRESH_TOKEN', GOOGLE_OAUTH_REFRESH_TOKEN)
   exigir('GOOGLE_DRIVE_FOLDER_ID', GOOGLE_DRIVE_FOLDER_ID)
 
   const dataHoje = new Date().toISOString().slice(0, 10)

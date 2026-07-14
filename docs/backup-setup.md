@@ -18,33 +18,57 @@ No painel do projeto `rt-gestao-obra` (supabase.com/dashboard):
    copie. Vira `SUPABASE_SERVICE_ROLE_KEY`. **Trate essa chave como uma senha-mestra** — ela
    ignora todas as permissões do app.
 
-## 2. Google Cloud — criar a conta de serviço
+## 2. Google Cloud — autorizar sua própria conta (não uma conta de serviço)
+
+**Por quê:** contas de serviço do Google não têm cota de armazenamento própria em contas
+pessoais/gratuitas (a sua não é Google Workspace). Mesmo compartilhando uma pasta com ela, o
+upload falharia com erro de cota — a conta de serviço vira "dona" do arquivo e não tem espaço
+nenhum. "Drives compartilhados" (o jeito normal de contornar isso) só existe em contas
+Workspace, não na sua. Por isso o backup se autentica **como você mesmo** — os arquivos ficam
+guardados no seu próprio Google Drive de 15 GB, do jeito que qualquer outro arquivo seu já fica.
 
 1. Acesse [console.cloud.google.com](https://console.cloud.google.com) com sua conta Google.
 2. Crie um projeto novo (ou use um existente) — nome sugerido: "rt-gestao-obra-backup".
 3. No menu, vá em **APIs e serviços → Biblioteca**, procure **"Google Drive API"** e clique
    em **Ativar**.
-4. Vá em **APIs e serviços → Credenciais → Criar credenciais → Conta de serviço**.
+4. Vá em **APIs e serviços → Tela de consentimento OAuth**:
+   - Tipo de usuário: **Externo**.
+   - Preencha nome do app e seu e-mail (obrigatórios) e salve.
+   - Na tela de "Usuários de teste", clique em **Adicionar usuários** e adicione seu próprio
+     e-mail Gmail. Como o app não vai ser publicado/verificado pelo Google, ele fica em modo de
+     teste — isso é totalmente normal e não expira de um jeito problemático pra um único
+     usuário de teste (você mesmo).
+5. Vá em **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**.
+   - Tipo de aplicativo: **"App para computador"** (Desktop app).
    - Nome: "backup-semanal" (ou o que preferir).
-   - Não precisa dar nenhum papel/permissão no projeto — pule essa parte.
-5. Clique na conta de serviço criada → aba **Chaves → Adicionar chave → Criar nova chave** →
-   formato **JSON** → baixa um arquivo `.json` automaticamente.
-6. Abra esse arquivo `.json` num editor de texto, copie o conteúdo inteiro. Isso vira o secret
-   `GOOGLE_SERVICE_ACCOUNT_JSON` (cole o JSON inteiro, com chaves e tudo).
-7. Anote o campo `"client_email"` de dentro desse JSON (parece
-   `algumacoisa@rt-gestao-obra-backup.iam.gserviceaccount.com`) — precisa dele no próximo passo.
+   - Clientes do tipo "App para computador" no Google Cloud Console normalmente já
+     pré-autorizam redirecionamentos `localhost` automaticamente — se você não vir um campo
+     pra colar `http://localhost:53682/callback`, não se preocupe, é esperado. Se o painel
+     mostrar um campo de "URIs de redirecionamento autorizados", cole esse endereço lá.
+6. Copie o **ID do cliente** e o **Chave secreta do cliente** que aparecem depois de criar.
+   Isso vira, respectivamente, os secrets `GOOGLE_OAUTH_CLIENT_ID` e
+   `GOOGLE_OAUTH_CLIENT_SECRET`.
+7. No seu computador (não é passo do GitHub Actions), dentro da pasta do projeto:
+   - Se ainda não tiver feito, rode `npm install` uma vez.
+   - Rode (substituindo pelos valores copiados no passo 6):
+     ```
+     GOOGLE_OAUTH_CLIENT_ID=seu-client-id GOOGLE_OAUTH_CLIENT_SECRET=seu-client-secret node scripts/gerar-token-drive.js
+     ```
+   - Abra o link impresso no terminal, faça login com sua própria conta Google e autorize.
+   - Copie o valor `GOOGLE_OAUTH_REFRESH_TOKEN` que aparece no terminal depois disso. Isso vira
+     o secret `GOOGLE_OAUTH_REFRESH_TOKEN`. Esse script roda **só essa uma vez** — depois disso
+     o backup semanal usa esse token pra sempre, sem precisar de navegador nem senha de novo.
 
-## 3. Google Drive — criar e compartilhar a pasta
+## 3. Google Drive — criar a pasta
 
 1. No seu Google Drive normal, crie uma pasta, ex.: **"RT Gestão de Obra — Backups"**.
-2. Clique com o botão direito → **Compartilhar** → cole o e-mail da conta de serviço (o
-   `client_email` do passo anterior) → dê permissão de **Editor** → compartilhar (pode ignorar
-   o aviso de "essa pessoa não vai receber notificação").
-3. Abra a pasta e copie o **ID dela pela URL** — é o trecho depois de `/folders/`, ex.:
+2. Abra a pasta e copie o **ID dela pela URL** — é o trecho depois de `/folders/`, ex.:
    `https://drive.google.com/drive/folders/`**`1AbCdEfGhIjKlMnOpQrStUvWxYz`**. Isso vira o
    secret `GOOGLE_DRIVE_FOLDER_ID`.
+3. Não precisa compartilhar essa pasta com ninguém — como o backup autentica como você mesmo
+   (não como uma conta separada), ela já está na sua própria conta.
 
-## 4. GitHub — colar os 5 segredos
+## 4. GitHub — colar os 7 segredos
 
 No repositório `rt-gestao-obra` no GitHub: **Settings → Secrets and variables → Actions → New
 repository secret**. Criar um de cada vez, com esses nomes exatos:
@@ -54,8 +78,10 @@ repository secret**. Criar um de cada vez, com esses nomes exatos:
 | `SUPABASE_DB_URL` | a connection string "Session pooler" do passo 1.1 |
 | `SUPABASE_URL` | a Project URL do passo 1.2 |
 | `SUPABASE_SERVICE_ROLE_KEY` | a chave `service_role` do passo 1.3 |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | o conteúdo inteiro do arquivo `.json` do passo 2.6 |
-| `GOOGLE_DRIVE_FOLDER_ID` | o ID da pasta do passo 3.3 |
+| `GOOGLE_OAUTH_CLIENT_ID` | o ID do cliente OAuth do passo 2.6 |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | a chave secreta do cliente OAuth do passo 2.6 |
+| `GOOGLE_OAUTH_REFRESH_TOKEN` | o refresh token impresso pelo `scripts/gerar-token-drive.js` no passo 2.7 |
+| `GOOGLE_DRIVE_FOLDER_ID` | o ID da pasta do passo 3.2 |
 
 ## 5. Testar
 
@@ -66,4 +92,4 @@ esperar domingo). Depois de ~1 minuto, confira:
 - Um arquivo `backup-rt-gestao-obra-AAAA-MM-DD.zip` apareceu na pasta do Drive.
 
 Se der erro, a aba Actions mostra o log — a mensagem de erro geralmente aponta exatamente qual
-dos 5 segredos está faltando ou errado.
+dos 7 segredos está faltando ou errado.

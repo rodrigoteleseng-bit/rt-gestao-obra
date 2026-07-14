@@ -2,6 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Atualização pós-revisão final (14/07/2026):** este plano foi escrito com uma conta de
+> serviço do Google Cloud como mecanismo de autenticação do Drive. Isso foi corrigido depois —
+> contas de serviço não têm cota de armazenamento própria em contas pessoais/gratuitas do
+> Google, então o upload sempre falharia. A implementação real usa OAuth2 autorizado como a
+> própria conta do Rodrigo, com um refresh token gerado uma única vez, localmente, por
+> `scripts/gerar-token-drive.js` (novo arquivo, não previsto neste plano original). O secret
+> único `GOOGLE_SERVICE_ACCOUNT_JSON` foi substituído por três: `GOOGLE_OAUTH_CLIENT_ID`,
+> `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN`. Os detalhes corretos e atuais
+> estão em `docs/backup-setup.md` e no código (`scripts/backup.js`,
+> `scripts/gerar-token-drive.js`, `.github/workflows/backup-semanal.yml`) — este arquivo fica
+> só como registro histórico do planejamento original.
+
 **Goal:** Workflow do GitHub Actions rodando toda semana (domingo de madrugada), fazendo backup completo do banco (schema `public`) + todos os buckets do Storage, empacotando e enviando pro Google Drive via conta de serviço.
 
 **Architecture:** Script Node.js (`scripts/backup.js`) orquestra 4 passos — `pg_dump` do schema `public` (via Session pooler, não Direct connection nem Transaction pooler), download recursivo de todos os buckets do Storage via `@supabase/supabase-js` com a chave `service_role`, compactação num único `.zip` via `archiver`, upload pro Drive via `googleapis` autenticado com uma conta de serviço do Google Cloud. `.github/workflows/backup-semanal.yml` roda esse script com cron semanal + `workflow_dispatch` (pra testar sob demanda), passando 5 segredos do GitHub Actions. Um guia de setup (`docs/backup-setup.md`) documenta os 4 passos manuais que só o Rodrigo pode fazer (contas dele).

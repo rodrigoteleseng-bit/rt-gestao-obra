@@ -40,8 +40,10 @@ UTC). Cada execução:
    de pastas.
 3. **Empacota** o dump + os arquivos baixados num único `.zip`, nomeado
    `backup-rt-gestao-obra-AAAA-MM-DD.zip`.
-4. **Envia pro Google Drive**, numa pasta dedicada, usando uma **conta de serviço do Google
-   Cloud** (não a sessão do Claude, que não existe fora desta conversa — ver §5).
+4. **Envia pro Google Drive**, numa pasta dedicada. **Atualização pós-revisão final (14/07):**
+   originalmente desenhado com uma conta de serviço do Google Cloud; corrigido para OAuth2
+   autorizado como a própria conta pessoal do Rodrigo, porque contas de serviço não têm cota de
+   armazenamento própria em contas pessoais/gratuitas — ver §5 e `docs/backup-setup.md`.
 
 Script em Node.js (`scripts/backup.js`), já que o projeto é um app Node/Vite — reaproveita
 `@supabase/supabase-js` (já é dependência) e adiciona `googleapis` + `archiver` como
@@ -66,11 +68,14 @@ importado por `src/`).
 
 A conexão com o Google Drive usada nesta conversa é uma sessão do Claude — não existe fora
 daqui, e um workflow do GitHub rodando sozinho às 3h da manhã de domingo não tem como usá-la.
-Ele precisa de uma credencial própria e permanente: uma **conta de serviço do Google Cloud**,
-compartilhada com uma pasta específica do Drive (não a conta pessoal inteira do Rodrigo — só
-aquela pasta). Isso — e pegar duas informações do painel do Supabase — são passos que só o
-Rodrigo (dono das contas) consegue fazer; o Claude Code não tem uma ferramenta de navegador
-para clicar nesses painéis por ele nesta sessão.
+Ele precisa de uma credencial própria e permanente. **(Atualização 14/07, pós-revisão final):**
+não é mais uma conta de serviço do Google Cloud compartilhada com uma pasta — isso não funciona
+em contas pessoais/gratuitas, que não dão cota de armazenamento a contas de serviço. Em vez
+disso, o workflow se autentica via OAuth2 **como a própria conta do Rodrigo**, usando um
+refresh token de longa duração gerado uma única vez, localmente, pelo script
+`scripts/gerar-token-drive.js` (nunca em CI). Isso — e pegar duas informações do painel do
+Supabase — são passos que só o Rodrigo (dono das contas) consegue fazer; o Claude Code não tem
+uma ferramenta de navegador para clicar nesses painéis por ele nesta sessão.
 
 ## 6. Segredos necessários (GitHub Actions Secrets)
 
@@ -79,19 +84,24 @@ para clicar nesses painéis por ele nesta sessão.
 | `SUPABASE_DB_URL` | Supabase → Project Settings → Database → Connection string → **Session pooler** (porta 5432) | Sim — senha do banco embutida |
 | `SUPABASE_URL` | Supabase → Project Settings → API → Project URL | Não (pública) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` secret | **Sim, muito** — ignora todo RLS |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Google Cloud Console → conta de serviço → chave JSON | Sim |
+| `GOOGLE_OAUTH_CLIENT_ID` | Google Cloud Console → credencial OAuth "App para computador" | Sim |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google Cloud Console → mesma credencial OAuth | Sim |
+| `GOOGLE_OAUTH_REFRESH_TOKEN` | gerado uma vez, localmente, por `scripts/gerar-token-drive.js` | **Sim, muito** — dá acesso ao Drive do Rodrigo |
 | `GOOGLE_DRIVE_FOLDER_ID` | ID da pasta do Drive (pedaço da URL) | Não |
+
+(Substitui o antigo `GOOGLE_SERVICE_ACCOUNT_JSON` único — ver atualização de 14/07 acima.)
 
 ## 7. Roteiro de setup manual (uma vez só, ~10 min)
 
 1. **Supabase:** copiar a connection string "Session pooler" e a chave `service_role`
    (painel do projeto `rt-gestao-obra`, `yxshldsfmbmbzdkcymca`).
-2. **Google Cloud:** criar/usar um projeto → ativar "Google Drive API" → criar uma conta de
-   serviço → gerar e baixar a chave `.json`.
-3. **Google Drive:** criar a pasta "RT Gestão de Obra — Backups" → compartilhar com o e-mail
-   da conta de serviço (formato `xxx@yyy.iam.gserviceaccount.com`) com permissão de Editor →
-   copiar o ID da pasta da URL.
-4. **GitHub:** colar as 5 informações acima em Settings → Secrets and variables → Actions, no
+2. **Google Cloud:** criar/usar um projeto → ativar "Google Drive API" → configurar a tela de
+   consentimento OAuth (Externo, com o próprio Gmail como usuário de teste) → criar credencial
+   OAuth "App para computador" → rodar `scripts/gerar-token-drive.js` localmente uma vez pra
+   obter o refresh token.
+3. **Google Drive:** criar a pasta "RT Gestão de Obra — Backups" na própria conta (sem
+   compartilhamento — o backup autentica como o próprio Rodrigo) → copiar o ID da pasta da URL.
+4. **GitHub:** colar as 7 informações acima em Settings → Secrets and variables → Actions, no
    repositório `rt-gestao-obra`.
 
 O plano de implementação vai detalhar cada um desses 4 passos com prints/instruções exatas de

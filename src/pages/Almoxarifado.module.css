@@ -321,6 +321,30 @@
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   margin-bottom: 10px;
+  position: relative;
+}
+
+.btnRemoverItem {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--cinza-600);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btnAddItem {
+  background: var(--branco);
+  border: 1.5px dashed var(--terracota);
+  color: var(--terracota);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  width: 100%;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
 }
 
 .btnPrincipal {

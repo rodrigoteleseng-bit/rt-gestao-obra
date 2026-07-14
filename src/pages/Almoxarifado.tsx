@@ -213,6 +213,15 @@ function AbaEstoque() {
   const [carregandoExtrato, setCarregandoExtrato] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
+  const [editandoMovId, setEditandoMovId] = useState<string | null>(null)
+  const [editBuscaMaterial, setEditBuscaMaterial] = useState('')
+  const [editMaterialId, setEditMaterialId] = useState<string | null>(null)
+  const [editSugestoesAbertas, setEditSugestoesAbertas] = useState(false)
+  const [editQuantidade, setEditQuantidade] = useState('')
+  const [editFornecedorSel, setEditFornecedorSel] = useState('')
+  const [editNumeroNf, setEditNumeroNf] = useState('')
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false)
+
   const [mostrarEntrada, setMostrarEntrada] = useState(false)
   const [mostrarSaida, setMostrarSaida] = useState(false)
   const [mostrarRequisicao, setMostrarRequisicao] = useState(false)
@@ -300,6 +309,53 @@ function AbaEstoque() {
     setSaldos(new Map((s ?? []).map((r: { material_id: string; saldo: number }) => [r.material_id, r.saldo])))
     if (movs) setMovimentos(movs)
     setMsg({ tipo: 'ok', texto: 'Movimento inativado.' })
+  }
+
+  function abrirEdicao(mv: EstoqueMovimento) {
+    setEditandoMovId(mv.id)
+    const m = materiais.find(x => x.id === mv.material_id)
+    setEditBuscaMaterial(m ? `${m.codigo} — ${m.nome}` : '')
+    setEditMaterialId(mv.material_id)
+    setEditQuantidade(String(mv.quantidade))
+    setEditFornecedorSel(mv.fornecedor_id ?? '')
+    setEditNumeroNf(mv.numero_nf ?? '')
+    setMsg(null)
+  }
+
+  function fecharEdicao() {
+    setEditandoMovId(null)
+  }
+
+  function sugestoesMateriaisEdit(): Material[] {
+    const t = editBuscaMaterial.trim().toLowerCase()
+    if (!t) return materiais
+    return materiais.filter(m => m.nome.toLowerCase().includes(t) || m.codigo.toLowerCase().includes(t))
+  }
+
+  async function salvarEdicao(mv: EstoqueMovimento) {
+    if (!editMaterialId) { setMsg({ tipo: 'erro', texto: 'Selecione o material.' }); return }
+    const qtd = Number(editQuantidade)
+    if (!qtd || qtd <= 0) { setMsg({ tipo: 'erro', texto: 'Informe uma quantidade maior que zero.' }); return }
+    setSalvandoEdicao(true)
+    setMsg(null)
+    const { data, error } = await supabase.from('estoque_movimentos').update({
+      material_id: editMaterialId,
+      quantidade: qtd,
+      fornecedor_id: editFornecedorSel || null,
+      numero_nf: editNumeroNf.trim() || null,
+      editado_por: perfil?.id,
+      editado_em: new Date().toISOString(),
+    }).eq('id', mv.id).select()
+    setSalvandoEdicao(false)
+    if (error) { setMsg({ tipo: 'erro', texto: `Erro ao editar: ${error.message}` }); return }
+    if (!data || data.length === 0) {
+      setMsg({ tipo: 'erro', texto: 'Não foi possível salvar — o movimento pode ter sido alterado por outra pessoa.' })
+      return
+    }
+    setEditandoMovId(null)
+    await recarregarSaldos()
+    if (materialSel) await abrirExtrato(materialSel)
+    setMsg({ tipo: 'ok', texto: 'Entrada corrigida.' })
   }
 
   return (
@@ -434,29 +490,86 @@ function AbaEstoque() {
             <div className={styles.timeline}>
               {movimentos.map(mv => (
                 <div key={mv.id} className={`${styles.movLinha} ${!mv.ativo ? styles.movInativo : ''}`}>
-                  <div className={styles.movTopo}>
-                    <span className={`${styles.chip} ${mv.tipo === 'entrada' ? styles.chip_entrada : styles.chip_saida}`}>
-                      {mv.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                    </span>
-                    <span className={styles.movQtd}>{mv.quantidade} {materialSel.und}</span>
-                    {!mv.ativo && <span className={styles.movInativoTag}>inativado</span>}
-                  </div>
-                  <div className={styles.movDetalhes}>
-                    {mv.requisicao_numero !== null && <span>Req. {String(mv.requisicao_numero).padStart(5, '0')}</span>}
-                    {mv.pedido_item_id !== null && <span>Pedido de compra</span>}
-                    {mv.fornecedor_id !== null && <span>Fornecedor: {nomeFornecedor.get(mv.fornecedor_id) ?? '?'}</span>}
-                    {mv.numero_nf && <span>NF: {mv.numero_nf}</span>}
-                    {mv.unidade_id !== null && <span>Destino: {nomeUnidade.get(mv.unidade_id) ?? '?'}</span>}
-                    {mv.retirado_por && <span>Retirado por: {mv.retirado_por}</span>}
-                    {mv.aplicacao && <span>Aplicação: {mv.aplicacao}</span>}
-                    {mv.observacao && <span>Obs.: {mv.observacao}</span>}
-                  </div>
-                  <div className={styles.movRodape}>
-                    <span>{autores.get(mv.criado_por) ?? '?'} · {fmtDataHora(mv.criado_em)}</span>
-                    {admin && mv.ativo && (
-                      <button className={styles.btnInativar} onClick={() => inativarMovimento(mv)}>Inativar</button>
-                    )}
-                  </div>
+                  {editandoMovId === mv.id ? (
+                    <div className={styles.blocoAninhado}>
+                      <label className={styles.campo}>
+                        Material *
+                        <div className={styles.autocompleteWrap}>
+                          <input
+                            value={editBuscaMaterial}
+                            onChange={e => { setEditBuscaMaterial(e.target.value); setEditMaterialId(null); setEditSugestoesAbertas(true) }}
+                            onFocus={() => setEditSugestoesAbertas(true)}
+                            onBlur={() => setTimeout(() => setEditSugestoesAbertas(false), 150)}
+                          />
+                          {editSugestoesAbertas && sugestoesMateriaisEdit().length > 0 && (
+                            <div className={styles.sugestoes}>
+                              {sugestoesMateriaisEdit().map(m => (
+                                <button key={m.id} className={styles.sugestao}
+                                  onMouseDown={() => { setEditMaterialId(m.id); setEditBuscaMaterial(`${m.codigo} — ${m.nome}`); setEditSugestoesAbertas(false) }}>
+                                  <span className={styles.sugestaoCodigo}>{m.codigo}</span>{m.nome}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                      <div className={styles.linha2}>
+                        <label className={styles.campo}>
+                          Quantidade *
+                          <input type="number" min="0" step="0.01" value={editQuantidade} onChange={e => setEditQuantidade(e.target.value)} />
+                        </label>
+                        <label className={styles.campo}>
+                          Fornecedor
+                          <select value={editFornecedorSel} onChange={e => setEditFornecedorSel(e.target.value)}>
+                            <option value="">Selecione…</option>
+                            {fornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                          </select>
+                        </label>
+                      </div>
+                      <label className={styles.campo}>
+                        Nº da NF
+                        <input value={editNumeroNf} onChange={e => setEditNumeroNf(e.target.value)} placeholder="Opcional" />
+                      </label>
+                      <div className={styles.acoesInline}>
+                        <button className={styles.btnSecundario} onClick={fecharEdicao}>Cancelar</button>
+                        <button className={styles.btnPrincipal} onClick={() => salvarEdicao(mv)} disabled={salvandoEdicao}>
+                          {salvandoEdicao ? 'Salvando…' : 'Salvar'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className={styles.movTopo}>
+                        <span className={`${styles.chip} ${mv.tipo === 'entrada' ? styles.chip_entrada : styles.chip_saida}`}>
+                          {mv.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                        </span>
+                        <span className={styles.movQtd}>{mv.quantidade} {materialSel.und}</span>
+                        {!mv.ativo && <span className={styles.movInativoTag}>inativado</span>}
+                      </div>
+                      <div className={styles.movDetalhes}>
+                        {mv.requisicao_numero !== null && <span>Req. {String(mv.requisicao_numero).padStart(5, '0')}</span>}
+                        {mv.pedido_item_id !== null && <span>Pedido de compra</span>}
+                        {mv.fornecedor_id !== null && <span>Fornecedor: {nomeFornecedor.get(mv.fornecedor_id) ?? '?'}</span>}
+                        {mv.numero_nf && <span>NF: {mv.numero_nf}</span>}
+                        {mv.unidade_id !== null && <span>Destino: {nomeUnidade.get(mv.unidade_id) ?? '?'}</span>}
+                        {mv.retirado_por && <span>Retirado por: {mv.retirado_por}</span>}
+                        {mv.aplicacao && <span>Aplicação: {mv.aplicacao}</span>}
+                        {mv.observacao && <span>Obs.: {mv.observacao}</span>}
+                        {mv.editado_em && <span>Corrigido em {fmtDataHora(mv.editado_em)}</span>}
+                      </div>
+                      <div className={styles.movRodape}>
+                        <span>{autores.get(mv.criado_por) ?? '?'} · {fmtDataHora(mv.criado_em)}</span>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {admin && mv.tipo === 'entrada' && mv.ativo && (
+                            <button className={styles.btnSecundario} onClick={() => abrirEdicao(mv)}>Editar</button>
+                          )}
+                          {admin && mv.ativo && (
+                            <button className={styles.btnInativar} onClick={() => inativarMovimento(mv)}>Inativar</button>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

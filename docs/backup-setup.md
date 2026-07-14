@@ -7,9 +7,12 @@ sozinho toda semana — nunca mais precisa mexer nisso.
 
 No painel do projeto `rt-gestao-obra` (supabase.com/dashboard):
 
-1. **Project Settings → Database → Connection string** → escolha **"Direct connection"**
-   (não "Transaction pooler" nem "Session pooler") → copie a URI completa (já vem com a senha).
-   Isso vira o secret `SUPABASE_DB_URL`.
+1. **Project Settings → Database → Connection string** → escolha **"Session pooler"**
+   (não "Direct connection" — só funciona por IPv6 a menos que você pague o add-on de IPv4, e
+   o servidor do GitHub Actions que roda o backup não tem como acessar por IPv6; nem
+   "Transaction pooler" — não sustenta uma sessão real, o que quebra o `pg_dump`). Clique para
+   **revelar a senha** antes de copiar a URI completa (ela pode aparecer mascarada). Isso vira
+   o secret `SUPABASE_DB_URL`.
 2. **Project Settings → API → Project URL** → copie. Vira `SUPABASE_URL`.
 3. **Project Settings → API → Project API keys → `service_role`** → clique em "Reveal" e
    copie. Vira `SUPABASE_SERVICE_ROLE_KEY`. **Trate essa chave como uma senha-mestra** — ela
@@ -48,7 +51,7 @@ repository secret**. Criar um de cada vez, com esses nomes exatos:
 
 | Nome do secret | Valor |
 |---|---|
-| `SUPABASE_DB_URL` | a connection string "Direct connection" do passo 1.1 |
+| `SUPABASE_DB_URL` | a connection string "Session pooler" do passo 1.1 |
 | `SUPABASE_URL` | a Project URL do passo 1.2 |
 | `SUPABASE_SERVICE_ROLE_KEY` | a chave `service_role` do passo 1.3 |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | o conteúdo inteiro do arquivo `.json` do passo 2.6 |

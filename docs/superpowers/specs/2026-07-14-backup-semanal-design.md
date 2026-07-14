@@ -29,9 +29,12 @@ agendado por cron semanal — **domingo às 3h da manhã, horário de Brasília*
 UTC). Cada execução:
 
 1. **Dump do banco:** `pg_dump` do schema `public` inteiro (todas as tabelas do app), em
-   formato texto plano (`.sql`), usando a *connection string direta* do Postgres (porta 5432,
-   não o pooler/PgBouncer — `pg_dump` precisa de uma sessão real). `--no-owner --no-privileges`
-   para não travar numa restauração futura por causa de papéis/donos específicos do Supabase.
+   formato texto plano (`.sql`), usando a *connection string do Session pooler* do Postgres
+   (porta 5432) — não a Direct connection (só aceita IPv6 sem o add-on pago de IPv4, e os
+   runners do GitHub Actions não têm saída IPv6) nem o Transaction pooler (porta 6543,
+   multiplexa conexão por statement e quebra o que o `pg_dump` precisa de uma sessão real).
+   `--no-owner --no-privileges` para não travar numa restauração futura por causa de
+   papéis/donos específicos do Supabase.
 2. **Cópia dos arquivos:** lista todos os buckets do Storage via API (`service_role` key, que
    ignora RLS/políticas de storage) e baixa todo objeto de cada bucket, preservando a estrutura
    de pastas.
@@ -73,7 +76,7 @@ para clicar nesses painéis por ele nesta sessão.
 
 | Nome | De onde vem | Sensível? |
 |---|---|---|
-| `SUPABASE_DB_URL` | Supabase → Project Settings → Database → Connection string → **Direct connection** (porta 5432) | Sim — senha do banco embutida |
+| `SUPABASE_DB_URL` | Supabase → Project Settings → Database → Connection string → **Session pooler** (porta 5432) | Sim — senha do banco embutida |
 | `SUPABASE_URL` | Supabase → Project Settings → API → Project URL | Não (pública) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` secret | **Sim, muito** — ignora todo RLS |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Google Cloud Console → conta de serviço → chave JSON | Sim |
@@ -81,7 +84,7 @@ para clicar nesses painéis por ele nesta sessão.
 
 ## 7. Roteiro de setup manual (uma vez só, ~10 min)
 
-1. **Supabase:** copiar a connection string "Direct connection" e a chave `service_role`
+1. **Supabase:** copiar a connection string "Session pooler" e a chave `service_role`
    (painel do projeto `rt-gestao-obra`, `yxshldsfmbmbzdkcymca`).
 2. **Google Cloud:** criar/usar um projeto → ativar "Google Drive API" → criar uma conta de
    serviço → gerar e baixar a chave `.json`.

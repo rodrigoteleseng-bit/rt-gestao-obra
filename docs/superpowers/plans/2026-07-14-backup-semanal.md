@@ -4,7 +4,7 @@
 
 **Goal:** Workflow do GitHub Actions rodando toda semana (domingo de madrugada), fazendo backup completo do banco (schema `public`) + todos os buckets do Storage, empacotando e enviando pro Google Drive via conta de serviço.
 
-**Architecture:** Script Node.js (`scripts/backup.js`) orquestra 4 passos — `pg_dump` do schema `public` (conexão direta, não pooler), download recursivo de todos os buckets do Storage via `@supabase/supabase-js` com a chave `service_role`, compactação num único `.zip` via `archiver`, upload pro Drive via `googleapis` autenticado com uma conta de serviço do Google Cloud. `.github/workflows/backup-semanal.yml` roda esse script com cron semanal + `workflow_dispatch` (pra testar sob demanda), passando 5 segredos do GitHub Actions. Um guia de setup (`docs/backup-setup.md`) documenta os 4 passos manuais que só o Rodrigo pode fazer (contas dele).
+**Architecture:** Script Node.js (`scripts/backup.js`) orquestra 4 passos — `pg_dump` do schema `public` (via Session pooler, não Direct connection nem Transaction pooler), download recursivo de todos os buckets do Storage via `@supabase/supabase-js` com a chave `service_role`, compactação num único `.zip` via `archiver`, upload pro Drive via `googleapis` autenticado com uma conta de serviço do Google Cloud. `.github/workflows/backup-semanal.yml` roda esse script com cron semanal + `workflow_dispatch` (pra testar sob demanda), passando 5 segredos do GitHub Actions. Um guia de setup (`docs/backup-setup.md`) documenta os 4 passos manuais que só o Rodrigo pode fazer (contas dele).
 
 **Tech Stack:** Node.js (ESM, já `"type": "module"` no `package.json`), `@supabase/supabase-js` (já é dependência), `googleapis` + `archiver` (novas devDependencies), `pg_dump` (cliente Postgres, instalado no workflow via `apt-get`). Sem framework de teste — verificação via `node --check` (sintaxe) e uma execução real feita pelo Rodrigo depois de configurar os segredos (não posso rodar isso de ponta a ponta sem as credenciais dele).
 
@@ -14,7 +14,7 @@
 - **Só o schema `public` é dumpado** (não `auth`/`storage`/`realtime`/extensões) — ver spec §4.
 - **Sem limpeza/retenção automática** — decisão explícita do Rodrigo: o backup nunca apaga um arquivo antigo do Drive.
 - **Buckets descobertos dinamicamente** (`supabase.storage.listBuckets()`) — nunca hardcodear nomes de bucket, pra cobrir buckets futuros automaticamente.
-- **`pg_dump` usa a connection string DIRETA** (porta 5432), nunca o pooler/PgBouncer (transaction mode não suporta bem o que o `pg_dump` precisa).
+- **`pg_dump` usa a connection string do Session pooler** (porta 5432) — nunca a Direct connection (só tem IPv6 sem o add-on pago de IPv4, e os runners do GitHub Actions não têm saída IPv6) nem o Transaction pooler (porta 6543, não sustenta a sessão real que o `pg_dump` precisa).
 - A conta de serviço do Google só tem acesso à pasta que o Rodrigo compartilhar com ela explicitamente — nunca à conta pessoal inteira dele.
 
 ---
@@ -286,9 +286,12 @@ sozinho toda semana — nunca mais precisa mexer nisso.
 
 No painel do projeto `rt-gestao-obra` (supabase.com/dashboard):
 
-1. **Project Settings → Database → Connection string** → escolha **"Direct connection"**
-   (não "Transaction pooler" nem "Session pooler") → copie a URI completa (já vem com a senha).
-   Isso vira o secret `SUPABASE_DB_URL`.
+1. **Project Settings → Database → Connection string** → escolha **"Session pooler"**
+   (não "Direct connection" — só funciona por IPv6 a menos que você pague o add-on de IPv4, e
+   o servidor do GitHub Actions que roda o backup não tem como acessar por IPv6; nem
+   "Transaction pooler" — não sustenta uma sessão real, o que quebra o `pg_dump`). Clique para
+   **revelar a senha** antes de copiar a URI completa (ela pode aparecer mascarada). Isso vira
+   o secret `SUPABASE_DB_URL`.
 2. **Project Settings → API → Project URL** → copie. Vira `SUPABASE_URL`.
 3. **Project Settings → API → Project API keys → `service_role`** → clique em "Reveal" e
    copie. Vira `SUPABASE_SERVICE_ROLE_KEY`. **Trate essa chave como uma senha-mestra** — ela
@@ -327,7 +330,7 @@ repository secret**. Criar um de cada vez, com esses nomes exatos:
 
 | Nome do secret | Valor |
 |---|---|
-| `SUPABASE_DB_URL` | a connection string "Direct connection" do passo 1.1 |
+| `SUPABASE_DB_URL` | a connection string "Session pooler" do passo 1.1 |
 | `SUPABASE_URL` | a Project URL do passo 1.2 |
 | `SUPABASE_SERVICE_ROLE_KEY` | a chave `service_role` do passo 1.3 |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | o conteúdo inteiro do arquivo `.json` do passo 2.6 |

@@ -34,10 +34,29 @@ guardados no seu próprio Google Drive de 15 GB, do jeito que qualquer outro arq
 4. Vá em **APIs e serviços → Tela de consentimento OAuth**:
    - Tipo de usuário: **Externo**.
    - Preencha nome do app e seu e-mail (obrigatórios) e salve.
-   - Na tela de "Usuários de teste", clique em **Adicionar usuários** e adicione seu próprio
-     e-mail Gmail. Como o app não vai ser publicado/verificado pelo Google, ele fica em modo de
-     teste — isso é totalmente normal e não expira de um jeito problemático pra um único
-     usuário de teste (você mesmo).
+   - **Importante — mude o status de publicação para "Em produção":** por padrão a tela de
+     consentimento fica com status **"Em teste"**. Procure o botão **"Publicar app"** (ou o
+     campo "Status da publicação") e mude para **"Em produção"**. Isso **não** exige passar
+     pelo processo de verificação do Google — essa exigência é para apps com muitos usuários
+     ou que pedem escopos sensíveis de forma ampla ao público; um app de uso pessoal, com um
+     único usuário (você mesmo), pode ser publicado sem completar a verificação.
+   - **Por que isso é obrigatório, não opcional:** enquanto a tela de consentimento estiver
+     em modo **"Em teste"**, o Google **expira o refresh token em 7 dias** para escopos
+     restritos — e o escopo do Drive usado aqui
+     (`https://www.googleapis.com/auth/drive`) é um deles. Como o backup roda semanalmente (a
+     cada 7 dias), o token expiraria bem na hora da segunda execução agendada, quebrando o
+     backup silenciosamente — você só descobriria pelo e-mail de falha do GitHub Actions, e
+     teria que refazer esse passo a passo de novo, possivelmente repetidas vezes. Colocar o
+     app em **"Em produção"** remove esse limite de 7 dias (é uma restrição exclusiva do modo
+     de teste); com o app publicado, o refresh token gerado no passo 7 dura indefinidamente,
+     até você mesmo revogar o acesso.
+   - Com o app em "Em produção" mas sem passar pela verificação formal do Google, ao abrir o
+     link do passo 7 (script `gerar-token-drive.js`) a tela de login do Google vai mostrar um
+     aviso **"O Google não verificou este app"**. **Isso é esperado e seguro de ignorar** — é
+     o app que você mesmo criou, só pra você usar. Clique em **"Avançado"** e depois em
+     **"Acessar [nome do app] (não seguro)"** para continuar. Esse aviso aparece em qualquer
+     app OAuth pessoal não verificado; não é sinal de problema real, só o Google avisando que
+     não revisou o app manualmente.
 5. Vá em **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**.
    - Tipo de aplicativo: **"App para computador"** (Desktop app).
    - Nome: "backup-semanal" (ou o que preferir).

@@ -4,9 +4,10 @@ import { useObra } from '../contexts/ObraContext'
 import { useAuth } from '../contexts/AuthContext'
 import {
   supabase, type Servico, type Unidade, type Empreiteiro,
-  type Contrato, type ContratoItem,
+  type Contrato, type ContratoItem, type Medicao,
 } from '../lib/supabase'
 import { STATUS_LABEL } from './Contratos'
+import { STATUS_MEDICAO_LABEL } from './MedicaoForm'
 import styles from './ContratoForm.module.css'
 
 interface ItemNovo {
@@ -63,6 +64,7 @@ export default function ContratoForm() {
   const { obraAtiva } = useObra()
   const { perfil, temModulo } = useAuth()
   const podeEditar = perfil?.papel === 'admin' || temModulo('contratos')
+  const podeEditarMedicoes = perfil?.papel === 'admin' || temModulo('medicoes')
 
   const [servicos, setServicos] = useState<Servico[]>([])
   const [unidades, setUnidades] = useState<Unidade[]>([])
@@ -194,7 +196,7 @@ export default function ContratoForm() {
     return (
       <DetalheContrato
         contrato={contrato} itens={itensContrato} servicos={servicos} unidades={unidades} empreiteiros={empreiteiros}
-        podeEditar={podeEditar} ehAdmin={perfil?.papel === 'admin'} perfilId={perfil?.id}
+        podeEditar={podeEditar} podeEditarMedicoes={podeEditarMedicoes} ehAdmin={perfil?.papel === 'admin'} perfilId={perfil?.id}
         onRecarregar={() => carregarContrato(contrato.id)}
       />
     )
@@ -313,12 +315,13 @@ interface DetalheContratoProps {
   unidades: Unidade[]
   empreiteiros: Empreiteiro[]
   podeEditar: boolean
+  podeEditarMedicoes: boolean
   ehAdmin: boolean
   perfilId: string | undefined
   onRecarregar: () => void
 }
 
-function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, podeEditar, ehAdmin, perfilId, onRecarregar }: DetalheContratoProps) {
+function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, podeEditar, podeEditarMedicoes, ehAdmin, perfilId, onRecarregar }: DetalheContratoProps) {
   const navigate = useNavigate()
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [processando, setProcessando] = useState(false)
@@ -332,6 +335,15 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
   const empreiteiro = empreiteiros.find(e => e.id === contrato.empreiteiro_id)
 
   const podeEditarItens = podeEditar && contrato.status === 'rascunho'
+
+  const [medicoes, setMedicoes] = useState<Medicao[]>([])
+  const [carregandoMedicoes, setCarregandoMedicoes] = useState(true)
+
+  useEffect(() => {
+    supabase.from('medicoes').select('*').eq('contrato_id', contrato.id).eq('ativo', true)
+      .order('numero', { ascending: false })
+      .then(({ data }) => { setMedicoes(data ?? []); setCarregandoMedicoes(false) })
+  }, [contrato.id])
 
   function abrirEdicaoItens() {
     setItensEdit(itens.map(it => {
@@ -549,6 +561,28 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
           </>
         )}
       </div>
+
+      {contrato.status === 'ativo' && (
+        <div className={styles.bloco}>
+          <div className={styles.header} style={{ marginBottom: 10 }}>
+            <h2 style={{ margin: 0 }}>Medições</h2>
+            {podeEditarMedicoes && (
+              <button className={styles.btnSecundario} onClick={() => navigate(`/contratos/${contrato.id}/medicoes/nova`)}>
+                + Nova medição
+              </button>
+            )}
+          </div>
+          {carregandoMedicoes && <p className={styles.vazio}>Carregando…</p>}
+          {!carregandoMedicoes && medicoes.length === 0 && <p className={styles.vazio}>Nenhuma medição lançada.</p>}
+          {medicoes.map(m => (
+            <button key={m.id} className={styles.btnSecundario}
+              style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 6 }}
+              onClick={() => navigate(`/contratos/${contrato.id}/medicoes/${m.id}`)}>
+              {m.numero}ª medição — {STATUS_MEDICAO_LABEL[m.status]} — R$ {m.valor_liquido.toFixed(2)}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

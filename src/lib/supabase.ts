@@ -412,6 +412,7 @@ export interface EstoqueMovimento {
   aplicacao: string | null; observacao: string | null; ativo: boolean
   criado_por: string; criado_em: string
   fornecedor_id: string | null; numero_nf: string | null
+  editado_por: string | null; editado_em: string | null
 }
 export interface Ferramenta {
   id: string; obra_id: string; nome: string; descricao: string | null

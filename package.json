@@ -19,6 +19,8 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.5.2",
+    "archiver": "^8.0.0",
+    "googleapis": "^173.0.0",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
     "vite-plugin-pwa": "^0.21.1"

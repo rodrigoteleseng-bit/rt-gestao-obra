@@ -76,6 +76,22 @@
   - Saída avulsa (1 item, sem folha) e Lançar requisição (N itens, transcrição de folha assinada) são o mesmo tipo de movimento por dentro; a diferença é só o volume/origem do lançamento.
   - Unidade destino e quem retirou são obrigatórios em toda saída — o sistema bloqueia com mensagem clara ("Selecione a unidade de destino.") antes de gravar, nunca falha silenciosamente. Usar a unidade "Canteiro de Obras" para retiradas sem sobrado específico.
 
+## Ajustes de 14/07/2026 — lançamento em lote + edição de entrada
+
+- **Entrada de material em lote:** a tela "+ Entrada de material" agora aceita vários insumos
+  de uma vez (mesmo padrão "+ Adicionar item" já usado em Contratos/Compras). Fornecedor, Nº da
+  NF e Pedido de compra ficam no topo, compartilhados; cada insumo tem seu próprio material,
+  quantidade, item do pedido (se um pedido foi selecionado) e observação. Um único `INSERT` com
+  várias linhas — atômico (tudo ou nada), sem risco de lançamento parcial.
+- **Editar entrada (admin):** no extrato do material, ao lado do "Inativar" já existente, um
+  novo botão "Editar" (só admin, só entradas ativas) corrige material, quantidade, fornecedor e
+  NF sem precisar inativar e relançar. Não edita o vínculo com pedido de compra. Grava
+  `editado_por`/`editado_em`, exibido no extrato como "Corrigido em ...".
+- **Correção de trigger:** `sincroniza_recebimento_pedido()` só reagia à inativação de um
+  movimento; agora reage também a mudança de quantidade e de vínculo com pedido, revertendo o
+  efeito antigo e aplicando o novo — sem isso, editar a quantidade de uma entrada vinculada a
+  pedido deixaria `quantidade_recebida` desatualizado.
+
 ## Fora de escopo (registrado na spec, não entregue nesta fase)
 
 - Assinatura digital na requisição.

@@ -154,14 +154,14 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(10)
   pdf.setTextColor('#222222')
-  pdf.text('Valor bruto:', colX.unit, y)
+  pdf.text('Valor bruto:', ML, y)
   pdf.text(`R$ ${bruto.toFixed(2)}`, W - MR, y, { align: 'right' })
   y += 6
-  pdf.text(`Retenção (${retencaoPct}%):`, colX.unit, y)
-  pdf.text(`− R$ ${retido.toFixed(2)}`, W - MR, y, { align: 'right' })
+  pdf.text(`Retenção (${retencaoPct}%):`, ML, y)
+  pdf.text(`- R$ ${retido.toFixed(2)}`, W - MR, y, { align: 'right' })
   y += 6
   pdf.setFont('helvetica', 'bold')
-  pdf.text('Valor líquido:', colX.unit, y)
+  pdf.text('Valor líquido:', ML, y)
   pdf.text(`R$ ${liquido.toFixed(2)}`, W - MR, y, { align: 'right' })
 
   rodape()

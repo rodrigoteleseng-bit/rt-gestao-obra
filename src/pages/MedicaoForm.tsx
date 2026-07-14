@@ -278,6 +278,7 @@ export default function MedicaoForm() {
 
       <div className={styles.bloco}>
         <h2>Itens</h2>
+        <div className={styles.tabelaWrap}>
         <table className={styles.tabela}>
           <thead>
             <tr>
@@ -309,6 +310,7 @@ export default function MedicaoForm() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className={styles.bloco}>

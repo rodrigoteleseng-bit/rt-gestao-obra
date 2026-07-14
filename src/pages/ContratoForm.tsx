@@ -471,6 +471,7 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
         <h2>Itens</h2>
         {!editando && (
           <>
+            <div className={styles.tabelaWrap}>
             <table className={styles.tabelaComparativa}>
               <thead>
                 <tr><th>Serviço</th><th>Unidade</th><th>Qtd.</th><th>Valor unit.</th><th>Valor total</th><th>Orçado (unit.)</th></tr>
@@ -491,6 +492,7 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
                 })}
               </tbody>
             </table>
+            </div>
             {podeEditarItens && (
               <button className={styles.btnSecundario} onClick={abrirEdicaoItens} style={{ marginTop: 10 }}>Editar itens</button>
             )}

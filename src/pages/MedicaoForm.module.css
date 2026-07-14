@@ -67,8 +67,15 @@
 
 .campo input:focus { border-color: var(--navy); outline: none; }
 
+.tabelaWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .tabela {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   font-size: 12.5px;
 }

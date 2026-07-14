@@ -838,6 +838,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       ) : (
         <div className={styles.bloco}>
           <h2>Itens do pedido</h2>
+          <div className={styles.tabelaWrap}>
           <table className={styles.tabelaComparativa}>
             <thead>
               <tr>
@@ -891,6 +892,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -1007,6 +1009,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       {perfil?.papel !== 'cliente' && ['recebido_parcial', 'recebido_total', 'conferido_nf', 'encerrado'].includes(pedido.status) && (
         <div className={styles.bloco}>
           <h2>Conferência tripla (aprovado × almoxarifado × NF)</h2>
+          <div className={styles.tabelaWrap}>
           <table className={styles.tabelaComparativa}>
             <thead>
               <tr>
@@ -1061,6 +1064,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

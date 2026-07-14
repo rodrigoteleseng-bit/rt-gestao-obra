@@ -56,6 +56,8 @@
   gap: 8px;
   margin-bottom: 16px;
   border-bottom: 1.5px solid var(--cinza-200);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .aba {
@@ -67,6 +69,8 @@
   font-weight: 600;
   color: var(--cinza-600);
   cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .abaAtiva {

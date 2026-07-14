@@ -167,8 +167,15 @@
 .msgInfo { color: var(--navy); font-weight: 600; font-size: 13px; padding: 6px 0; }
 .vazio { color: var(--cinza-600); font-size: 14px; padding: 12px 0; }
 
+.tabelaWrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .tabelaComparativa {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
   font-size: 13px;
   margin-top: 8px;

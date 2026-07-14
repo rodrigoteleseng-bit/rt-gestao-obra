@@ -642,9 +642,13 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
   }
 
   async function aprovarPedido() {
-    const todosComVencedor = itens.every(it => it.cotacao_item_vencedora_id !== null)
+    // Só exige vencedor nos itens que têm ao menos 1 cotação — um item que
+    // nenhum fornecedor cotou não tem como ter vencedor definido (o botão
+    // "marcar vencedor" nem aparece pra ele), então não pode travar a aprovação.
+    const itensComCotacao = itens.filter(it => cotacoesItens.some(ci => ci.pedido_item_id === it.id))
+    const todosComVencedor = itensComCotacao.every(it => it.cotacao_item_vencedora_id !== null)
     if (!todosComVencedor) {
-      alert('Defina o vencedor de todos os itens antes de aprovar.')
+      alert('Defina o vencedor de todos os itens cotados antes de aprovar.')
       return
     }
     const { error } = await supabase.from('pedidos_compra').update({

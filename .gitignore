@@ -5,3 +5,5 @@ dist
 *.tsbuildinfo
 .claude/settings.local.json
 .superpowers/
+backup-temp/
+backup-rt-gestao-obra-*.zip

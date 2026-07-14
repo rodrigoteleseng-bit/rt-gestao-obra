@@ -88,13 +88,21 @@ async function main() {
   mkdirSync(dirTemp, { recursive: true })
 
   console.log('1/4 — dump do banco (schema public)…')
-  execFileSync('pg_dump', [
-    SUPABASE_DB_URL,
-    '--schema=public',
-    '--no-owner',
-    '--no-privileges',
-    '--file', join(dirTemp, 'banco.sql'),
-  ], { stdio: 'inherit' })
+  try {
+    execFileSync('pg_dump', [
+      SUPABASE_DB_URL,
+      '--schema=public',
+      '--no-owner',
+      '--no-privileges',
+      '--file', join(dirTemp, 'banco.sql'),
+    ], { stdio: 'inherit' })
+  } catch {
+    // Nunca referenciar err.message/err.cmd/err.args aqui: o execFileSync do Node
+    // inclui a SUPABASE_DB_URL completa (com senha em texto puro) no Error lançado
+    // quando o processo filho sai com código != 0. O stderr do próprio pg_dump
+    // (já impresso acima via stdio: 'inherit') não inclui a senha.
+    throw new Error('pg_dump falhou — ver mensagem de erro do Postgres acima (stderr do próprio pg_dump não inclui a senha).')
+  }
 
   console.log('2/4 — baixando arquivos do Storage…')
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -109,6 +117,7 @@ async function main() {
   await enviarParaDrive(caminhoZip, nomeZip)
 
   rmSync(dirTemp, { recursive: true, force: true })
+  rmSync(caminhoZip, { force: true })
   console.log(`Backup concluído: ${nomeZip}`)
 }
 

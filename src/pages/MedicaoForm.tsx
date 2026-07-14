@@ -6,6 +6,7 @@ import {
   type Medicao, type MedicaoItem, type StatusMedicao,
 } from '../lib/supabase'
 import { gerarPdfMedicao } from '../lib/medicoesPdf'
+import { formatarMoeda } from '../lib/formato'
 import styles from './MedicaoForm.module.css'
 
 export const STATUS_MEDICAO_LABEL: Record<StatusMedicao, string> = {
@@ -301,8 +302,8 @@ export default function MedicaoForm() {
                           onChange={e => atualizarLinha(l.contratoItemId, e.target.value)} className={styles.inputQtd} />
                       : l.quantidadePeriodo}
                   </td>
-                  <td>R$ {l.valorUnitario.toFixed(2)}</td>
-                  <td>R$ {valorPeriodo.toFixed(2)}</td>
+                  <td>R$ {formatarMoeda(l.valorUnitario)}</td>
+                  <td>R$ {formatarMoeda(valorPeriodo)}</td>
                 </tr>
               )
             })}
@@ -311,9 +312,9 @@ export default function MedicaoForm() {
       </div>
 
       <div className={styles.bloco}>
-        <div className={styles.resumoLinha}><span>Valor bruto</span><strong>R$ {bruto.toFixed(2)}</strong></div>
-        <div className={styles.resumoLinha}><span>Retenção ({retencaoPct}%)</span><strong>− R$ {retido.toFixed(2)}</strong></div>
-        <div className={styles.resumoLinha}><span>Valor líquido</span><strong>R$ {liquido.toFixed(2)}</strong></div>
+        <div className={styles.resumoLinha}><span>Valor bruto</span><strong>R$ {formatarMoeda(bruto)}</strong></div>
+        <div className={styles.resumoLinha}><span>Retenção ({retencaoPct}%)</span><strong>− R$ {formatarMoeda(retido)}</strong></div>
+        <div className={styles.resumoLinha}><span>Valor líquido</span><strong>R$ {formatarMoeda(liquido)}</strong></div>
       </div>
 
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}

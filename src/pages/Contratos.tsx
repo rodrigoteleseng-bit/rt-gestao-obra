@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import { supabase, type Contrato, type Empreiteiro, type StatusContrato } from '../lib/supabase'
+import { formatarMoeda } from '../lib/formato'
 import styles from './Contratos.module.css'
 
 export const STATUS_LABEL: Record<StatusContrato, string> = {
@@ -93,7 +94,7 @@ export default function Contratos() {
           </div>
           <div className={styles.cardDesc}>{nomeEmpreiteiro.get(c.empreiteiro_id) ?? '—'} — {c.objeto}</div>
           <div className={styles.cardRodape}>
-            <span>R$ {c.valor_total.toFixed(2)}</span>
+            <span>R$ {formatarMoeda(c.valor_total)}</span>
           </div>
         </button>
       ))}

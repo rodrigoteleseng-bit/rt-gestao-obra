@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import { supabase, type StatusMedicao } from '../lib/supabase'
 import { STATUS_MEDICAO_LABEL } from './MedicaoForm'
+import { formatarMoeda } from '../lib/formato'
 import styles from './Medicoes.module.css'
 
 interface MedicaoLista {
@@ -75,7 +76,7 @@ export default function Medicoes() {
           </div>
           <div className={styles.cardDesc}>{m.contratos?.empreiteiros?.nome ?? '—'}</div>
           <div className={styles.cardRodape}>
-            <span>R$ {m.valor_liquido.toFixed(2)}</span>
+            <span>R$ {formatarMoeda(m.valor_liquido)}</span>
           </div>
         </button>
       ))}

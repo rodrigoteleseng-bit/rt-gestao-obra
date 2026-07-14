@@ -4,6 +4,7 @@
 // mais o resumo bruto/retido/líquido.
 import { jsPDF } from 'jspdf'
 import type { Contrato, Medicao } from './supabase'
+import { formatarMoeda } from './formato'
 
 const NAVY = '#1A3248'
 const TERRACOTA = '#C49A7A'
@@ -137,8 +138,8 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     pdf.text(`${it.quantidadeContratada}`, colX.contratada + 1, y + 4.2)
     pdf.text(`${it.jaAprovado}`, colX.antes + 1, y + 4.2)
     pdf.text(`${it.quantidadePeriodo}`, colX.periodo + 1, y + 4.2)
-    pdf.text(`R$ ${it.valorUnitario.toFixed(2)}`, colX.unit + 1, y + 4.2)
-    pdf.text(`R$ ${valorTotalItem.toFixed(2)}`, colX.total + 1, y + 4.2)
+    pdf.text(`R$ ${formatarMoeda(it.valorUnitario)}`, colX.unit + 1, y + 4.2)
+    pdf.text(`R$ ${formatarMoeda(valorTotalItem)}`, colX.total + 1, y + 4.2)
     y += alturaLinha
   }
   pdf.setDrawColor('#E0DAD0')
@@ -165,14 +166,14 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   pdf.setFontSize(10)
   pdf.setTextColor('#222222')
   pdf.text('Valor bruto:', ML, y)
-  pdf.text(`R$ ${bruto.toFixed(2)}`, W - MR, y, { align: 'right' })
+  pdf.text(`R$ ${formatarMoeda(bruto)}`, W - MR, y, { align: 'right' })
   y += 6
   pdf.text(`Retenção (${retencaoPct}%):`, ML, y)
-  pdf.text(`- R$ ${retido.toFixed(2)}`, W - MR, y, { align: 'right' })
+  pdf.text(`- R$ ${formatarMoeda(retido)}`, W - MR, y, { align: 'right' })
   y += 6
   pdf.setFont('helvetica', 'bold')
   pdf.text('Valor líquido:', ML, y)
-  pdf.text(`R$ ${liquido.toFixed(2)}`, W - MR, y, { align: 'right' })
+  pdf.text(`R$ ${formatarMoeda(liquido)}`, W - MR, y, { align: 'right' })
 
   rodape()
   pdf.save(`${d.contrato.numero} - MEDICAO ${d.medicao.numero} - ${d.empreiteiroNome}.pdf`)

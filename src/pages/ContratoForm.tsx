@@ -8,6 +8,7 @@ import {
 } from '../lib/supabase'
 import { STATUS_LABEL } from './Contratos'
 import { STATUS_MEDICAO_LABEL } from './MedicaoForm'
+import { formatarMoeda } from '../lib/formato'
 import styles from './ContratoForm.module.css'
 
 interface ItemNovo {
@@ -273,7 +274,7 @@ export default function ContratoForm() {
                     )}
                   </div>
                   {it.servico_id
-                    ? <span className={styles.vinculoOk}>✓ {it.servicoCodigo}{servicoOrcado?.valor_unit != null ? ` — orçado R$ ${servicoOrcado.valor_unit.toFixed(2)}` : ''}</span>
+                    ? <span className={styles.vinculoOk}>✓ {it.servicoCodigo}{servicoOrcado?.valor_unit != null ? ` — orçado R$ ${formatarMoeda(servicoOrcado.valor_unit)}` : ''}</span>
                     : <span className={styles.vinculoAusente}>⚠ selecione um serviço do orçamento</span>}
                 </div>
                 <label className={styles.campo}>
@@ -446,7 +447,7 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
           {contrato.retencao_pct != null && <span>🔒 Retenção {contrato.retencao_pct}%</span>}
         </div>
         <p>{contrato.objeto}</p>
-        <p><strong>Valor total: R$ {contrato.valor_total.toFixed(2)}</strong></p>
+        <p><strong>Valor total: R$ {formatarMoeda(contrato.valor_total)}</strong></p>
       </div>
 
       {ehAdmin && contrato.status === 'rascunho' && (
@@ -482,9 +483,9 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
                       <td>{s?.codigo ? `${s.codigo} — ` : ''}{s?.nome ?? '—'}</td>
                       <td>{nomeUnidade.get(it.unidade_id) ?? '—'}</td>
                       <td>{it.quantidade}</td>
-                      <td>R$ {it.valor_unitario.toFixed(2)}</td>
-                      <td>R$ {it.valor_total.toFixed(2)}</td>
-                      <td>{s?.valor_unit != null ? `R$ ${s.valor_unit.toFixed(2)}` : '—'}</td>
+                      <td>R$ {formatarMoeda(it.valor_unitario)}</td>
+                      <td>R$ {formatarMoeda(it.valor_total)}</td>
+                      <td>{s?.valor_unit != null ? `R$ ${formatarMoeda(s.valor_unit)}` : '—'}</td>
                     </tr>
                   )
                 })}
@@ -578,7 +579,7 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
             <button key={m.id} className={styles.btnSecundario}
               style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 6 }}
               onClick={() => navigate(`/contratos/${contrato.id}/medicoes/${m.id}`)}>
-              {m.numero}ª medição — {STATUS_MEDICAO_LABEL[m.status]} — R$ {m.valor_liquido.toFixed(2)}
+              {m.numero}ª medição — {STATUS_MEDICAO_LABEL[m.status]} — R$ {formatarMoeda(m.valor_liquido)}
             </button>
           ))}
         </div>

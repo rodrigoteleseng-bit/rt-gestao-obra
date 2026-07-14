@@ -4,6 +4,7 @@ import { useObra } from '../contexts/ObraContext'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, type Servico, type PedidoCompra, type PedidoCompraItem, type Cotacao, type CotacaoItem, type Fornecedor, type RecebimentoNf } from '../lib/supabase'
 import { STATUS_LABEL } from './Compras'
+import { formatarMoeda } from '../lib/formato'
 import styles from './CompraForm.module.css'
 
 interface ItemNovo {
@@ -866,7 +867,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
                       <td key={c.id}>
                         {preco !== null ? (
                           <>
-                            <span className={vencedor ? styles.precoVencedor : ''}>R$ {preco.toFixed(2)}</span>
+                            <span className={vencedor ? styles.precoVencedor : ''}>R$ {formatarMoeda(preco)}</span>
                             {ehAdmin && pedido.status === 'em_cotacao' && (
                               <div>
                                 <button
@@ -1025,7 +1026,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
                   avisos.push(`recebido no almoxarifado (${qtdAlmoxarifado} ${it.und}) ≠ aprovado (${it.quantidade_pedida} ${it.und})`)
                 }
                 if (it.valor_recebido !== null && valorAprovado !== null && it.valor_recebido !== valorAprovado) {
-                  avisos.push(`valor da NF (R$ ${it.valor_recebido.toFixed(2)}) ≠ valor aprovado (R$ ${valorAprovado.toFixed(2)})`)
+                  avisos.push(`valor da NF (R$ ${formatarMoeda(it.valor_recebido)}) ≠ valor aprovado (R$ ${formatarMoeda(valorAprovado)})`)
                 }
                 const diverge = avisos.length > 0
 
@@ -1034,16 +1035,16 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
                     <td>{it.descricao_item}</td>
                     <td>
                       {it.quantidade_pedida} {it.und}
-                      {preco !== null ? <div>R$ {preco.toFixed(2)}/{it.und} — total R$ {valorAprovado!.toFixed(2)}</div>
+                      {preco !== null ? <div>R$ {formatarMoeda(preco)}/{it.und} — total R$ {formatarMoeda(valorAprovado!)}</div>
                         : <div className={styles.msgInfo}>preço vencedor não definido</div>}
                     </td>
                     <td>
                       {qtdAlmoxarifado} {it.und}
-                      {valorAlmoxarifado !== null && <div>~R$ {valorAlmoxarifado.toFixed(2)} (a preço aprovado)</div>}
+                      {valorAlmoxarifado !== null && <div>~R$ {formatarMoeda(valorAlmoxarifado)} (a preço aprovado)</div>}
                     </td>
                     <td>
                       {nfAnexada
-                        ? (it.valor_recebido !== null ? <>R$ {it.valor_recebido.toFixed(2)}</> : <span className={styles.msgInfo}>NF anexada — valor por item não informado</span>)
+                        ? (it.valor_recebido !== null ? <>R$ {formatarMoeda(it.valor_recebido)}</> : <span className={styles.msgInfo}>NF anexada — valor por item não informado</span>)
                         : <span className={styles.msgInfo}>sem NF anexada ainda</span>}
                     </td>
                     <td>

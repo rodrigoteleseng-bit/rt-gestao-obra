@@ -498,3 +498,32 @@ export interface ContratoItem {
   criado_em: string
   criado_por: string
 }
+
+export type StatusMedicao = 'rascunho' | 'aprovada'
+
+export interface Medicao {
+  id: string
+  contrato_id: string
+  numero: number
+  data_referencia: string
+  status: StatusMedicao
+  valor_bruto: number
+  valor_retido: number
+  valor_liquido: number
+  aprovada_por: string | null
+  aprovada_em: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface MedicaoItem {
+  id: string
+  medicao_id: string
+  contrato_item_id: string
+  quantidade_periodo: number
+  valor_total_item: number
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}

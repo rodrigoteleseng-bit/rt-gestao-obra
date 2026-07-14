@@ -238,10 +238,23 @@ export default function MedicaoForm() {
     return <div className={styles.page}><p className={styles.vazio}>Medição não encontrada.</p></div>
   }
 
-  const bruto = linhas.reduce((acc, l) => acc + (Number(l.quantidadePeriodo) || 0) * l.valorUnitario, 0)
+  const brutoCalc = linhas.reduce((acc, l) => acc + (Number(l.quantidadePeriodo) || 0) * l.valorUnitario, 0)
   const retencaoPct = contrato.retencao_pct ?? 0
-  const retido = Math.round(bruto * retencaoPct) / 100
-  const liquido = bruto - retido
+  const retidoCalc = Math.round(brutoCalc * retencaoPct) / 100
+  const liquidoCalc = brutoCalc - retidoCalc
+
+  // Medição aprovada é registro permanente: o resumo mostra sempre o
+  // valor persistido (valor_bruto/retido/liquido), mantido pelo
+  // trigger recalcular_valor_medicao — nunca o recomputo em memória,
+  // que soma floats do JS ("arredonda a soma") enquanto o banco soma
+  // valor_total_item já arredondado por item ("soma de arredondados"),
+  // podendo divergir por centavos em medições com vários itens. Em
+  // rascunho (ou numa medição nova) o recomputo ao vivo continua
+  // necessário pra refletir edição de quantidade ainda não salva.
+  const aprovada = !nova && medicao?.status === 'aprovada'
+  const bruto = aprovada ? medicao!.valor_bruto : brutoCalc
+  const retido = aprovada ? medicao!.valor_retido : retidoCalc
+  const liquido = aprovada ? medicao!.valor_liquido : liquidoCalc
   const podeEditarItens = podeEditar && (nova || medicao?.status === 'rascunho')
 
   return (

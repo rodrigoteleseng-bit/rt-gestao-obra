@@ -116,7 +116,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
 
   cabecalhoTabela()
 
-  let bruto = 0
+  let brutoItens = 0
   for (const it of d.itens) {
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8.5)
@@ -124,7 +124,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     const linhasItem = pdf.splitTextToSize(nomeCompleto, colW.item - 2) as string[]
     const alturaLinha = Math.max(linhasItem.length, 1) * 4.2 + 2.5
     const valorTotalItem = it.quantidadePeriodo * it.valorUnitario
-    bruto += valorTotalItem
+    brutoItens += valorTotalItem
 
     precisa(alturaLinha)
     pdf.setDrawColor('#E0DAD0')
@@ -146,9 +146,19 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   y += 10
 
   // ---------- resumo financeiro ----------
+  // Medição aprovada é registro permanente: o resumo impresso usa
+  // sempre o valor persistido (valor_bruto/retido/liquido), mantido
+  // pelo trigger recalcular_valor_medicao — nunca o recomputo a partir
+  // dos itens, que soma floats do JS ("arredonda a soma") enquanto o
+  // banco soma valor_total_item já arredondado por item ("soma de
+  // arredondados"), podendo divergir por centavos. Em rascunho não há
+  // valor definitivo ainda, então o PDF recomputa a partir dos itens
+  // passados (mesmo cálculo já usado linha a linha acima).
+  const aprovada = d.medicao.status === 'aprovada'
   const retencaoPct = d.contrato.retencao_pct ?? 0
-  const retido = Math.round(bruto * retencaoPct) / 100
-  const liquido = bruto - retido
+  const bruto = aprovada ? d.medicao.valor_bruto : brutoItens
+  const retido = aprovada ? d.medicao.valor_retido : Math.round(brutoItens * retencaoPct) / 100
+  const liquido = aprovada ? d.medicao.valor_liquido : bruto - retido
 
   precisa(24)
   pdf.setFont('helvetica', 'normal')

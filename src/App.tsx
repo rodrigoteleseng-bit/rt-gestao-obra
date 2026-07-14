@@ -22,6 +22,7 @@ import Compras from './pages/Compras'
 import Contratos from './pages/Contratos'
 import ContratoForm from './pages/ContratoForm'
 import MedicaoForm from './pages/MedicaoForm'
+import Medicoes from './pages/Medicoes'
 import CompraForm from './pages/CompraForm'
 import FvsPage from './pages/Fvs'
 import FvsForm from './pages/FvsForm'
@@ -62,7 +63,7 @@ function AppRoutes() {
         <Route path="definicoes" element={<Definicoes />} />
         <Route path="fornecedores" element={<Fornecedores />} />
         <Route path="empreiteiros" element={<Empreiteiros />} />
-        <Route path="medicoes" element={<EmConstrucao modulo="Medições de Empreiteiros" fase={7} />} />
+        <Route path="medicoes" element={<Medicoes />} />
         <Route path="contratos" element={<Contratos />} />
         <Route path="contratos/:id" element={<ContratoForm />} />
         <Route path="contratos/:contratoId/medicoes/:medicaoId" element={<MedicaoForm />} />

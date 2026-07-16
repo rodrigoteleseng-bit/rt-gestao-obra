@@ -56,6 +56,7 @@ export default function RDOForm() {
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [urls, setUrls] = useState<Map<string, string>>(new Map())
   const [carregando, setCarregando] = useState(true)
+  const [erroCarregamento, setErroCarregamento] = useState('')
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [salvando, setSalvando] = useState(false)
 
@@ -100,8 +101,11 @@ export default function RDOForm() {
 
   async function carregar(rdoId: string) {
     setCarregando(true)
-    const { data: r } = await supabase.from('rdos').select('*').eq('id', rdoId).single()
-    if (!r) { setCarregando(false); return }
+    setErroCarregamento('')
+    try {
+      const { data: r, error: erroRdo } = await supabase.from('rdos').select('*').eq('id', rdoId).single()
+      if (erroRdo) throw erroRdo
+      if (!r) throw new Error('RDO não encontrado.')
     setRdo(r)
     setHorario(r.horario_inicio?.slice(0, 5) ?? '')
     setClimaManha(r.clima_manha)
@@ -196,16 +200,24 @@ export default function RDOForm() {
     } else setFvsDia([])
 
     // URLs assinadas de fotos e áudios
+    // A tela já pode ser usada antes da assinatura das mídias. As imagens são
+    // liberadas progressivamente e o RDO não fica preso em "Carregando".
+    setCarregando(false)
     const paths = [...(fts.data ?? []).map(f => f.path), ...(auds.data ?? []).map(a => a.path)]
     if (paths.length > 0) {
       const novo = new Map<string, string>()
-      await Promise.all(paths.map(async p => {
-        const { data } = await supabase.storage.from('rdo').createSignedUrl(p, 3600)
-        if (data) novo.set(p, data.signedUrl)
-      }))
+      const { data, error } = await supabase.storage.from('rdo').createSignedUrls(paths, 3600)
+      for (const item of data ?? []) {
+        if (item.path && item.signedUrl) novo.set(item.path, item.signedUrl)
+      }
       setUrls(novo)
+      if (error) setMsg({ tipo: 'erro', texto: 'O RDO foi carregado, mas algumas mídias não puderam ser abertas.' })
     }
-    setCarregando(false)
+    } catch (e) {
+      setErroCarregamento(e instanceof Error ? e.message : 'Não foi possível carregar o RDO.')
+    } finally {
+      setCarregando(false)
+    }
   }
 
   async function salvarCabecalho(extra?: Partial<Rdo>): Promise<boolean> {
@@ -497,7 +509,12 @@ export default function RDOForm() {
   }
 
   if (carregando) return <div className={styles.page}><p className={styles.carregando}>Carregando RDO…</p></div>
-  if (!rdo) return <div className={styles.page}><p className={styles.vazio}>RDO não encontrado.</p></div>
+  if (erroCarregamento || !rdo) return (
+    <div className={styles.page}>
+      <p className={styles.msgErro}>{erroCarregamento || 'RDO não encontrado.'}</p>
+      <button className={styles.btnAdd} onClick={() => id && carregar(id)}>Tentar novamente</button>
+    </div>
+  )
 
   const nomeUnidade = (uid: string | null) => unidades.find(u => u.id === uid)?.nome ?? '—'
 
@@ -698,7 +715,7 @@ export default function RDOForm() {
           {fotos.map(f => (
             <figure key={f.id} className={styles.foto}>
               {urls.get(f.path)
-                ? <img src={urls.get(f.path)} alt={f.legenda ?? 'Foto do RDO'} />
+                ? <img src={urls.get(f.path)} alt={f.legenda ?? 'Foto do RDO'} loading="lazy" decoding="async" />
                 : <div className={styles.fotoPlaceholder}>…</div>}
               <figcaption>
                 {new Date(f.capturada_em).toLocaleTimeString('pt-BR').slice(0, 5)} · {fmtCoord(f.lat, f.lng, f.precisao_m)}

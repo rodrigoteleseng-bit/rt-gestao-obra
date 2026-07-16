@@ -41,24 +41,43 @@ export async function carimbarFoto(
   geo: Geo,
   capturadaEm: Date,
 ): Promise<Blob> {
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const url = URL.createObjectURL(arquivo)
-    const el = new Image()
-    el.onload = () => { URL.revokeObjectURL(url); resolve(el) }
-    el.onerror = reject
-    el.src = url
-  })
-
   const MAX = 1600
-  const escala = Math.min(1, MAX / Math.max(img.width, img.height))
-  const w = Math.round(img.width * escala)
-  const h = Math.round(img.height * escala)
+  let fonte: CanvasImageSource
+  let largura: number
+  let altura: number
+  let liberar: () => void = () => undefined
+
+  // createImageBitmap permite que navegadores móveis reduzam a foto durante a
+  // decodificação. Isso evita manter na memória todos os pixels da foto original
+  // (uma foto de 48 MP pode ocupar quase 200 MB mesmo sendo um JPEG pequeno).
+  if ('createImageBitmap' in window) {
+    const bitmap = await createImageBitmap(arquivo, { resizeWidth: MAX, resizeQuality: 'high' })
+    fonte = bitmap
+    largura = bitmap.width
+    altura = bitmap.height
+    liberar = () => bitmap.close()
+  } else {
+    const url = URL.createObjectURL(arquivo)
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image()
+      el.onload = () => resolve(el)
+      el.onerror = () => reject(new Error('Não foi possível abrir a foto.'))
+      el.src = url
+    }).finally(() => URL.revokeObjectURL(url))
+    fonte = img
+    largura = img.naturalWidth
+    altura = img.naturalHeight
+  }
+
+  const escala = Math.min(1, MAX / Math.max(largura, altura))
+  const w = Math.round(largura * escala)
+  const h = Math.round(altura * escala)
 
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
   const ctx = canvas.getContext('2d')!
-  ctx.drawImage(img, 0, 0, w, h)
+  ctx.drawImage(fonte, 0, 0, w, h)
 
   // Tarja do carimbo
   const fs = Math.max(13, Math.round(w * 0.021))
@@ -77,9 +96,16 @@ export async function carimbarFoto(
     ctx.fillText(l, pad, h - alturaTarja + pad + i * fs * 1.35, w - pad * 2)
   })
 
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(b => b ? resolve(b) : reject(new Error('falha ao gerar imagem')), 'image/jpeg', 0.85)
-  })
+  try {
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('falha ao gerar imagem')), 'image/jpeg', 0.85)
+    })
+  } finally {
+    liberar()
+    // Libera imediatamente o backing store do canvas no Chrome/Android.
+    canvas.width = 0
+    canvas.height = 0
+  }
 }
 
 export function fmtDuracao(seg: number | null | undefined): string {

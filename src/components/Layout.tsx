@@ -36,6 +36,7 @@ const MODULOS: NavItem[] = [
   { type: 'link', key: 'compras',      label: 'Compras',      icon: '🛒', path: '/compras' },
   { type: 'link', key: 'almoxarifado', label: 'Almoxarifado', icon: '📦', path: '/almoxarifado' },
   { type: 'link', key: 'medicoes',     label: 'Medições',     icon: '📏', path: '/medicoes' },
+  { type: 'link', key: 'medicoes',     label: 'Produção própria', icon: '👷', path: '/producao', sub: true },
   { type: 'link', key: 'contratos',    label: 'Contratos',    icon: '📝', path: '/contratos' },
   // ── Qualidade ────────────────────────────────────────
   { type: 'section', label: 'Qualidade', showIfAny: ['fvs', 'pendencias'] },

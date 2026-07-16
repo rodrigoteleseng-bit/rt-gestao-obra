@@ -2,84 +2,21 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
-import { supabase, type StatusMedicao } from '../lib/supabase'
+import { supabase, type ProducaoMedicao, type StatusMedicao, type Trabalhador } from '../lib/supabase'
 import { STATUS_MEDICAO_LABEL } from './MedicaoForm'
 import { formatarMoeda } from '../lib/formato'
 import styles from './Medicoes.module.css'
 
-interface MedicaoLista {
-  id: string
-  numero: number
-  status: StatusMedicao
-  valor_liquido: number
-  contrato_id: string
-  contratos: { numero: string; empreiteiros: { nome: string } | null } | null
-}
+interface MedicaoLista{id:string;numero:number;status:StatusMedicao;valor_liquido:number;contrato_id:string;contratos:{numero:string;empreiteiros:{nome:string}|null}|null}
+const STATUS_PROD:Record<string,string>={rascunho:'Rascunho',aprovada:'Aprovada',paga:'Paga',cancelada:'Cancelada'}
 
-export default function Medicoes() {
-  const { perfil } = useAuth()
-  const { obraAtiva } = useObra()
-  const navigate = useNavigate()
-
-  const [medicoes, setMedicoes] = useState<MedicaoLista[]>([])
-  const [carregando, setCarregando] = useState(true)
-  const [filtroStatus, setFiltroStatus] = useState<StatusMedicao | ''>('')
-
-  useEffect(() => {
-    if (!obraAtiva) return
-    setCarregando(true)
-    supabase.from('medicoes')
-      .select('id, numero, status, valor_liquido, contrato_id, contratos!inner(numero, obra_id, empreiteiros(nome))')
-      .eq('ativo', true)
-      .eq('contratos.obra_id', obraAtiva.id)
-      .order('criado_em', { ascending: false })
-      .then(({ data }) => {
-        setMedicoes((data ?? []) as unknown as MedicaoLista[])
-        setCarregando(false)
-      })
-  }, [obraAtiva])
-
-  const filtradas = useMemo(() => medicoes.filter(m => !filtroStatus || m.status === filtroStatus), [medicoes, filtroStatus])
-
-  if (perfil?.papel === 'cliente') {
-    return <div className={styles.page}><p className={styles.vazio}>Módulo de uso interno da equipe.</p></div>
-  }
-
-  return (
-    <div className={styles.page}>
-      <div className={styles.header}>
-        <div>
-          <h1>Medições</h1>
-          <p className={styles.sub}>Medições de todos os contratos com empreiteiros.</p>
-        </div>
-      </div>
-
-      <div className={styles.filtros}>
-        <select className={styles.selectFiltro} value={filtroStatus}
-          onChange={e => setFiltroStatus(e.target.value as StatusMedicao | '')}>
-          <option value="">Todos os status</option>
-          <option value="rascunho">Rascunho</option>
-          <option value="aprovada">Aprovada</option>
-        </select>
-      </div>
-
-      {carregando && <p className={styles.vazio}>Carregando…</p>}
-      {!carregando && filtradas.length === 0 && (
-        <p className={styles.vazio}>{medicoes.length === 0 ? 'Nenhuma medição registrada.' : 'Nenhuma medição com esse filtro.'}</p>
-      )}
-
-      {filtradas.map(m => (
-        <button key={m.id} className={styles.card} onClick={() => navigate(`/contratos/${m.contrato_id}/medicoes/${m.id}`)}>
-          <div className={styles.cardTopo}>
-            <span className={styles.cardNumero}>{m.contratos?.numero} — {m.numero}ª medição</span>
-            <span className={`${styles.chip} ${styles[`chip_${m.status}`]}`}>{STATUS_MEDICAO_LABEL[m.status]}</span>
-          </div>
-          <div className={styles.cardDesc}>{m.contratos?.empreiteiros?.nome ?? '—'}</div>
-          <div className={styles.cardRodape}>
-            <span>R$ {formatarMoeda(m.valor_liquido)}</span>
-          </div>
-        </button>
-      ))}
-    </div>
-  )
+export default function Medicoes(){
+ const {perfil}=useAuth(),{obraAtiva}=useObra(),navigate=useNavigate(); const [aba,setAba]=useState<'contratos'|'producao'>('contratos'),[medicoes,setMedicoes]=useState<MedicaoLista[]>([]),[producao,setProducao]=useState<ProducaoMedicao[]>([]),[trabalhadores,setTrabalhadores]=useState<Trabalhador[]>([]),[carregando,setCarregando]=useState(true),[filtroStatus,setFiltroStatus]=useState<StatusMedicao|''>('')
+ useEffect(()=>{if(!obraAtiva)return;setCarregando(true);Promise.all([
+  supabase.from('medicoes').select('id, numero, status, valor_liquido, contrato_id, contratos!inner(numero, obra_id, empreiteiros(nome))').eq('ativo',true).eq('contratos.obra_id',obraAtiva.id).order('criado_em',{ascending:false}),
+  supabase.from('producao_medicoes').select('*').eq('obra_id',obraAtiva.id).eq('ativo',true).order('criado_em',{ascending:false}),
+  supabase.from('trabalhadores').select('*').eq('obra_id',obraAtiva.id).order('nome')]).then(([m,p,t])=>{setMedicoes((m.data??[]) as unknown as MedicaoLista[]);setProducao(p.data??[]);setTrabalhadores(t.data??[]);setCarregando(false)})},[obraAtiva])
+ const filtradas=useMemo(()=>medicoes.filter(m=>!filtroStatus||m.status===filtroStatus),[medicoes,filtroStatus])
+ if(perfil?.papel==='cliente')return <div className={styles.page}><p className={styles.vazio}>Módulo de uso interno da equipe.</p></div>
+ return <div className={styles.page}><div className={styles.header}><div><h1>Medições</h1><p className={styles.sub}>Empreiteiros por contrato e produção de profissionais próprios.</p></div>{aba==='producao'&&<button className={styles.btnPrincipal} onClick={()=>navigate('/medicoes/producao/nova')}>+ Nova medição</button>}</div><div className={styles.abas}><button className={`${styles.aba} ${aba==='contratos'?styles.abaAtiva:''}`} onClick={()=>setAba('contratos')}>Empreiteiros</button><button className={`${styles.aba} ${aba==='producao'?styles.abaAtiva:''}`} onClick={()=>setAba('producao')}>Produção própria</button></div>{carregando&&<p className={styles.vazio}>Carregando…</p>}{!carregando&&aba==='contratos'&&<><div className={styles.filtros}><select className={styles.selectFiltro} value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value as StatusMedicao|'')}><option value="">Todos os status</option><option value="rascunho">Rascunho</option><option value="aprovada">Aprovada</option></select></div>{filtradas.map(m=><button key={m.id} className={styles.card} onClick={()=>navigate(`/contratos/${m.contrato_id}/medicoes/${m.id}`)}><div className={styles.cardTopo}><span className={styles.cardNumero}>{m.contratos?.numero} — {m.numero}ª medição</span><span className={`${styles.chip} ${styles[`chip_${m.status}`]}`}>{STATUS_MEDICAO_LABEL[m.status]}</span></div><div className={styles.cardDesc}>{m.contratos?.empreiteiros?.nome??'—'}</div><div className={styles.cardRodape}>R$ {formatarMoeda(m.valor_liquido)}</div></button>)}{!filtradas.length&&<p className={styles.vazio}>Nenhuma medição encontrada.</p>}</>}{!carregando&&aba==='producao'&&<>{producao.map(m=><button key={m.id} className={styles.card} onClick={()=>navigate(`/medicoes/producao/${m.id}`)}><div className={styles.cardTopo}><span className={styles.cardNumero}>MP-{String(m.numero).padStart(3,'0')}</span><span className={`${styles.chip} ${styles[`chip_${m.status}`]??''}`}>{STATUS_PROD[m.status]}</span></div><div className={styles.cardDesc}>{trabalhadores.find(t=>t.id===m.trabalhador_id)?.nome??'Profissional'} · {m.data_inicio} a {m.data_fim}</div><div className={styles.cardRodape}><span>Produção R$ {formatarMoeda(m.valor_producao)}</span><span>Salário R$ {formatarMoeda(m.valor_salarial)}</span><strong>Total R$ {formatarMoeda(m.valor_total)}</strong></div></button>)}{!producao.length&&<p className={styles.vazio}>Nenhuma medição de produção própria.</p>}</>}</div>
 }

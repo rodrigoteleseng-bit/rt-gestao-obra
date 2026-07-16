@@ -76,3 +76,4 @@
 .chip_aprovada { background: #e3f4e3; color: #1e6b2e; }
 
 .vazio { color: var(--cinza-600); font-size: 14px; padding: 12px 0; }
+.abas{display:flex;gap:7px;margin-bottom:15px}.aba{padding:9px 13px;border:1.5px solid var(--cinza-200);border-radius:var(--radius-sm);background:var(--branco);font-weight:700;color:var(--cinza-600);cursor:pointer}.abaAtiva{background:var(--navy);border-color:var(--navy);color:white}.btnPrincipal{border:0;border-radius:var(--radius-sm);padding:10px 14px;background:var(--navy);color:white;font-weight:700;cursor:pointer}.chip_paga{background:#dceeff;color:#245a80}.chip_cancelada{background:#fde5e5;color:#942828}

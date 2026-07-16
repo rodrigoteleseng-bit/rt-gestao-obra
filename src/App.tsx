@@ -28,6 +28,8 @@ import FvsPage from './pages/Fvs'
 import FvsForm from './pages/FvsForm'
 import Almoxarifado from './pages/Almoxarifado'
 import Efetivo from './pages/Efetivo'
+import Producao from './pages/Producao'
+import ProducaoMedicaoForm from './pages/ProducaoMedicaoForm'
 import EmConstrucao from './pages/EmConstrucao'
 
 function RotaProtegida({ children }: { children: React.ReactNode }) {
@@ -71,6 +73,8 @@ function AppRoutes() {
         <Route path="fvs/:id" element={<FvsForm />} />
         <Route path="galeria" element={<Galeria />} />
         <Route path="efetivo" element={<Efetivo />} />
+        <Route path="producao" element={<Producao />} />
+        <Route path="medicoes/producao/:id" element={<ProducaoMedicaoForm />} />
         <Route path="alertas" element={<EmConstrucao modulo="Alertas" fase={7} />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

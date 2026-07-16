@@ -172,6 +172,43 @@ export interface RdoAudio {
   ativo: boolean
 }
 
+export type TipoServicoProducao = 'alvenaria' | 'reboco'
+export type TipoAberturaProducao = 'porta' | 'janela' | 'outro'
+export type StatusMedicaoProducao = 'rascunho' | 'aprovada' | 'paga' | 'cancelada'
+
+export interface ProducaoSalario {
+  id: string; obra_id: string; trabalhador_id: string; funcao: string
+  salario_mensal: number; vigente_desde: string; vigente_ate: string | null
+  ativo: boolean; criado_por: string; criado_em: string
+}
+export interface ProducaoLancamento {
+  id: string; obra_id: string; unidade_id: string; data_producao: string
+  servico: TipoServicoProducao; parede_nome: string; comprimento: number; altura: number
+  area_bruta: number; area_aberturas: number; area_liquida: number; preco_m2: number
+  valor_total: number; observacao: string | null; ativo: boolean; criado_por: string; criado_em: string
+}
+export interface ProducaoAbertura {
+  id: string; lancamento_id: string; tipo: TipoAberturaProducao; identificacao: string | null
+  comprimento: number; altura: number; area: number; ativo: boolean
+}
+export interface ProducaoParticipante {
+  id: string; lancamento_id: string; trabalhador_id: string; fracao: number
+  area_atribuida: number; valor_atribuido: number; ativo: boolean
+}
+export interface ProducaoDiaSalarial {
+  id: string; obra_id: string; trabalhador_id: string; data: string; salario_id: string
+  salario_mensal_snapshot: number; divisor_snapshot: number; valor_dia: number
+  motivo: string; medicao_id: string | null; ativo: boolean
+}
+export interface ProducaoMedicao {
+  id: string; obra_id: string; trabalhador_id: string; numero: number
+  data_inicio: string; data_fim: string; status: StatusMedicaoProducao
+  valor_producao: number; valor_salarial: number; valor_total: number
+  aprovada_por: string | null; aprovada_em: string | null; paga_por: string | null; paga_em: string | null
+  cancelada_por: string | null; cancelada_em: string | null; motivo_cancelamento: string | null
+  ativo: boolean; criado_por: string; criado_em: string
+}
+
 export type StatusPendencia = 'aberta' | 'em_correcao' | 'resolvida'
 
 export interface Pendencia {

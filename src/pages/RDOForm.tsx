@@ -37,7 +37,6 @@ const RESULTADO_FVS_LABEL: Record<string, string> = {
   aprovada_restricao: 'Aprovada c/ restrição',
   reprovada: 'Reprovada',
 }
-const FOTOS_POR_LOTE = 3
 
 export default function RDOForm() {
   const { id } = useParams()
@@ -57,6 +56,7 @@ export default function RDOForm() {
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [urls, setUrls] = useState<Map<string, string>>(new Map())
   const [carregandoFotos, setCarregandoFotos] = useState(false)
+  const [fotoAbertaPath, setFotoAbertaPath] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erroCarregamento, setErroCarregamento] = useState('')
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
@@ -105,6 +105,7 @@ export default function RDOForm() {
     setCarregando(true)
     setErroCarregamento('')
     setUrls(new Map())
+    setFotoAbertaPath(null)
     let dadosBasicosCarregados = false
     try {
       const { data: r, error: erroRdo } = await supabase.from('rdos').select('*').eq('id', rdoId).single()
@@ -230,19 +231,33 @@ export default function RDOForm() {
     }
   }
 
-  async function carregarProximoLoteFotos() {
+  async function abrirFoto(foto: RdoFoto) {
     if (carregandoFotos) return
-    const pendentes = fotos.filter(f => !urls.has(f.path)).slice(0, FOTOS_POR_LOTE)
-    if (pendentes.length === 0) return
-    setCarregandoFotos(true)
-    const { data, error } = await supabase.storage.from('rdo')
-      .createSignedUrls(pendentes.map(f => f.path), 3600)
-    if (data) {
+    if (fotoAbertaPath === foto.path) {
+      setFotoAbertaPath(null)
       setUrls(prev => {
         const novo = new Map(prev)
-        for (const item of data) if (item.path && item.signedUrl) novo.set(item.path, item.signedUrl)
+        novo.delete(foto.path)
         return novo
       })
+      return
+    }
+    setCarregandoFotos(true)
+    // Mantém no DOM apenas uma foto do RDO. Ao trocar, a anterior perde a URL
+    // e pode ser descartada imediatamente pelo Chrome/Android.
+    setFotoAbertaPath(null)
+    setUrls(prev => {
+      const apenasAudios = new Map<string, string>()
+      for (const audio of audios) {
+        const url = prev.get(audio.path)
+        if (url) apenasAudios.set(audio.path, url)
+      }
+      return apenasAudios
+    })
+    const { data, error } = await supabase.storage.from('rdo').createSignedUrl(foto.path, 3600)
+    if (data?.signedUrl) {
+      setUrls(prev => new Map(prev).set(foto.path, data.signedUrl))
+      setFotoAbertaPath(foto.path)
     }
     if (error) setMsg({ tipo: 'erro', texto: 'Não foi possível carregar as fotos. Tente novamente.' })
     setCarregandoFotos(false)
@@ -335,8 +350,8 @@ export default function RDOForm() {
           capturada_em: capturadaEm.toISOString(), hash_sha256: hash,
         }).select().single()
         if (error) throw new Error(error.message)
-        const { data: su } = await supabase.storage.from('rdo').createSignedUrl(path, 3600)
-        if (su) setUrls(prev => new Map(prev).set(path, su.signedUrl))
+        // Não abre automaticamente a imagem recém-enviada: em celulares, várias
+        // fotos decodificadas acumuladas são a principal fonte de falta de memória.
         setFotos(prev => [...prev, data])
         anexadas++
       } catch (e) {
@@ -739,17 +754,12 @@ export default function RDOForm() {
               }} />
           </label>
         )}
-        {fotos.some(f => !urls.has(f.path)) && (
-          <button className={styles.btnAdd} onClick={carregarProximoLoteFotos} disabled={carregandoFotos}>
-            {carregandoFotos ? 'Carregando 3 fotos…' : 'Ver próximas fotos'}
-          </button>
-        )}
         <div className={styles.gradeFotos}>
           {fotos.map(f => (
             <figure key={f.id} className={styles.foto}>
               {urls.get(f.path)
                 ? <img src={urls.get(f.path)} alt={f.legenda ?? 'Foto do RDO'} loading="lazy" decoding="async" />
-                : <div className={styles.fotoPlaceholder}>Foto não carregada</div>}
+                : <div className={styles.fotoPlaceholder}>Foto fechada</div>}
               <figcaption>
                 {new Date(f.capturada_em).toLocaleTimeString('pt-BR').slice(0, 5)} · {fmtCoord(f.lat, f.lng, f.precisao_m)}
                 {podeEditar ? (
@@ -759,6 +769,9 @@ export default function RDOForm() {
                   />
                 ) : (f.legenda && <span className={styles.legendaTexto}>{f.legenda}</span>)}
               </figcaption>
+              <button className={styles.btnAdd} onClick={() => abrirFoto(f)} disabled={carregandoFotos}>
+                {fotoAbertaPath === f.path ? 'Fechar foto' : 'Ver foto'}
+              </button>
               {podeEditar && <button className={styles.btnRemoverFoto} onClick={() => removerFoto(f.id)}>✕</button>}
             </figure>
           ))}

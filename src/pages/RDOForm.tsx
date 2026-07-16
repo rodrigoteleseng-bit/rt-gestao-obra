@@ -37,6 +37,7 @@ const RESULTADO_FVS_LABEL: Record<string, string> = {
   aprovada_restricao: 'Aprovada c/ restrição',
   reprovada: 'Reprovada',
 }
+const FOTOS_POR_LOTE = 3
 
 export default function RDOForm() {
   const { id } = useParams()
@@ -55,6 +56,7 @@ export default function RDOForm() {
   const [fvsDia, setFvsDia] = useState<FvsDoDia[]>([])
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [urls, setUrls] = useState<Map<string, string>>(new Map())
+  const [carregandoFotos, setCarregandoFotos] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [erroCarregamento, setErroCarregamento] = useState('')
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
@@ -102,6 +104,8 @@ export default function RDOForm() {
   async function carregar(rdoId: string) {
     setCarregando(true)
     setErroCarregamento('')
+    setUrls(new Map())
+    let dadosBasicosCarregados = false
     try {
       const { data: r, error: erroRdo } = await supabase.from('rdos').select('*').eq('id', rdoId).single()
       if (erroRdo) throw erroRdo
@@ -129,6 +133,8 @@ export default function RDOForm() {
     setFotos(fts.data ?? [])
     setAudios(auds.data ?? [])
     setUnidades(unis.data ?? [])
+    dadosBasicosCarregados = true
+    setCarregando(false)
 
     // Fase 7: se já existe chamada nominal de presença para a data do RDO,
     // ela passa a ser a fonte de verdade do efetivo (substitui o efet.data
@@ -199,14 +205,13 @@ export default function RDOForm() {
       }))
     } else setFvsDia([])
 
-    // URLs assinadas de fotos e áudios
-    // A tela já pode ser usada antes da assinatura das mídias. As imagens são
-    // liberadas progressivamente e o RDO não fica preso em "Carregando".
-    setCarregando(false)
-    const paths = [...(fts.data ?? []).map(f => f.path), ...(auds.data ?? []).map(a => a.path)]
-    if (paths.length > 0) {
+    // Áudios são leves e podem ser preparados na abertura. Fotos existentes
+    // ficam sob demanda, em lotes pequenos, para não estourar a memória do
+    // Chrome/Android ao decodificar várias imagens ao mesmo tempo.
+    const pathsAudio = (auds.data ?? []).map(a => a.path)
+    if (pathsAudio.length > 0) {
       const novo = new Map<string, string>()
-      const { data, error } = await supabase.storage.from('rdo').createSignedUrls(paths, 3600)
+      const { data, error } = await supabase.storage.from('rdo').createSignedUrls(pathsAudio, 3600)
       for (const item of data ?? []) {
         if (item.path && item.signedUrl) novo.set(item.path, item.signedUrl)
       }
@@ -214,10 +219,33 @@ export default function RDOForm() {
       if (error) setMsg({ tipo: 'erro', texto: 'O RDO foi carregado, mas algumas mídias não puderam ser abertas.' })
     }
     } catch (e) {
-      setErroCarregamento(e instanceof Error ? e.message : 'Não foi possível carregar o RDO.')
+      const texto = e instanceof Error ? e.message : 'Não foi possível carregar o RDO.'
+      if (dadosBasicosCarregados) {
+        setMsg({ tipo: 'erro', texto: `O RDO abriu, mas uma informação complementar falhou: ${texto}` })
+      } else {
+        setErroCarregamento(texto)
+      }
     } finally {
       setCarregando(false)
     }
+  }
+
+  async function carregarProximoLoteFotos() {
+    if (carregandoFotos) return
+    const pendentes = fotos.filter(f => !urls.has(f.path)).slice(0, FOTOS_POR_LOTE)
+    if (pendentes.length === 0) return
+    setCarregandoFotos(true)
+    const { data, error } = await supabase.storage.from('rdo')
+      .createSignedUrls(pendentes.map(f => f.path), 3600)
+    if (data) {
+      setUrls(prev => {
+        const novo = new Map(prev)
+        for (const item of data) if (item.path && item.signedUrl) novo.set(item.path, item.signedUrl)
+        return novo
+      })
+    }
+    if (error) setMsg({ tipo: 'erro', texto: 'Não foi possível carregar as fotos. Tente novamente.' })
+    setCarregandoFotos(false)
   }
 
   async function salvarCabecalho(extra?: Partial<Rdo>): Promise<boolean> {
@@ -711,12 +739,17 @@ export default function RDOForm() {
               }} />
           </label>
         )}
+        {fotos.some(f => !urls.has(f.path)) && (
+          <button className={styles.btnAdd} onClick={carregarProximoLoteFotos} disabled={carregandoFotos}>
+            {carregandoFotos ? 'Carregando 3 fotos…' : 'Ver próximas fotos'}
+          </button>
+        )}
         <div className={styles.gradeFotos}>
           {fotos.map(f => (
             <figure key={f.id} className={styles.foto}>
               {urls.get(f.path)
                 ? <img src={urls.get(f.path)} alt={f.legenda ?? 'Foto do RDO'} loading="lazy" decoding="async" />
-                : <div className={styles.fotoPlaceholder}>…</div>}
+                : <div className={styles.fotoPlaceholder}>Foto não carregada</div>}
               <figcaption>
                 {new Date(f.capturada_em).toLocaleTimeString('pt-BR').slice(0, 5)} · {fmtCoord(f.lat, f.lng, f.precisao_m)}
                 {podeEditar ? (

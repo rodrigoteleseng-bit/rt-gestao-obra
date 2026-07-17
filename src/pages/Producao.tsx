@@ -18,7 +18,7 @@ import {
 import { hojeISO } from "../lib/cronograma";
 import { formatarMoeda } from "../lib/formato";
 import { converterPdfParaImagem } from "../lib/pdfParaImagem";
-import PlantaClicavel, { type ZonaDesenhada } from "../components/PlantaClicavel";
+import PlantaClicavel, { type ZonaDesenhada, type RotuloAjustado } from "../components/PlantaClicavel";
 import styles from "./Producao.module.css";
 
 type Aba = "lancamentos" | "plantas" | "dias" | "salarios";
@@ -743,6 +743,16 @@ function Plantas() {
     });
   }
 
+  async function moverRotulo(paredeId: string, dados: RotuloAjustado) {
+    const { error } = await supabase.from("producao_paredes").update({
+      rotulo_pos_x: dados.pos_x, rotulo_pos_y: dados.pos_y, rotulo_rotacao: dados.rotacao,
+    }).eq("id", paredeId);
+    if (error) { setMsg({ tipo: "erro", texto: error.message }); return; }
+    setParedes((atual) => atual.map((p) => (p.id === paredeId
+      ? { ...p, rotulo_pos_x: dados.pos_x, rotulo_pos_y: dados.pos_y, rotulo_rotacao: dados.rotacao }
+      : p)));
+  }
+
   async function salvarEdicaoMeta() {
     if (!editandoParede) return;
     const { error } = await supabase.rpc("producao_editar_meta_parede", {
@@ -782,7 +792,9 @@ function Plantas() {
               paredes={paredesDaPlanta}
               modo="desenhar"
               onDesenhar={setZonaPendente}
+              onMoverRotulo={moverRotulo}
             />
+            <p className={styles.sub}>Arraste o nome de uma parede pra reposicionar; arraste a bolinha ao lado dele pra girar.</p>
             <div className={styles.lista}>
               {paredesDaPlanta.map((p) => (
                 <div className={styles.linha} key={p.id}>

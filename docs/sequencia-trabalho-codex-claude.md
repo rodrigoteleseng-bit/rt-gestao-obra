@@ -69,6 +69,13 @@ Rodrigo é responsável por:
 - confirmar se o resultado atende à operação;
 - dar o aceite final de cada módulo.
 
+### 2.4 Roteamento por tipo de tarefa
+
+Quando um pedido não indicar explicitamente qual IA deve executar, ou for enviado pras
+duas ao mesmo tempo, usar a tabela de roteamento em `docs/colaboracao-codex-claude.md`
+("Roteamento por tipo de tarefa") — a IA que receber o pedido decide sozinha por ela,
+sem esperar o Rodrigo escolher a cada vez.
+
 ## 3. Regra principal de segurança operacional
 
 Somente uma IA pode implementar uma tarefa ou editar um conjunto de arquivos por vez.
@@ -115,7 +122,11 @@ Responsáveis: Rodrigo + Codex.
 
 ### Etapa 3 — Arquitetura ou revisão prévia
 
-Responsável: Claude Code, para módulos grandes ou de alto risco.
+Responsável: Claude Code, para módulos grandes ou sempre que o escopo se enquadrar em
+uma categoria de risco definida em `docs/colaboracao-codex-claude.md` (RLS, trigger,
+RPC de escrita composta, cálculo financeiro, máquina de estado de aprovação). Nessas
+categorias a revisão prévia é obrigatória mesmo em correção pontual — não é uma opção
+do Codex decidir se pula esta etapa.
 
 O Claude Code deve trabalhar em modo somente leitura e analisar:
 
@@ -222,11 +233,17 @@ Responsável: Codex.
 3. Justificar tecnicamente achados não confirmados.
 4. Repetir os testes afetados.
 5. Criar novo commit e publicar.
-6. Solicitar nova revisão quando o risco justificar.
+6. Solicitar nova revisão do Claude Code sempre que o commit se enquadrar em uma
+   categoria de risco (`docs/colaboracao-codex-claude.md`); para as demais mudanças,
+   a critério do risco observado.
 
 ### Etapa 10 — Teste real e aceite
 
 Responsáveis: Rodrigo + Codex.
+
+Se o commit se enquadrar em uma categoria de risco (`docs/colaboracao-codex-claude.md`),
+as Etapas 8 e 9 precisam estar concluídas — achados tratados, não só entregues — antes
+de iniciar este teste com dados reais.
 
 1. Codex prepara um roteiro simples e verificável.
 2. Rodrigo executa o fluxo com dados reais.
@@ -434,7 +451,8 @@ Uma atividade somente está concluída quando, conforme aplicável:
 - celular e desktop foram verificados;
 - permissões dos três papéis foram testadas;
 - isolamento entre obras foi preservado;
-- revisão independente foi tratada;
+- revisão independente foi tratada — obrigatória, não opcional, se a mudança se
+  enquadrar em uma categoria de risco (`docs/colaboracao-codex-claude.md`);
 - deploy foi verificado;
 - documentação foi atualizada;
 - dados de teste foram removidos ou identificados;

@@ -32,7 +32,59 @@ Usar as duas IAs com responsabilidades complementares, sem alterações concorre
 6. Migrações Supabase são sempre versionadas; nenhuma alteração manual fica sem arquivo correspondente.
 7. Nunca incluir arquivos ou mudanças do usuário que não pertençam à tarefa.
 8. Deploy em produção ocorre somente depois de build e verificações proporcionais ao risco.
-9. O aceite final continua sendo do Rodrigo, preferencialmente com dados reais.
+9. O aceite final continua sendo do Rodrigo, preferencialmente com dados reais, sujeito
+   à revisão obrigatória por categoria de risco (abaixo) quando aplicável.
+
+## Categorias de risco com revisão obrigatória
+
+O critério de quando o Claude Code revisa não é mais só "módulo grande" — é a
+**categoria da mudança**, independente do tamanho. Isso existe porque uma correção
+pontual pode mexer exatamente na parte mais sensível do sistema (foi o caso da fix de
+17/07/2026 que tornou Compras/Contratos/Medições transacionais: pequena em linhas,
+alto risco em conteúdo, e só foi revisada depois do deploy).
+
+Qualquer mudança que se enquadre em uma das categorias abaixo exige revisão do Claude
+Code — não é uma decisão do Codex sobre se "o risco justifica":
+
+- RLS (policy nova ou alterada);
+- trigger novo ou alterado;
+- RPC que escreve em mais de uma tabela na mesma transação;
+- cálculo financeiro (valor, retenção, saldo, rateio);
+- máquina de estado de aprovação (mudança de status irreversível ou exclusiva de um papel).
+
+Regra de sequência:
+
+- Se o desenho ainda está aberto (a mudança ainda não foi implementada), a revisão é
+  **prévia** (Etapa 3 de `docs/sequencia-trabalho-codex-claude.md`), mesmo em correção
+  pontual.
+- Se a mudança já foi implementada e commitada, a revisão é **pós-commit** (Etapa 8) e
+  precisa estar concluída, com os achados tratados, **antes** de o Rodrigo validar o
+  fluxo com dados reais (Etapa 10). O Codex não deve pedir o teste de campo do Rodrigo
+  nessas categorias sem antes passar pela revisão.
+
+## Roteamento por tipo de tarefa
+
+Quando não há dúvida sobre o que fazer, mas há dúvida sobre **qual IA deve fazer**, usar
+esta tabela como padrão — a IA que receber o pedido decide sozinha por ela, sem esperar
+o Rodrigo escolher a cada vez.
+
+| Tipo de tarefa | Responsável padrão | Por quê |
+|---|---|---|
+| Implementação de escopo já aprovado (tela, fluxo, ajuste) | Codex | Execução direta, iteração rápida com build/teste |
+| Investigação de erro em produção | Codex | Acesso ao ciclo de deploy e correção rápida |
+| Importação/carga de dados (planilha, CSV, cadastro em massa) | Codex | Tarefa mecânica e repetitiva |
+| UI/UX — ajuste visual, responsividade, polimento de tela existente | Codex | Execução de uma decisão já tomada |
+| UI/UX — auditoria ou redesenho estrutural (ex.: "essa tabela não funciona no celular, o que fazer?") | Claude Code decide o desenho primeiro, Codex implementa depois | Decisão de arquitetura de experiência antes de mexer em código |
+| Documentação de módulo/fase (`docs/faseN.md`, `CLAUDE.md`, `AGENTS.md`) | Codex | Quem implementou sabe exatamente o que documentar |
+| Documentação do próprio protocolo Codex+Claude (este arquivo e `docs/sequencia-trabalho-codex-claude.md`) | Quem for solicitado a escrever, sempre com aprovação explícita do Rodrigo | Não é execução de produto, é acordo operacional entre as duas IAs |
+| Arquitetura, RLS, integração entre módulos, categorias de risco (seção acima) | Claude Code, revisão obrigatória | Ver "Categorias de risco com revisão obrigatória" |
+| Revisão de commit concluído | Claude Code | Segunda opinião independente de quem não escreveu o código |
+
+Pedido ambíguo, ou enviado pras duas IAs ao mesmo tempo: a IA que receber primeiro
+confere esta tabela. Se a tarefa bater com uma linha do Claude Code (arquitetura,
+categoria de risco, auditoria estrutural), ela direciona pra mim antes de qualquer
+implementação — inclusive avisando o Codex para não implementar em paralelo. Se bater
+com uma linha do Codex, ele segue direto, sem esperar revisão prévia.
 
 ## Formato obrigatório de uma revisão
 

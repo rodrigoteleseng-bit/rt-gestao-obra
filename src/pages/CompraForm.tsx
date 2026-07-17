@@ -395,7 +395,13 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
   }
 
   async function salvarItensEditados() {
-    const ativos = itensEdit.filter(it => !it.removido)
+    const itensParaSalvar = itensEdit.filter(it => it.id !== null || (
+      !it.removido && (
+        it.descricao_item.trim() || it.servico_id || it.buscaAplicacao.trim() ||
+        it.quantidade_pedida !== '' || it.und.trim() || it.data_necessaria || it.urgente
+      )
+    ))
+    const ativos = itensParaSalvar.filter(it => !it.removido)
     const validos = ativos.filter(it => it.descricao_item.trim() && Number(it.quantidade_pedida) > 0)
     if (validos.length === 0) {
       setMsgItens({ tipo: 'erro', texto: 'O pedido precisa de ao menos um item com descrição e quantidade.' })
@@ -406,7 +412,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
 
     const { error } = await supabase.rpc('salvar_itens_pedido_compra', {
       p_pedido: pedido.id,
-      p_itens: itensEdit.map(it => ({
+      p_itens: itensParaSalvar.map(it => ({
         id: it.id,
         removido: it.removido,
         descricao_item: it.descricao_item.trim(),

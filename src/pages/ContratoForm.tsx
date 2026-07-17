@@ -377,11 +377,17 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
   }
 
   async function salvarItens() {
+    const itensParaSalvar = itensEdit.filter(it => it.id !== null || (
+      !it.removido && (
+        it.servico_id || it.buscaAplicacao.trim() || it.unidade_id ||
+        it.quantidade !== '' || it.valor_unitario !== ''
+      )
+    ))
     setSalvandoItens(true)
     setMsg(null)
     const { error } = await supabase.rpc('salvar_itens_contrato', {
       p_contrato: contrato.id,
-      p_itens: itensEdit.map(it => ({
+      p_itens: itensParaSalvar.map(it => ({
         id: it.id,
         removido: it.removido,
         servico_id: it.servico_id,

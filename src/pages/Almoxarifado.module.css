@@ -378,6 +378,9 @@
   padding: 16px;
   margin-bottom: 16px;
   box-shadow: var(--sombra-sm);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .blocoAninhado {
@@ -385,6 +388,8 @@
   border-radius: var(--radius-sm);
   padding: 12px;
   margin-bottom: 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .acoesInline {
@@ -404,6 +409,9 @@
 }
 
 .campo input, .campo select, .campo textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   padding: 10px 12px;
   border: 1.5px solid var(--cinza-200);
   border-radius: var(--radius-sm);
@@ -452,6 +460,12 @@
 
 /* ── mobile ── */
 @media (max-width: 640px) {
+  .painelForm,
+  .blocoAninhado,
+  .itemLinhaReq {
+    overflow-wrap: anywhere;
+  }
+
   .linha {
     flex-direction: column;
     align-items: flex-start;

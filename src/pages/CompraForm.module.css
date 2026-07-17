@@ -51,6 +51,9 @@
   padding: 16px;
   margin-bottom: 12px;
   box-shadow: var(--sombra-sm);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .campo {
@@ -64,6 +67,9 @@
 }
 
 .campo input, .campo select, .campo textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   padding: 10px 12px;
   border: 1.5px solid var(--cinza-200);
   border-radius: var(--radius-sm);
@@ -235,6 +241,12 @@
 }
 
 @media (max-width: 640px) {
+  .bloco,
+  .itemLinha,
+  .fornecedorForm {
+    overflow-wrap: anywhere;
+  }
+
   .itemGrid {
     grid-template-columns: 1fr;
   }

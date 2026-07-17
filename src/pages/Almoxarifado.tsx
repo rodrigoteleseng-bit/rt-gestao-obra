@@ -265,7 +265,7 @@ function AbaEstoque() {
     const { data: movs } = await supabase.from('estoque_movimentos').select('*')
       .eq('material_id', m.id).order('criado_em', { ascending: false })
     setMovimentos(movs ?? [])
-    const idsAutores = [...new Set((movs ?? []).map(mv => mv.criado_por))]
+    const idsAutores = [...new Set((movs ?? []).flatMap(mv => [mv.criado_por, mv.editado_por]).filter((id): id is string => !!id))]
     if (idsAutores.length) {
       const { data: perfis } = await supabase.from('perfis_usuario').select('id, nome').in('id', idsAutores)
       setAutores(new Map((perfis ?? []).map(u => [u.id, u.nome])))
@@ -555,7 +555,9 @@ function AbaEstoque() {
                         {mv.retirado_por && <span>Retirado por: {mv.retirado_por}</span>}
                         {mv.aplicacao && <span>Aplicação: {mv.aplicacao}</span>}
                         {mv.observacao && <span>Obs.: {mv.observacao}</span>}
-                        {mv.editado_em && <span>Corrigido em {fmtDataHora(mv.editado_em)}</span>}
+                        {mv.editado_em && (
+                          <span>Corrigido por {autores.get(mv.editado_por ?? '') ?? '?'} em {fmtDataHora(mv.editado_em)}</span>
+                        )}
                       </div>
                       <div className={styles.movRodape}>
                         <span>{autores.get(mv.criado_por) ?? '?'} · {fmtDataHora(mv.criado_em)}</span>

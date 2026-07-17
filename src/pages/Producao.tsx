@@ -6,14 +6,19 @@ import {
   type ProducaoDiaSalarial,
   type ProducaoLancamento,
   type ProducaoSalario,
+  type ProducaoPlanta,
+  type ProducaoParede,
+  type Pavimento,
   type Trabalhador,
   type Unidade,
 } from "../lib/supabase";
 import { hojeISO } from "../lib/cronograma";
 import { formatarMoeda } from "../lib/formato";
+import { converterPdfParaImagem } from "../lib/pdfParaImagem";
+import PlantaClicavel, { type ZonaDesenhada } from "../components/PlantaClicavel";
 import styles from "./Producao.module.css";
 
-type Aba = "lancamentos" | "dias" | "salarios";
+type Aba = "lancamentos" | "plantas" | "dias" | "salarios";
 type Msg = { tipo: "ok" | "erro"; texto: string } | null;
 type Abertura = {
   tipo: "porta" | "janela" | "outro";
@@ -69,6 +74,7 @@ export default function Producao() {
     );
   const rotulo: Record<Aba, string> = {
     lancamentos: "Lançamentos diários",
+    plantas: "Plantas",
     dias: "Dias salariais",
     salarios: "Salários",
   };
@@ -96,6 +102,7 @@ export default function Producao() {
       {aba === "lancamentos" && (
         <Lancamentos trabalhadores={trabalhadores} unidades={unidades} />
       )}{" "}
+      {aba === "plantas" && <Plantas />}{" "}
       {aba === "dias" && <Dias trabalhadores={trabalhadores} />}{" "}
       {aba === "salarios" && <Salarios trabalhadores={trabalhadores} />}
     </div>
@@ -674,6 +681,222 @@ function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
   );
 }
 
+const PAVIMENTOS: { valor: Pavimento; rotulo: string }[] = [
+  { valor: "terreo", rotulo: "Térreo" },
+  { valor: "superior", rotulo: "Superior" },
+  { valor: "platibanda", rotulo: "Platibanda" },
+  { valor: "caixa_agua", rotulo: "Caixa d'água" },
+];
+
+function Plantas() {
+  const { obraAtiva } = useObra();
+  const [plantas, setPlantas] = useState<ProducaoPlanta[]>([]),
+    [paredes, setParedes] = useState<ProducaoParede[]>([]),
+    [pavimentoSel, setPavimentoSel] = useState<Pavimento>("terreo"),
+    [enviandoPdf, setEnviandoPdf] = useState(false),
+    [msg, setMsg] = useState<Msg>(null),
+    [zonaPendente, setZonaPendente] = useState<ZonaDesenhada | null>(null),
+    [formParede, setFormParede] = useState({
+      nome: "", metaAlvenaria: "", metaRebocoA: "", metaRebocoB: "",
+    }),
+    [editandoParede, setEditandoParede] = useState<ProducaoParede | null>(null),
+    [formEdicao, setFormEdicao] = useState({ metaAlvenaria: "", metaRebocoA: "", metaRebocoB: "" }),
+    [urlImagem, setUrlImagem] = useState<string | null>(null);
+
+  const plantaAtual = plantas.find((p) => p.pavimento === pavimentoSel) ?? null;
+  const paredesDaPlanta = paredes.filter((p) => p.planta_id === plantaAtual?.id);
+
+  async function carregar() {
+    if (!obraAtiva) return;
+    const [pl, pa] = await Promise.all([
+      supabase.from("producao_plantas").select("*").eq("obra_id", obraAtiva.id).eq("ativo", true),
+      supabase.from("producao_paredes").select("*").eq("ativo", true),
+    ]);
+    setPlantas(pl.data ?? []);
+    setParedes(pa.data ?? []);
+  }
+  useEffect(() => { carregar(); }, [obraAtiva]);
+
+  useEffect(() => {
+    let cancelado = false;
+    async function carregarUrl() {
+      if (!plantaAtual) { setUrlImagem(null); return; }
+      const { data } = await supabase.storage.from("producao-plantas").createSignedUrl(plantaAtual.imagem_path, 3600);
+      if (!cancelado) setUrlImagem(data?.signedUrl ?? null);
+    }
+    carregarUrl();
+    return () => { cancelado = true; };
+  }, [plantaAtual]);
+
+  async function enviarPdf(arquivo: File) {
+    if (!obraAtiva) return;
+    setEnviandoPdf(true);
+    setMsg(null);
+    try {
+      const imagemBlob = await converterPdfParaImagem(arquivo);
+      const pasta = `${obraAtiva.id}/${pavimentoSel}`;
+      const pdfPath = `${pasta}/planta-${crypto.randomUUID()}.pdf`;
+      const imagemPath = `${pasta}/planta-${crypto.randomUUID()}.png`;
+      const [upPdf, upImg] = await Promise.all([
+        supabase.storage.from("producao-plantas").upload(pdfPath, arquivo),
+        supabase.storage.from("producao-plantas").upload(imagemPath, imagemBlob),
+      ]);
+      if (upPdf.error || upImg.error) {
+        throw new Error(upPdf.error?.message ?? upImg.error?.message);
+      }
+      const { error } = await supabase.from("producao_plantas").upsert(
+        { obra_id: obraAtiva.id, pavimento: pavimentoSel, pdf_path: pdfPath, imagem_path: imagemPath },
+        { onConflict: "obra_id,pavimento" },
+      );
+      if (error) throw new Error(error.message);
+      setMsg({ tipo: "ok", texto: "Planta enviada." });
+      await carregar();
+    } catch (erro) {
+      setMsg({ tipo: "erro", texto: `Falha ao enviar a planta: ${(erro as Error).message}` });
+    }
+    setEnviandoPdf(false);
+  }
+
+  async function salvarParede() {
+    if (!plantaAtual || !zonaPendente || !formParede.nome.trim()) return;
+    const metaAlv = numero(formParede.metaAlvenaria) || null,
+      metaA = numero(formParede.metaRebocoA) || null,
+      metaB = numero(formParede.metaRebocoB) || null;
+    if (!metaAlv && !metaA && !metaB) {
+      setMsg({ tipo: "erro", texto: "Informe ao menos uma meta (alvenaria ou reboco)." });
+      return;
+    }
+    const { error } = await supabase.from("producao_paredes").insert({
+      planta_id: plantaAtual.id,
+      nome: formParede.nome.trim(),
+      pos_x: zonaPendente.pos_x, pos_y: zonaPendente.pos_y,
+      largura: zonaPendente.largura, altura_px: zonaPendente.altura_px,
+      meta_alvenaria_m2: metaAlv, meta_reboco_a_m2: metaA, meta_reboco_b_m2: metaB,
+    });
+    if (error) { setMsg({ tipo: "erro", texto: error.message }); return; }
+    setZonaPendente(null);
+    setFormParede({ nome: "", metaAlvenaria: "", metaRebocoA: "", metaRebocoB: "" });
+    await carregar();
+  }
+
+  function abrirEdicao(parede: ProducaoParede) {
+    setEditandoParede(parede);
+    setFormEdicao({
+      metaAlvenaria: parede.meta_alvenaria_m2?.toString().replace(".", ",") ?? "",
+      metaRebocoA: parede.meta_reboco_a_m2?.toString().replace(".", ",") ?? "",
+      metaRebocoB: parede.meta_reboco_b_m2?.toString().replace(".", ",") ?? "",
+    });
+  }
+
+  async function salvarEdicaoMeta() {
+    if (!editandoParede) return;
+    const { error } = await supabase.rpc("producao_editar_meta_parede", {
+      p_parede: editandoParede.id,
+      p_meta_alvenaria: numero(formEdicao.metaAlvenaria) || null,
+      p_meta_reboco_a: numero(formEdicao.metaRebocoA) || null,
+      p_meta_reboco_b: numero(formEdicao.metaRebocoB) || null,
+    });
+    if (error) { setMsg({ tipo: "erro", texto: error.message }); return; }
+    setEditandoParede(null);
+    await carregar();
+  }
+
+  return (
+    <>
+      <section className={styles.bloco}>
+        <h2>Planta do pavimento</h2>
+        <div className={styles.campos}>
+          <Campo label="Pavimento">
+            <select className={styles.select} value={pavimentoSel} onChange={(e) => setPavimentoSel(e.target.value as Pavimento)}>
+              {PAVIMENTOS.map((p) => <option key={p.valor} value={p.valor}>{p.rotulo}</option>)}
+            </select>
+          </Campo>
+        </div>
+        {!plantaAtual && (
+          <div className={styles.acoes}>
+            <input type="file" accept="application/pdf" disabled={enviandoPdf}
+              onChange={(e) => e.target.files?.[0] && enviarPdf(e.target.files[0])} />
+          </div>
+        )}
+        <Mensagem msg={msg} />
+        {urlImagem && (
+          <>
+            <p className={styles.sub}>Clique e arraste sobre uma parede para cadastrar a faixa clicável.</p>
+            <PlantaClicavel
+              imagemUrl={urlImagem}
+              paredes={paredesDaPlanta}
+              modo="desenhar"
+              onDesenhar={setZonaPendente}
+            />
+            <div className={styles.lista}>
+              {paredesDaPlanta.map((p) => (
+                <div className={styles.linha} key={p.id}>
+                  <strong>{p.nome}</strong>
+                  <div className={styles.meta}>
+                    {p.meta_alvenaria_m2 != null && `Alvenaria: ${p.meta_alvenaria_m2.toFixed(2)} m²`}
+                    {p.meta_reboco_a_m2 != null && ` · Reboco A: ${p.meta_reboco_a_m2.toFixed(2)} m²`}
+                    {p.meta_reboco_b_m2 != null && ` · Reboco B: ${p.meta_reboco_b_m2.toFixed(2)} m²`}
+                  </div>
+                  <button className={styles.btnSec} onClick={() => abrirEdicao(p)}>Editar metas</button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+      {editandoParede && (
+        <div className={styles.modalFundo} onClick={() => setEditandoParede(null)}>
+          <div className={styles.modalCaixa} onClick={(e) => e.stopPropagation()}>
+            <h3>Editar metas — {editandoParede.nome}</h3>
+            <Campo label="Meta de alvenaria (m²)">
+              <input className={styles.input} inputMode="decimal" value={formEdicao.metaAlvenaria}
+                onChange={(e) => setFormEdicao({ ...formEdicao, metaAlvenaria: e.target.value })} />
+            </Campo>
+            <Campo label="Meta de reboco — face A (m²)">
+              <input className={styles.input} inputMode="decimal" value={formEdicao.metaRebocoA}
+                onChange={(e) => setFormEdicao({ ...formEdicao, metaRebocoA: e.target.value })} />
+            </Campo>
+            <Campo label="Meta de reboco — face B (m²)">
+              <input className={styles.input} inputMode="decimal" value={formEdicao.metaRebocoB}
+                onChange={(e) => setFormEdicao({ ...formEdicao, metaRebocoB: e.target.value })} />
+            </Campo>
+            <div className={styles.acoes}>
+              <button className={styles.btn} onClick={salvarEdicaoMeta}>Salvar</button>
+              <button className={styles.btnSec} onClick={() => setEditandoParede(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {zonaPendente && (
+        <div className={styles.modalFundo} onClick={() => setZonaPendente(null)}>
+          <div className={styles.modalCaixa} onClick={(e) => e.stopPropagation()}>
+            <h3>Nova parede</h3>
+            <Campo label="Nome">
+              <input className={styles.input} value={formParede.nome}
+                onChange={(e) => setFormParede({ ...formParede, nome: e.target.value })} />
+            </Campo>
+            <Campo label="Meta de alvenaria (m²)">
+              <input className={styles.input} inputMode="decimal" value={formParede.metaAlvenaria}
+                onChange={(e) => setFormParede({ ...formParede, metaAlvenaria: e.target.value })} />
+            </Campo>
+            <Campo label="Meta de reboco — face A (m²)">
+              <input className={styles.input} inputMode="decimal" value={formParede.metaRebocoA}
+                onChange={(e) => setFormParede({ ...formParede, metaRebocoA: e.target.value })} />
+            </Campo>
+            <Campo label="Meta de reboco — face B (m²)">
+              <input className={styles.input} inputMode="decimal" value={formParede.metaRebocoB}
+                onChange={(e) => setFormParede({ ...formParede, metaRebocoB: e.target.value })} />
+            </Campo>
+            <div className={styles.acoes}>
+              <button className={styles.btn} onClick={salvarParede}>Salvar parede</button>
+              <button className={styles.btnSec} onClick={() => setZonaPendente(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 function Campo({
   label,
   children,

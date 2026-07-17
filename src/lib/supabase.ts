@@ -183,17 +183,38 @@ export interface RdoAudio {
 export type TipoServicoProducao = 'alvenaria' | 'reboco'
 export type TipoAberturaProducao = 'porta' | 'janela' | 'outro'
 export type StatusMedicaoProducao = 'rascunho' | 'aprovada' | 'paga' | 'cancelada'
+export type Pavimento = 'terreo' | 'superior' | 'platibanda' | 'caixa_agua'
+export type FaceParede = 'a' | 'b'
 
 export interface ProducaoSalario {
   id: string; obra_id: string; trabalhador_id: string; funcao: string
   salario_mensal: number; vigente_desde: string; vigente_ate: string | null
   ativo: boolean; criado_por: string; criado_em: string
 }
+export interface ProducaoPlanta {
+  id: string; obra_id: string; pavimento: Pavimento
+  pdf_path: string; imagem_path: string; ativo: boolean
+  criado_por: string; criado_em: string
+}
+export interface ProducaoParede {
+  id: string; planta_id: string; nome: string
+  pos_x: number; pos_y: number; largura: number; altura_px: number
+  meta_alvenaria_m2: number | null; meta_reboco_a_m2: number | null; meta_reboco_b_m2: number | null
+  ativo: boolean; criado_por: string; criado_em: string
+}
+export interface ProducaoParedeProgresso {
+  id: string; parede_id: string; unidade_id: string
+  servico: TipoServicoProducao; face: FaceParede | null
+  produzido_m2: number; atualizado_em: string
+}
 export interface ProducaoLancamento {
   id: string; obra_id: string; unidade_id: string; data_producao: string
-  servico: TipoServicoProducao; parede_nome: string; comprimento: number; altura: number
+  servico: TipoServicoProducao; parede_nome: string
+  parede_id: string | null; face: FaceParede | null
+  comprimento: number | null; altura: number | null
   area_bruta: number; area_aberturas: number; area_liquida: number; preco_m2: number
   valor_total: number; observacao: string | null; ativo: boolean; criado_por: string; criado_em: string
+  cancelado_em: string | null; cancelado_por: string | null; motivo_cancelamento: string | null
 }
 export interface ProducaoAbertura {
   id: string; lancamento_id: string; tipo: TipoAberturaProducao; identificacao: string | null

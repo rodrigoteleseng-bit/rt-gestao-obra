@@ -147,23 +147,23 @@ export default function PendenciaForm() {
     }
     setSalvando(true)
     setMsg(null)
-    const { data: p, error } = await supabase.from('pendencias').insert({
-      obra_id: obraAtiva.id,
-      unidade_id: unidadeSel,
-      tarefa_id: tarefaSel || null,
-      descricao: descricao.trim(),
-      responsavel: responsavel.trim() || null,
-      prazo: prazo || null,
-    }).select().single()
-    if (error || !p) {
+    const { data: pendenciaId, error } = await supabase.rpc('criar_pendencia_com_evento', {
+      p_obra: obraAtiva.id,
+      p_unidade: unidadeSel,
+      p_tarefa: tarefaSel || null,
+      p_descricao: descricao.trim(),
+      p_responsavel: responsavel.trim() || null,
+      p_prazo: prazo || null,
+    })
+    if (error || !pendenciaId) {
       setSalvando(false)
-      setMsg({ tipo: 'erro', texto: `Erro ao criar: ${error?.message}` })
+      setMsg({ tipo: 'erro', texto: `Erro ao criar: ${error?.message ?? 'retorno inválido'}` })
       return
     }
-    const { error: erroEvento } = await supabase.from('pendencia_eventos').insert({ pendencia_id: p.id, status: 'aberta', comentario: null })
-    if (erroEvento) {
+    const { data: p, error: erroLeitura } = await supabase.from('pendencias').select('*').eq('id', pendenciaId).single()
+    if (erroLeitura || !p) {
       setSalvando(false)
-      setMsg({ tipo: 'erro', texto: `A pendência foi criada, mas o evento inicial não foi registrado: ${erroEvento.message}` })
+      setMsg({ tipo: 'erro', texto: `Pendência criada, mas não foi possível abrir o detalhe: ${erroLeitura?.message ?? 'erro desconhecido'}` })
       return
     }
     for (const f of fotosStaged) {
@@ -178,33 +178,19 @@ export default function PendenciaForm() {
     if (!pendencia) return
     setSalvando(true)
     setMsg(null)
-    const patch: Partial<Pendencia> = { status: novoStatus }
-    if (novoStatus === 'resolvida') {
-      patch.resolvida_em = new Date().toISOString()
-      patch.resolvida_por = perfil?.id ?? null
-    } else {
-      patch.resolvida_em = null
-      patch.resolvida_por = null
-    }
-    const { data, error } = await supabase.from('pendencias')
-      .update(patch).eq('id', pendencia.id).select()
-    if (error || !data || data.length === 0) {
+    const { error } = await supabase.rpc('atualizar_status_pendencia_com_evento', {
+      p_pendencia: pendencia.id,
+      p_status: novoStatus,
+      p_comentario: comentario.trim() || null,
+    })
+    if (error) {
       setSalvando(false)
       setMsg({ tipo: 'erro', texto: error?.message ?? 'Sem permissão para alterar esta pendência.' })
       return
     }
-    const { data: ev, error: erroEvento } = await supabase.from('pendencia_eventos').insert({
-      pendencia_id: pendencia.id, status: novoStatus, comentario: comentario.trim() || null,
-    }).select().single()
-    setPendencia(data[0])
-    if (erroEvento || !ev) {
-      setSalvando(false)
-      setMsg({ tipo: 'erro', texto: `O status foi atualizado, mas o evento de histórico não foi registrado: ${erroEvento?.message ?? 'erro desconhecido'}` })
-      return
-    }
-    setEventos(prev => [...prev, ev])
     setComentario('')
     setSalvando(false)
+    await carregar(pendencia.id)
     setMsg({ tipo: 'ok', texto: `Status atualizado: ${STATUS_LABEL[novoStatus]}.` })
   }
 

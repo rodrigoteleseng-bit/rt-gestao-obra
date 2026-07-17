@@ -127,20 +127,17 @@ export default function FvsForm() {
     }
     setSalvando(true)
     setMsg(null)
-    const { data: f, error } = await supabase.from('fvs').insert({
-      obra_id: obraAtiva.id, modelo_id: modeloSel, unidade_id: unidadeSel,
-      tarefa_id: tarefaSel || null, local_ambiente: local.trim() || null,
-      equipe_empreiteiro: empreiteiro.trim() || null,
-    }).select().single()
-    if (error || !f) { setSalvando(false); setMsg({ tipo: 'erro', texto: `Erro ao criar: ${error?.message}` }); return }
-    const { error: erroVerificacao } = await supabase.from('fvs_verificacoes').insert({ fvs_id: f.id, numero: 1 })
-    if (erroVerificacao) {
-      setSalvando(false)
-      setMsg({ tipo: 'erro', texto: `A FVS foi criada, mas a primeira verificação não foi aberta: ${erroVerificacao.message}` })
-      return
-    }
+    const { data: fvsId, error } = await supabase.rpc('criar_fvs_com_verificacao', {
+      p_obra: obraAtiva.id,
+      p_modelo: modeloSel,
+      p_unidade: unidadeSel,
+      p_tarefa: tarefaSel || null,
+      p_local_ambiente: local.trim() || null,
+      p_equipe_empreiteiro: empreiteiro.trim() || null,
+    })
+    if (error || !fvsId) { setSalvando(false); setMsg({ tipo: 'erro', texto: `Erro ao criar: ${error?.message ?? 'retorno inválido'}` }); return }
     setSalvando(false)
-    navigate(`/fvs/${f.id}`, { replace: true })
+    navigate(`/fvs/${fvsId}`, { replace: true })
   }
 
   // marca resposta de um item (upsert na rodada aberta)

@@ -88,6 +88,14 @@ Status: auditoria técnica concluída; validação visual autenticada continua n
 
 **Correção:** foi criado um diálogo RT reutilizável, responsivo e acessível, com variante de perigo, campo obrigatório para motivo, bloqueio de rolagem, fechamento por `Esc` e devolução de foco ao controle de origem. Não restaram usos de `confirm/prompt` no frontend.
 
+### [Médio] Gravações parciais em FVS e Pendências
+
+**Evidência:** a criação de uma FVS e sua primeira verificação, assim como a criação/alteração de uma pendência e seu evento de histórico, eram feitas em chamadas separadas. Uma falha na segunda chamada podia deixar o registro principal incompleto.
+
+**Correção:** a migração `20260717_atomicidade_qualidade.sql` criou três RPCs transacionais para executar cada operação composta dentro de uma única transação do PostgreSQL. As funções usam `SECURITY INVOKER`, preservam as policies RLS, validam os vínculos obra/unidade/tarefa e aplicam as transições permitidas de status.
+
+**Validação:** as três funções foram confirmadas em produção com `search_path=public`, sem privilégio para `anon` e com execução somente para `authenticated`. O frontend passou a usar exclusivamente as novas RPCs nesses fluxos.
+
 ## Permissões validadas em produção
 
 | Perfil real | Compras | Almoxarifado | RDO | FVS | Medições |
@@ -109,13 +117,13 @@ Hoje todo usuário autenticado consegue ler a única obra e os RDOs. O modelo n�
 
 Não há perfil `cliente` ativo no banco. As policies e restrições foram revisadas estaticamente, mas o aceite exige uma conta real de cliente para confirmar menus, telas de leitura e bloqueios de escrita ponta a ponta.
 
-### [Médio] Gravações compostas ainda não são transações únicas
+### [Médio] Outras gravações compostas ainda não são transações únicas
 
-Alguns fluxos criam o registro principal e depois seus itens/eventos em chamadas separadas, como FVS, Pendências, Compras, Contratos e Medições. Agora as falhas são mostradas, mas atomicidade total exige RPCs transacionais no banco para impedir registros parciais.
+FVS e Pendências já foram convertidas para transações únicas. Compras, Contratos e Medições ainda criam o registro principal e seus itens em chamadas separadas. As falhas são mostradas, mas a atomicidade total desses três módulos exige RPCs transacionais no banco para impedir registros parciais.
 
 ## Próximos passos recomendados
 
 1. testar no celular os cartões de Compras, Contratos e Medições e os painéis corrigidos de Almoxarifado;
 2. criar uma conta cliente de teste e executar o roteiro dos três papéis;
-3. converter por prioridade as gravações compostas em RPCs transacionais;
+3. converter Compras, Contratos e Medições, por prioridade, em RPCs transacionais;
 4. implantar vínculo usuário × obra antes da entrada de uma segunda obra com acessos distintos.

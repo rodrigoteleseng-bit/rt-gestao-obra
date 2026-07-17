@@ -33,12 +33,13 @@
 
 - Banco: `supabase/migrations/20260711_fase6_almoxarifado.sql` (tabelas, RLS, RPCs, triggers de saldo/saída/entrada com pedido), `20260711_fase6_almoxarifado_fix.sql` (trigger de sincronização do recebimento), `20260711_fase6_almoxarifado_view_rls.sql` (`security_invoker=true` na view `estoque_saldos`, correção pós-revisão da Task 3).
 - Seed: `20260711_fase6_almoxarifado_seed.sql`.
+- Inventário de materiais: `20260717164000_importacao_estoque_julho.sql` — 148 saldos da coluna SALDO da planilha de julho/2026, total 11.164 unidades, aplicado em produção em 17/07/2026 como ajuste de diferença com conferência transacional.
 - Frontend: `src/pages/Almoxarifado.tsx` (+ `.module.css`), helpers de data/atraso compartilhados com o Dashboard em `src/lib/almoxarifado.ts`, painel de conferência tripla em `src/pages/CompraForm.tsx`, banner em `src/pages/Dashboard.tsx`.
 - Desenho completo e decisões tomadas com o Rodrigo: `docs/superpowers/specs/2026-07-11-fase6-almoxarifado-design.md`.
 
 ## Roteiro de teste guiado (Rodrigo)
 
-1. Abrir `/almoxarifado` (celular e desktop) → aba **Estoque**: confirmar que aparecem os 152 materiais + 46 EPIs seedados, com saldo zero nos materiais e saldo real nos EPIs. Testar o filtro por categoria e a busca por código/nome.
+1. Abrir `/almoxarifado` (celular e desktop) → aba **Estoque**: confirmar os saldos reais dos materiais importados em 17/07/2026 e os EPIs. Conferir por amostragem COD029 = 5, COD034 = 4, COD153 = 1.900 e COD154 = 1.900; testar o filtro por categoria e a busca por código/nome.
 2. Clicar num material com movimento (se já houver) para ver o extrato; senão, seguir para o passo 3.
 3. Lançar uma **entrada** vinculada a um pedido de compra real (se houver algum aprovado/enviado) — confirmar que o saldo do material sobe e que, ao abrir o pedido em Compras, `quantidade_recebida` do item também subiu.
 4. Lançar uma **saída avulsa** de um material com saldo (ex. um EPI) e confirmar o saldo descontado e o registro no extrato com autor/data.

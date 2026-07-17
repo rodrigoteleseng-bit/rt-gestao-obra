@@ -59,7 +59,10 @@ export default function PlantaClicavel({
     if (arrastandoRotulo) {
       setRotulosLocais((atual) => ({
         ...atual,
-        [arrastandoRotulo]: { ...(atual[arrastandoRotulo] ?? rotuloAtual(paredes.find((p) => p.id === arrastandoRotulo)!)), ...posicaoPercentual(evento.clientX, evento.clientY) },
+        [arrastandoRotulo]: (() => {
+          const ponto = posicaoPercentual(evento.clientX, evento.clientY)
+          return { ...(atual[arrastandoRotulo] ?? rotuloAtual(paredes.find((p) => p.id === arrastandoRotulo)!)), pos_x: ponto.x, pos_y: ponto.y }
+        })(),
       }))
       return
     }

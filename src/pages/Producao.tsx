@@ -655,7 +655,7 @@ function Plantas() {
       nome: "", metaAlvenaria: "", metaRebocoA: "", metaRebocoB: "",
     }),
     [editandoParede, setEditandoParede] = useState<ProducaoParede | null>(null),
-    [formEdicao, setFormEdicao] = useState({ metaAlvenaria: "", metaRebocoA: "", metaRebocoB: "" }),
+    [formEdicao, setFormEdicao] = useState({ nome: "", metaAlvenaria: "", metaRebocoA: "", metaRebocoB: "" }),
     [urlImagem, setUrlImagem] = useState<string | null>(null);
 
   const plantaAtual = plantas.find((p) => p.pavimento === pavimentoSel) ?? null;
@@ -737,6 +737,7 @@ function Plantas() {
   function abrirEdicao(parede: ProducaoParede) {
     setEditandoParede(parede);
     setFormEdicao({
+      nome: parede.nome,
       metaAlvenaria: parede.meta_alvenaria_m2?.toString().replace(".", ",") ?? "",
       metaRebocoA: parede.meta_reboco_a_m2?.toString().replace(".", ",") ?? "",
       metaRebocoB: parede.meta_reboco_b_m2?.toString().replace(".", ",") ?? "",
@@ -753,8 +754,14 @@ function Plantas() {
       : p)));
   }
 
-  async function salvarEdicaoMeta() {
+  async function salvarEdicaoParede() {
     if (!editandoParede) return;
+    const nome = formEdicao.nome.trim();
+    if (!nome) { setMsg({ tipo: "erro", texto: "Informe o nome da parede." }); return; }
+    if (nome !== editandoParede.nome) {
+      const { error: erroNome } = await supabase.from("producao_paredes").update({ nome }).eq("id", editandoParede.id);
+      if (erroNome) { setMsg({ tipo: "erro", texto: erroNome.message }); return; }
+    }
     const { error } = await supabase.rpc("producao_editar_meta_parede", {
       p_parede: editandoParede.id,
       p_meta_alvenaria: numero(formEdicao.metaAlvenaria) || null,
@@ -804,7 +811,7 @@ function Plantas() {
                     {p.meta_reboco_a_m2 != null && ` · Reboco A: ${p.meta_reboco_a_m2.toFixed(2)} m²`}
                     {p.meta_reboco_b_m2 != null && ` · Reboco B: ${p.meta_reboco_b_m2.toFixed(2)} m²`}
                   </div>
-                  <button className={styles.btnSec} onClick={() => abrirEdicao(p)}>Editar metas</button>
+                  <button className={styles.btnSec} onClick={() => abrirEdicao(p)}>Editar</button>
                 </div>
               ))}
             </div>
@@ -814,7 +821,11 @@ function Plantas() {
       {editandoParede && (
         <div className={styles.modalFundo} onClick={() => setEditandoParede(null)}>
           <div className={styles.modalCaixa} onClick={(e) => e.stopPropagation()}>
-            <h3>Editar metas — {editandoParede.nome}</h3>
+            <h3>Editar parede</h3>
+            <Campo label="Nome">
+              <input className={styles.input} value={formEdicao.nome}
+                onChange={(e) => setFormEdicao({ ...formEdicao, nome: e.target.value })} />
+            </Campo>
             <Campo label="Meta de alvenaria (m²)">
               <input className={styles.input} inputMode="decimal" value={formEdicao.metaAlvenaria}
                 onChange={(e) => setFormEdicao({ ...formEdicao, metaAlvenaria: e.target.value })} />
@@ -828,7 +839,7 @@ function Plantas() {
                 onChange={(e) => setFormEdicao({ ...formEdicao, metaRebocoB: e.target.value })} />
             </Campo>
             <div className={styles.acoes}>
-              <button className={styles.btn} onClick={salvarEdicaoMeta}>Salvar</button>
+              <button className={styles.btn} onClick={salvarEdicaoParede}>Salvar</button>
               <button className={styles.btnSec} onClick={() => setEditandoParede(null)}>Cancelar</button>
             </div>
           </div>

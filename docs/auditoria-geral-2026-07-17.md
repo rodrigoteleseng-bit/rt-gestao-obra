@@ -1,7 +1,7 @@
 # Auditoria geral — RT Gestão de Obra
 
 Data: 17/07/2026  
-Status: auditoria técnica concluída; validação visual autenticada continua no uso de campo
+Status: auditoria concluída — técnica, permissões e validação visual no celular aprovadas
 
 ## Escopo
 
@@ -120,16 +120,18 @@ Status: auditoria técnica concluída; validação visual autenticada continua n
 | Equipe — almoxarife | não | sim | não | não | não |
 | Equipe — campo | sim | sim | sim | sim | não |
 | Equipe — qualidade | não | não | não | sim | não |
+| Cliente temporário | não | não | somente leitura | não | não |
 
 Todos os resultados coincidiram com `modulos_permitidos`. As consultas de leitura de Obra/RDO ficaram disponíveis aos usuários autenticados, conforme o modelo atual do app.
 
-## Achados abertos
+### Validação ponta a ponta do papel cliente
 
-### [Médio] Papel cliente sem conta ativa para teste real
+Foi criada uma conta temporária real com papel `cliente`, sem módulos de edição e vinculada somente à obra Tharsos Imperial. O login e os menus foram validados no app publicado. RDO, Galeria, Avanço Físico e Definições de Projeto abriram em modo de leitura e sem controles de gravação.
 
-Não há perfil `cliente` ativo no banco. As policies e restrições foram revisadas estaticamente, mas o aceite exige uma conta real de cliente para confirmar menus, telas de leitura e bloqueios de escrita ponta a ponta.
+Pela API autenticada, a conta conseguiu consultar 1 obra, 16 unidades, 3.475 serviços, 2.816 tarefas do cronograma, 6 RDOs e 75 fotos. Compras, Contratos, Medições, FVS e Pendências não retornaram dados internos. Tentativas de atualizar Obra e RDO afetaram zero linhas, e a RPC de criação de pedido recusou a operação por falta de permissão.
 
-## Próximos passos recomendados
+Após os testes, a conta temporária foi excluída do Supabase Auth. Uma nova tentativa de login retornou `Invalid login credentials`; `perfis_usuario` e `usuarios_obras` são removidos em cascata pela FK `ON DELETE CASCADE`.
 
-1. testar no celular os cartões de Compras, Contratos e Medições e os painéis corrigidos de Almoxarifado;
-2. criar uma conta cliente de teste e executar o roteiro dos três papéis;
+## Encerramento
+
+O teste visual no celular foi aprovado por Rodrigo em 17/07/2026. Não restam achados abertos nesta auditoria.

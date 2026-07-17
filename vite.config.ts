@@ -9,6 +9,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // A navegação deve buscar o index atual na rede. Servir um index antigo
+      // pelo service worker pode apontar para bundles que a Vercel já removeu
+      // e deixar o PWA em uma tela totalmente branca após um novo deploy.
+      workbox: {
+        navigateFallback: null,
+        cleanupOutdatedCaches: true,
+      },
       manifest: {
         name: 'RT Gestão de Obra',
         short_name: 'RT Obra',

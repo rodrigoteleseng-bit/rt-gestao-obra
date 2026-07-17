@@ -131,7 +131,12 @@ export default function FvsForm() {
       equipe_empreiteiro: empreiteiro.trim() || null,
     }).select().single()
     if (error || !f) { setSalvando(false); setMsg({ tipo: 'erro', texto: `Erro ao criar: ${error?.message}` }); return }
-    await supabase.from('fvs_verificacoes').insert({ fvs_id: f.id, numero: 1 })
+    const { error: erroVerificacao } = await supabase.from('fvs_verificacoes').insert({ fvs_id: f.id, numero: 1 })
+    if (erroVerificacao) {
+      setSalvando(false)
+      setMsg({ tipo: 'erro', texto: `A FVS foi criada, mas a primeira verificação não foi aberta: ${erroVerificacao.message}` })
+      return
+    }
     setSalvando(false)
     navigate(`/fvs/${f.id}`, { replace: true })
   }
@@ -147,18 +152,39 @@ export default function FvsForm() {
       return n
     })
     if (existente?.id) {
-      await supabase.from('fvs_respostas').update({ resposta }).eq('id', existente.id)
+      const { error } = await supabase.from('fvs_respostas').update({ resposta }).eq('id', existente.id)
+      if (error) {
+        setRespostas(prev => {
+          const n = new Map(prev)
+          n.set(itemId, existente)
+          return n
+        })
+        setMsg({ tipo: 'erro', texto: `Não foi possível salvar a resposta: ${error.message}` })
+      }
     } else {
-      const { data } = await supabase.from('fvs_respostas')
+      const { data, error } = await supabase.from('fvs_respostas')
         .insert({ verificacao_id: rodadaAberta.id, item_id: itemId, resposta }).select().single()
-      if (data) setRespostas(prev => new Map(prev).set(itemId, data))
+      if (error || !data) {
+        setRespostas(prev => {
+          const n = new Map(prev)
+          n.delete(itemId)
+          return n
+        })
+        setMsg({ tipo: 'erro', texto: `Não foi possível salvar a resposta: ${error?.message ?? 'erro desconhecido'}` })
+        return
+      }
+      setRespostas(prev => new Map(prev).set(itemId, data))
     }
   }
 
   async function salvarObsItem(itemId: string, observacao: string) {
     const r = respostas.get(itemId)
     if (!r?.id) return
-    await supabase.from('fvs_respostas').update({ observacao: observacao || null }).eq('id', r.id)
+    const { error } = await supabase.from('fvs_respostas').update({ observacao: observacao || null }).eq('id', r.id)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Não foi possível salvar a observação: ${error.message}` })
+      return
+    }
     setRespostas(prev => new Map(prev).set(itemId, { ...r, observacao: observacao || null }))
   }
 
@@ -193,7 +219,11 @@ export default function FvsForm() {
   }
 
   async function removerFoto(fotoId: string, path: string) {
-    await supabase.from('fvs_fotos').update({ ativo: false }).eq('id', fotoId)
+    const { error } = await supabase.from('fvs_fotos').update({ ativo: false }).eq('id', fotoId)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Não foi possível remover a foto: ${error.message}` })
+      return
+    }
     setFotos(prev => prev.filter(f => f.id !== fotoId))
     setUrls(prev => { const n = new Map(prev); n.delete(path); return n })
   }

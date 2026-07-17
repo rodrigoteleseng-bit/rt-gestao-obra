@@ -160,7 +160,12 @@ export default function PendenciaForm() {
       setMsg({ tipo: 'erro', texto: `Erro ao criar: ${error?.message}` })
       return
     }
-    await supabase.from('pendencia_eventos').insert({ pendencia_id: p.id, status: 'aberta', comentario: null })
+    const { error: erroEvento } = await supabase.from('pendencia_eventos').insert({ pendencia_id: p.id, status: 'aberta', comentario: null })
+    if (erroEvento) {
+      setSalvando(false)
+      setMsg({ tipo: 'erro', texto: `A pendência foi criada, mas o evento inicial não foi registrado: ${erroEvento.message}` })
+      return
+    }
     for (const f of fotosStaged) {
       await subirFoto(p, f.blob, f.hash, f.geo, f.capturadaEm)
     }
@@ -188,11 +193,16 @@ export default function PendenciaForm() {
       setMsg({ tipo: 'erro', texto: error?.message ?? 'Sem permissão para alterar esta pendência.' })
       return
     }
-    const { data: ev } = await supabase.from('pendencia_eventos').insert({
+    const { data: ev, error: erroEvento } = await supabase.from('pendencia_eventos').insert({
       pendencia_id: pendencia.id, status: novoStatus, comentario: comentario.trim() || null,
     }).select().single()
     setPendencia(data[0])
-    if (ev) setEventos(prev => [...prev, ev])
+    if (erroEvento || !ev) {
+      setSalvando(false)
+      setMsg({ tipo: 'erro', texto: `O status foi atualizado, mas o evento de histórico não foi registrado: ${erroEvento?.message ?? 'erro desconhecido'}` })
+      return
+    }
+    setEventos(prev => [...prev, ev])
     setComentario('')
     setSalvando(false)
     setMsg({ tipo: 'ok', texto: `Status atualizado: ${STATUS_LABEL[novoStatus]}.` })

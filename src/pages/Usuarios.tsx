@@ -129,12 +129,16 @@ export default function Usuarios() {
 
   async function salvarModulos(userId: string) {
     setLoading(true)
-    await supabase
+    const { error } = await supabase
       .from('perfis_usuario')
       .update({ modulos_permitidos: modulosEdit })
       .eq('id', userId)
-    setEditando(null)
     setLoading(false)
+    if (error) {
+      window.alert(`Falha ao salvar as permissões: ${error.message}`)
+      return
+    }
+    setEditando(null)
     carregarUsuarios()
   }
 

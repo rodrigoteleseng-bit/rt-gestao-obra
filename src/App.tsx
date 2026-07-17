@@ -1,36 +1,44 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ObraProvider } from './contexts/ObraContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import NovaSenha from './pages/NovaSenha'
-import Dashboard from './pages/Dashboard'
-import Usuarios from './pages/Usuarios'
-import Orcamento from './pages/Orcamento'
-import Cronograma from './pages/Cronograma'
-import Avanco from './pages/Avanco'
-import RDO from './pages/RDO'
-import RDOForm from './pages/RDOForm'
-import Galeria from './pages/Galeria'
-import Pendencias from './pages/Pendencias'
-import PendenciaForm from './pages/PendenciaForm'
-import Fornecedores from './pages/Fornecedores'
-import Empreiteiros from './pages/Empreiteiros'
-import DadosObra from './pages/DadosObra'
-import Definicoes from './pages/Definicoes'
-import Compras from './pages/Compras'
-import Contratos from './pages/Contratos'
-import ContratoForm from './pages/ContratoForm'
-import MedicaoForm from './pages/MedicaoForm'
-import Medicoes from './pages/Medicoes'
-import CompraForm from './pages/CompraForm'
-import FvsPage from './pages/Fvs'
-import FvsForm from './pages/FvsForm'
-import Almoxarifado from './pages/Almoxarifado'
-import Efetivo from './pages/Efetivo'
-import Producao from './pages/Producao'
-import ProducaoMedicaoForm from './pages/ProducaoMedicaoForm'
-import EmConstrucao from './pages/EmConstrucao'
+
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Usuarios = lazy(() => import('./pages/Usuarios'))
+const Orcamento = lazy(() => import('./pages/Orcamento'))
+const Cronograma = lazy(() => import('./pages/Cronograma'))
+const Avanco = lazy(() => import('./pages/Avanco'))
+const RDO = lazy(() => import('./pages/RDO'))
+const RDOForm = lazy(() => import('./pages/RDOForm'))
+const Galeria = lazy(() => import('./pages/Galeria'))
+const Pendencias = lazy(() => import('./pages/Pendencias'))
+const PendenciaForm = lazy(() => import('./pages/PendenciaForm'))
+const Fornecedores = lazy(() => import('./pages/Fornecedores'))
+const Empreiteiros = lazy(() => import('./pages/Empreiteiros'))
+const DadosObra = lazy(() => import('./pages/DadosObra'))
+const Definicoes = lazy(() => import('./pages/Definicoes'))
+const Compras = lazy(() => import('./pages/Compras'))
+const Contratos = lazy(() => import('./pages/Contratos'))
+const ContratoForm = lazy(() => import('./pages/ContratoForm'))
+const MedicaoForm = lazy(() => import('./pages/MedicaoForm'))
+const Medicoes = lazy(() => import('./pages/Medicoes'))
+const CompraForm = lazy(() => import('./pages/CompraForm'))
+const FvsPage = lazy(() => import('./pages/Fvs'))
+const FvsForm = lazy(() => import('./pages/FvsForm'))
+const Almoxarifado = lazy(() => import('./pages/Almoxarifado'))
+const Efetivo = lazy(() => import('./pages/Efetivo'))
+const Producao = lazy(() => import('./pages/Producao'))
+const ProducaoMedicaoForm = lazy(() => import('./pages/ProducaoMedicaoForm'))
+const EmConstrucao = lazy(() => import('./pages/EmConstrucao'))
+
+const carregandoPagina = (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50dvh', fontFamily: 'Inter, sans-serif', color: '#6c757d' }}>
+    Carregando…
+  </div>
+)
 
 function RotaProtegida({ children }: { children: React.ReactNode }) {
   const { perfil, loading } = useAuth()
@@ -43,7 +51,8 @@ function AppRoutes() {
   const { perfil } = useAuth()
 
   return (
-    <Routes>
+    <Suspense fallback={carregandoPagina}>
+      <Routes>
       <Route path="/login" element={perfil ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route path="/nova-senha" element={<NovaSenha />} />
       <Route path="/" element={<RotaProtegida><ObraProvider><Layout /></ObraProvider></RotaProtegida>}>
@@ -78,7 +87,8 @@ function AppRoutes() {
         <Route path="alertas" element={<EmConstrucao modulo="Alertas" fase={7} />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   )
 }
 

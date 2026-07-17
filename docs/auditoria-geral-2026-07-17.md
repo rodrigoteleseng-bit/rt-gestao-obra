@@ -1,7 +1,7 @@
 # Auditoria geral — RT Gestão de Obra
 
 Data: 17/07/2026  
-Status: em andamento
+Status: auditoria técnica concluída; validação visual autenticada continua no uso de campo
 
 ## Escopo
 
@@ -48,15 +48,54 @@ Status: em andamento
 
 **Correção:** recuperação automática do bundle afetado e remoção do fallback de navegação em cache.
 
+### [Alto] Uploads sem limite explícito no backend
+
+**Evidência:** tipo e extensão eram restringidos principalmente pelos inputs da interface, o que pode ser contornado por chamada direta ao Storage.
+
+**Correção:** os quatro buckets continuam privados e agora aplicam limites e MIME types no Supabase: RDO com 20 MB e imagem/áudio; FVS e Pendências com 10 MB e imagem; Cotações/NF com 25 MB e PDF/imagem.
+
+**Validação:** configurações confirmadas diretamente em produção após a migração `20260717_storage_limites_upload.sql`.
+
+### [Médio] Campos excedendo painéis no celular
+
+**Evidência:** grupos de formulário de Compras e Almoxarifado não aplicavam de forma uniforme `width: 100%`, `min-width: 0` e limite de largura.
+
+**Correção:** painéis, campos e textos longos foram limitados ao corpo disponível, inclusive nas faixas móveis.
+
+### [Médio] Falhas de gravação ocultadas pela interface
+
+**Evidência:** respostas/observações/fotos de FVS, legenda de foto do RDO, eventos de Pendências e edição de permissões podiam atualizar a tela ou encerrar o fluxo sem verificar `error` do Supabase.
+
+**Correção:** os fluxos agora conferem o retorno, revertem estado otimista quando necessário e exibem a falha sem informar sucesso indevido.
+
+### [Médio] Pacote inicial excessivo no celular
+
+**Evidência:** todas as páginas eram importadas diretamente em `App.tsx`; o pacote principal tinha 1,16 MB, sendo 344,5 KB comprimido.
+
+**Correção:** carregamento dividido por rota com `React.lazy` e `Suspense`.
+
+**Validação:** o pacote principal caiu para 467,85 KB, sendo 136,22 KB comprimido — redução aproximada de 60% no download inicial comprimido. O build passou sem alerta de chunk acima de 500 KB.
+
+## Permissões validadas em produção
+
+| Perfil real | Compras | Almoxarifado | RDO | FVS | Medições |
+|---|---:|---:|---:|---:|---:|
+| Admin | sim | sim | sim | sim | sim |
+| Equipe — almoxarife | não | sim | não | não | não |
+| Equipe — campo | sim | sim | sim | sim | não |
+| Equipe — qualidade | não | não | não | sim | não |
+
+Todos os resultados coincidiram com `modulos_permitidos`. As consultas de leitura de Obra/RDO ficaram disponíveis aos usuários autenticados, conforme o modelo atual do app.
+
 ## Achados abertos
 
-### [Alto] Uploads sem limite explícito no bucket
+### [Alto antes da segunda obra] Não existe vínculo usuário × obra
 
-Os inputs restringem extensão/tipo apenas na interface, mas isso pode ser contornado. Os buckets precisam de limite de tamanho e MIME types no backend, compatíveis com fotos, áudios, PDFs e CSVs utilizados.
+Hoje todo usuário autenticado consegue ler a única obra e os RDOs. O modelo não possui tabela de participação por obra; portanto, ao cadastrar uma segunda obra para outro cliente/equipe, será necessário criar esse vínculo e incorporá-lo às policies RLS antes de liberar os novos acessos.
 
-### [Médio] Campos podem exceder o painel no celular
+### [Médio] Papel cliente sem conta ativa para teste real
 
-Em Compras e Almoxarifado, conjuntos de `input/select/textarea` não aplicam de forma uniforme `width: 100%` e `min-width: 0`. Um `select` com opção longa pode aumentar o grid/painel além do corpo disponível.
+Não há perfil `cliente` ativo no banco. As policies e restrições foram revisadas estaticamente, mas o aceite exige uma conta real de cliente para confirmar menus, telas de leitura e bloqueios de escrita ponta a ponta.
 
 ### [Médio] Tabelas largas dependem de rolagem horizontal
 
@@ -66,15 +105,15 @@ Compra, Contrato e Medição usam tabelas com `min-width` entre 600 e 640 px. O 
 
 FVS, Almoxarifado, Efetivo, Usuários, Contratos e Medições utilizam `window.confirm/window.prompt`. Elas não seguem a identidade visual, oferecem pouco contexto e variam entre navegadores/PWA.
 
-### [Médio] Pacote principal grande
+### [Médio] Gravações compostas ainda não são transações únicas
 
-O bundle principal tem aproximadamente 1,16 MB antes de gzip e 344 KB comprimido. Todas as páginas são importadas diretamente em `App.tsx`; divisão por rota pode reduzir memória e tempo de abertura no celular.
+Alguns fluxos criam o registro principal e depois seus itens/eventos em chamadas separadas, como FVS, Pendências, Compras, Contratos e Medições. Agora as falhas são mostradas, mas atomicidade total exige RPCs transacionais no banco para impedir registros parciais.
 
-## Próximas verificações
+## Próximos passos recomendados
 
-1. limites e MIME types dos buckets;
-2. simulação das permissões `cliente`, `equipe` e `admin`;
-3. integridade das RPCs por obra e transição de status;
-4. tratamento de erro nas 87 operações de escrita do frontend;
-5. revisão responsiva módulo a módulo;
-6. plano de correções UI/UX priorizado.
+1. testar no celular os painéis corrigidos de Compras e Almoxarifado;
+2. transformar tabelas largas prioritárias em cards móveis ou adicionar indicador visual de rolagem;
+3. criar uma conta cliente de teste e executar o roteiro dos três papéis;
+4. substituir confirmações nativas por modal padronizado;
+5. converter por prioridade as gravações compostas em RPCs transacionais;
+6. implantar vínculo usuário × obra antes da entrada de uma segunda obra com acessos distintos.

@@ -367,7 +367,11 @@ export default function RDOForm() {
     })
   }
   async function legendarFoto(f: RdoFoto, legenda: string) {
-    await supabase.from('rdo_fotos').update({ legenda: legenda || null }).eq('id', f.id)
+    const { error } = await supabase.from('rdo_fotos').update({ legenda: legenda || null }).eq('id', f.id)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Erro ao salvar a legenda: ${error.message}` })
+      return
+    }
     setFotos(prev => prev.map(x => x.id === f.id ? { ...x, legenda } : x))
   }
   async function removerFoto(fId: string) {

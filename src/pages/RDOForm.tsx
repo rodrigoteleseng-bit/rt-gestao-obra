@@ -349,7 +349,11 @@ export default function RDOForm() {
           rdo_id: rdo.id, path, lat: geo.lat, lng: geo.lng, precisao_m: geo.precisao,
           capturada_em: capturadaEm.toISOString(), hash_sha256: hash,
         }).select().single()
-        if (error) throw new Error(error.message)
+        if (error) {
+          // Remove o upload se o registro falhar, evitando foto órfã.
+          await supabase.storage.from('rdo').remove([path])
+          throw new Error(error.message)
+        }
         // Não abre automaticamente a imagem recém-enviada: em celulares, várias
         // fotos decodificadas acumuladas são a principal fonte de falta de memória.
         setFotos(prev => [...prev, data])
@@ -752,9 +756,11 @@ export default function RDOForm() {
             📷 Tirar / anexar fotos
             <input type="file" accept="image/*" capture="environment" multiple hidden
               onChange={e => {
-                const arquivos = Array.from(e.target.files ?? [])
-                e.target.value = ''
-                anexarFotos(arquivos)
+                const input = e.currentTarget
+                const arquivos = Array.from(input.files ?? [])
+                // Alguns navegadores móveis invalidam o arquivo temporário da
+                // câmera se o input for limpo antes do processamento terminar.
+                void anexarFotos(arquivos).finally(() => { input.value = '' })
               }} />
           </label>
         )}

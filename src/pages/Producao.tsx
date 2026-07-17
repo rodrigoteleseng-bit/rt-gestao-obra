@@ -1,48 +1,697 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useAuth } from '../contexts/AuthContext'
-import { useObra } from '../contexts/ObraContext'
-import { supabase, type ProducaoDiaSalarial, type ProducaoLancamento, type ProducaoSalario, type Trabalhador, type Unidade } from '../lib/supabase'
-import { hojeISO } from '../lib/cronograma'
-import { formatarMoeda } from '../lib/formato'
-import styles from './Producao.module.css'
+import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { useObra } from "../contexts/ObraContext";
+import {
+  supabase,
+  type ProducaoDiaSalarial,
+  type ProducaoLancamento,
+  type ProducaoSalario,
+  type Trabalhador,
+  type Unidade,
+} from "../lib/supabase";
+import { hojeISO } from "../lib/cronograma";
+import { formatarMoeda } from "../lib/formato";
+import styles from "./Producao.module.css";
 
-type Aba='lancamentos'|'dias'|'salarios'; type Msg={tipo:'ok'|'erro';texto:string}|null
-type Abertura={tipo:'porta'|'janela'|'outro';identificacao:string;comprimento:string;altura:string}
-const fmt=(d:string)=>`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`
+type Aba = "lancamentos" | "dias" | "salarios";
+type Msg = { tipo: "ok" | "erro"; texto: string } | null;
+type Abertura = {
+  tipo: "porta" | "janela" | "outro";
+  identificacao: string;
+  comprimento: string;
+  altura: string;
+};
+const fmt = (d: string) =>
+  `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
-export default function Producao(){
- const {perfil,temModulo}=useAuth(),{obraAtiva}=useObra(); const [aba,setAba]=useState<Aba>('lancamentos')
- const [trabalhadores,setTrabalhadores]=useState<Trabalhador[]>([]),[unidades,setUnidades]=useState<Unidade[]>([])
- useEffect(()=>{if(!obraAtiva)return;Promise.all([supabase.from('trabalhadores').select('*').eq('obra_id',obraAtiva.id).eq('ativo',true).order('nome'),supabase.from('unidades').select('*').eq('obra_id',obraAtiva.id).order('ordem')]).then(([t,u])=>{setTrabalhadores(t.data??[]);setUnidades(u.data??[])})},[obraAtiva])
- if(perfil?.papel==='cliente'||(perfil?.papel!=='admin'&&!temModulo('medicoes')))return <div className={styles.page}><p className={styles.vazio}>Módulo de uso interno da equipe.</p></div>
- const rotulo:Record<Aba,string>={lancamentos:'Lançamentos diários',dias:'Dias salariais',salarios:'Salários'}
- return <div className={styles.page}><div className={styles.header}><div><h1>Produção própria</h1><p className={styles.sub}>Produção diária, dias salariais e valores vigentes.</p></div></div><div className={styles.abas}>{(Object.keys(rotulo) as Aba[]).map(a=><button key={a} className={`${styles.aba} ${aba===a?styles.abaAtiva:''}`} onClick={()=>setAba(a)}>{rotulo[a]}</button>)}</div>{aba==='lancamentos'&&<Lancamentos trabalhadores={trabalhadores} unidades={unidades}/>} {aba==='dias'&&<Dias trabalhadores={trabalhadores}/>} {aba==='salarios'&&<Salarios trabalhadores={trabalhadores}/>}</div>
+const numero = (valor: string | number): number => {
+  if (typeof valor === "number") return valor;
+  const texto = valor.trim();
+  if (!texto) return 0;
+  return globalThis.Number(
+    texto.includes(",") ? texto.replace(/\./g, "").replace(",", ".") : texto,
+  );
+};
+
+export default function Producao() {
+  const { perfil, temModulo } = useAuth(),
+    { obraAtiva } = useObra();
+  const [aba, setAba] = useState<Aba>("lancamentos");
+  const [trabalhadores, setTrabalhadores] = useState<Trabalhador[]>([]),
+    [unidades, setUnidades] = useState<Unidade[]>([]);
+  useEffect(() => {
+    if (!obraAtiva) return;
+    Promise.all([
+      supabase
+        .from("trabalhadores")
+        .select("*")
+        .eq("obra_id", obraAtiva.id)
+        .eq("ativo", true)
+        .order("nome"),
+      supabase
+        .from("unidades")
+        .select("*")
+        .eq("obra_id", obraAtiva.id)
+        .order("ordem"),
+    ]).then(([t, u]) => {
+      setTrabalhadores(t.data ?? []);
+      setUnidades(u.data ?? []);
+    });
+  }, [obraAtiva]);
+  if (
+    perfil?.papel === "cliente" ||
+    (perfil?.papel !== "admin" && !temModulo("medicoes"))
+  )
+    return (
+      <div className={styles.page}>
+        <p className={styles.vazio}>Módulo de uso interno da equipe.</p>
+      </div>
+    );
+  const rotulo: Record<Aba, string> = {
+    lancamentos: "Lançamentos diários",
+    dias: "Dias salariais",
+    salarios: "Salários",
+  };
+  return (
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <div>
+          <h1>Produção própria</h1>
+          <p className={styles.sub}>
+            Produção diária, dias salariais e valores vigentes.
+          </p>
+        </div>
+      </div>
+      <div className={styles.abas}>
+        {(Object.keys(rotulo) as Aba[]).map((a) => (
+          <button
+            key={a}
+            className={`${styles.aba} ${aba === a ? styles.abaAtiva : ""}`}
+            onClick={() => setAba(a)}
+          >
+            {rotulo[a]}
+          </button>
+        ))}
+      </div>
+      {aba === "lancamentos" && (
+        <Lancamentos trabalhadores={trabalhadores} unidades={unidades} />
+      )}{" "}
+      {aba === "dias" && <Dias trabalhadores={trabalhadores} />}{" "}
+      {aba === "salarios" && <Salarios trabalhadores={trabalhadores} />}
+    </div>
+  );
 }
 
-function Salarios({trabalhadores}:{trabalhadores:Trabalhador[]}){
- const {obraAtiva}=useObra(); const [lista,setLista]=useState<ProducaoSalario[]>([]),[trab,setTrab]=useState(''),[valor,setValor]=useState(''),[inicio,setInicio]=useState(hojeISO()),[msg,setMsg]=useState<Msg>(null)
- async function carregar(){if(!obraAtiva)return;const {data}=await supabase.from('producao_salarios').select('*').eq('obra_id',obraAtiva.id).eq('ativo',true).order('vigente_desde',{ascending:false});setLista(data??[])} useEffect(()=>{carregar()},[obraAtiva])
- async function salvar(){const t=trabalhadores.find(x=>x.id===trab);if(!obraAtiva||!t||Number(valor)<=0)return setMsg({tipo:'erro',texto:'Informe profissional, salário e vigência.'});const {error}=await supabase.rpc('producao_cadastrar_salario',{p_obra:obraAtiva.id,p_trabalhador:t.id,p_funcao:t.funcao,p_salario:Number(valor),p_vigente_desde:inicio});if(error)return setMsg({tipo:'erro',texto:error.message});setMsg({tipo:'ok',texto:'Nova vigência salarial cadastrada.'});setValor('');await carregar()}
- return <><section className={styles.bloco}><h2>Nova vigência salarial</h2><div className={styles.campos}><Campo label="Profissional"><select className={styles.select} value={trab} onChange={e=>setTrab(e.target.value)}><option value="">Selecione…</option>{trabalhadores.map(t=><option key={t.id} value={t.id}>{t.nome} — {t.funcao}</option>)}</select></Campo><Campo label="Salário mensal"><input className={styles.input} inputMode="decimal" value={valor} onChange={e=>setValor(e.target.value)}/></Campo><Campo label="Vigente desde"><input className={styles.input} type="date" value={inicio} onChange={e=>setInicio(e.target.value)}/></Campo></div><div className={styles.resumo}>Valor diário: <strong>R$ {formatarMoeda((Number(valor)||0)/30)}</strong> · divisor fixo 30</div><button className={styles.btn} onClick={salvar}>Salvar vigência</button></section><Mensagem msg={msg}/><section className={styles.bloco}><h2>Histórico</h2><div className={styles.lista}>{lista.map(s=><div className={styles.linha} key={s.id}><div><strong>{trabalhadores.find(t=>t.id===s.trabalhador_id)?.nome??'Profissional'}</strong><div className={styles.meta}>{s.funcao} · {fmt(s.vigente_desde)}{s.vigente_ate?` a ${fmt(s.vigente_ate)}`:' · vigente'}</div></div><div><strong>R$ {formatarMoeda(s.salario_mensal)}</strong><div className={styles.meta}>R$ {formatarMoeda(s.salario_mensal/30)}/dia</div></div></div>)}</div></section></>
+function Salarios({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
+  const { obraAtiva } = useObra();
+  const [lista, setLista] = useState<ProducaoSalario[]>([]),
+    [trab, setTrab] = useState(""),
+    [valor, setValor] = useState(""),
+    [inicio, setInicio] = useState(hojeISO()),
+    [msg, setMsg] = useState<Msg>(null);
+  async function carregar() {
+    if (!obraAtiva) return;
+    const { data } = await supabase
+      .from("producao_salarios")
+      .select("*")
+      .eq("obra_id", obraAtiva.id)
+      .eq("ativo", true)
+      .order("vigente_desde", { ascending: false });
+    setLista(data ?? []);
+  }
+  useEffect(() => {
+    carregar();
+  }, [obraAtiva]);
+  async function salvar() {
+    const t = trabalhadores.find((x) => x.id === trab);
+    if (!obraAtiva || !t || numero(valor) <= 0)
+      return setMsg({
+        tipo: "erro",
+        texto: "Informe profissional, salário e vigência.",
+      });
+    const { error } = await supabase.rpc("producao_cadastrar_salario", {
+      p_obra: obraAtiva.id,
+      p_trabalhador: t.id,
+      p_funcao: t.funcao,
+      p_salario: numero(valor),
+      p_vigente_desde: inicio,
+    });
+    if (error) return setMsg({ tipo: "erro", texto: error.message });
+    setMsg({ tipo: "ok", texto: "Nova vigência salarial cadastrada." });
+    setValor("");
+    await carregar();
+  }
+  return (
+    <>
+      <section className={styles.bloco}>
+        <h2>Nova vigência salarial</h2>
+        <div className={styles.campos}>
+          <Campo label="Profissional">
+            <select
+              className={styles.select}
+              value={trab}
+              onChange={(e) => {
+                const trabalhadorId = e.target.value;
+                setTrab(trabalhadorId);
+                const salarioAtual = lista.find(
+                  (item) =>
+                    item.trabalhador_id === trabalhadorId &&
+                    !item.vigente_ate,
+                );
+                setValor(
+                  salarioAtual
+                    ? String(salarioAtual.salario_mensal).replace(".", ",")
+                    : "",
+                );
+              }}
+            >
+              <option value="">Selecione…</option>
+              {trabalhadores.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nome} — {t.funcao}
+                </option>
+              ))}
+            </select>
+          </Campo>
+          <Campo label="Salário mensal">
+            <input
+              className={styles.input}
+              inputMode="decimal"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+            />
+          </Campo>
+          <Campo label="Vigente desde">
+            <input
+              className={styles.input}
+              type="date"
+              value={inicio}
+              onChange={(e) => setInicio(e.target.value)}
+            />
+          </Campo>
+        </div>
+        <div className={styles.resumo}>
+          Valor diário:{" "}
+          <strong>R$ {formatarMoeda((numero(valor) || 0) / 30)}</strong> ·
+          divisor fixo 30
+        </div>
+        <button className={styles.btn} onClick={salvar}>
+          Salvar vigência
+        </button>
+      </section>
+      <Mensagem msg={msg} />
+      <section className={styles.bloco}>
+        <h2>Histórico</h2>
+        <div className={styles.lista}>
+          {lista.map((s) => (
+            <div className={styles.linha} key={s.id}>
+              <div>
+                <strong>
+                  {trabalhadores.find((t) => t.id === s.trabalhador_id)?.nome ??
+                    "Profissional"}
+                </strong>
+                <div className={styles.meta}>
+                  {s.funcao} · {fmt(s.vigente_desde)}
+                  {s.vigente_ate ? ` a ${fmt(s.vigente_ate)}` : " · vigente"}
+                </div>
+              </div>
+              <div>
+                <strong>R$ {formatarMoeda(s.salario_mensal)}</strong>
+                <div className={styles.meta}>
+                  R$ {formatarMoeda(s.salario_mensal / 30)}/dia
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
 }
 
-function Lancamentos({trabalhadores,unidades}:{trabalhadores:Trabalhador[];unidades:Unidade[]}){
- const {obraAtiva}=useObra(); const [lista,setLista]=useState<ProducaoLancamento[]>([]),[msg,setMsg]=useState<Msg>(null),[salvando,setSalvando]=useState(false)
- const [form,setForm]=useState({data:hojeISO(),unidade:'',servico:'alvenaria',parede:'',comp:'',alt:'',preco:'',obs:''}),[selecionados,setSelecionados]=useState<string[]>([]),[aberturas,setAberturas]=useState<Abertura[]>([])
- async function carregar(){if(!obraAtiva)return;const {data}=await supabase.from('producao_lancamentos').select('*').eq('obra_id',obraAtiva.id).eq('ativo',true).order('data_producao',{ascending:false});setLista(data??[])} useEffect(()=>{carregar()},[obraAtiva])
- const bruta=(Number(form.comp)||0)*(Number(form.alt)||0),desc=aberturas.reduce((s,a)=>s+(Number(a.comprimento)||0)*(Number(a.altura)||0),0),liq=Math.max(0,bruta-desc),total=liq*(Number(form.preco)||0)
- const mudaAbertura=(i:number,k:keyof Abertura,v:string)=>setAberturas(a=>a.map((x,j)=>j===i?{...x,[k]:v}:x))
- async function salvar(){if(!obraAtiva||!form.unidade||!form.parede.trim()||liq<=0||Number(form.preco)<=0||!selecionados.length)return setMsg({tipo:'erro',texto:'Preencha unidade, parede, medidas, preço e profissionais.'});setSalvando(true);const {error}=await supabase.rpc('producao_criar_lancamento',{p_obra:obraAtiva.id,p_unidade:form.unidade,p_data:form.data,p_servico:form.servico,p_parede:form.parede.trim(),p_comprimento:Number(form.comp),p_altura:Number(form.alt),p_preco:Number(form.preco),p_observacao:form.obs||null,p_trabalhadores:selecionados,p_aberturas:aberturas.map(a=>({...a,comprimento:Number(a.comprimento),altura:Number(a.altura)}))});setSalvando(false);if(error)return setMsg({tipo:'erro',texto:error.message});setMsg({tipo:'ok',texto:'Produção salva e rateada.'});setForm(f=>({...f,parede:'',comp:'',alt:'',obs:''}));setAberturas([]);await carregar()}
- return <><section className={styles.bloco}><h2>Nova produção</h2><div className={styles.campos}><Campo label="Data"><input className={styles.input} type="date" value={form.data} onChange={e=>setForm({...form,data:e.target.value})}/></Campo><Campo label="Unidade"><select className={styles.select} value={form.unidade} onChange={e=>setForm({...form,unidade:e.target.value})}><option value="">Selecione…</option>{unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></Campo><Campo label="Serviço"><select className={styles.select} value={form.servico} onChange={e=>setForm({...form,servico:e.target.value})}><option value="alvenaria">Alvenaria</option><option value="reboco">Reboco — uma face</option></select></Campo><Campo label="Parede / face"><input className={styles.input} value={form.parede} onChange={e=>setForm({...form,parede:e.target.value})}/></Campo><Campo label="Comprimento (m)"><input className={styles.input} inputMode="decimal" value={form.comp} onChange={e=>setForm({...form,comp:e.target.value})}/></Campo><Campo label="Altura (m)"><input className={styles.input} inputMode="decimal" value={form.alt} onChange={e=>setForm({...form,alt:e.target.value})}/></Campo><Campo label="Preço do dia (R$/m²)"><input className={styles.input} inputMode="decimal" value={form.preco} onChange={e=>setForm({...form,preco:e.target.value})}/></Campo><Campo label="Observação"><input className={styles.input} value={form.obs} onChange={e=>setForm({...form,obs:e.target.value})}/></Campo></div><div className={styles.checks}>{trabalhadores.map(t=><label className={styles.check} key={t.id}><input type="checkbox" checked={selecionados.includes(t.id)} onChange={()=>setSelecionados(p=>p.includes(t.id)?p.filter(x=>x!==t.id):[...p,t.id])}/> {t.nome} ({t.funcao})</label>)}</div><h2>Aberturas</h2>{aberturas.map((a,i)=><div className={styles.abertura} key={i}><select className={styles.select} value={a.tipo} onChange={e=>mudaAbertura(i,'tipo',e.target.value)}><option value="porta">Porta</option><option value="janela">Janela</option><option value="outro">Outro vão</option></select><input className={styles.input} placeholder="Identificação" value={a.identificacao} onChange={e=>mudaAbertura(i,'identificacao',e.target.value)}/><input className={styles.input} placeholder="Comprimento" value={a.comprimento} onChange={e=>mudaAbertura(i,'comprimento',e.target.value)}/><input className={styles.input} placeholder="Altura" value={a.altura} onChange={e=>mudaAbertura(i,'altura',e.target.value)}/><button className={styles.btnSec} onClick={()=>setAberturas(v=>v.filter((_,j)=>j!==i))}>Remover</button></div>)}<button className={styles.btnSec} onClick={()=>setAberturas(a=>[...a,{tipo:'porta',identificacao:'',comprimento:'',altura:''}])}>+ Porta/janela/vão</button><div className={styles.resumo}><span>Bruta: <strong>{bruta.toFixed(2)} m²</strong></span><span>Aberturas: <strong>{desc.toFixed(2)} m²</strong></span><span>Líquida: <strong>{liq.toFixed(2)} m²</strong></span><span>Total: <strong>R$ {formatarMoeda(total)}</strong></span><span>Por profissional: <strong>R$ {formatarMoeda(selecionados.length?total/selecionados.length:0)}</strong></span></div><div className={styles.acoes}><button className={styles.btn} disabled={salvando} onClick={salvar}>{salvando?'Salvando…':'Salvar lançamento'}</button></div></section><Mensagem msg={msg}/><section className={styles.bloco}><h2>Lançamentos recentes</h2><div className={styles.lista}>{lista.map(l=><div className={styles.linha} key={l.id}><div><strong>{l.parede_nome}</strong><div className={styles.meta}>{fmt(l.data_producao)} · {l.servico} · {unidades.find(u=>u.id===l.unidade_id)?.nome}</div></div><div><strong>{l.area_liquida.toFixed(2)} m²</strong><div className={styles.meta}>R$ {formatarMoeda(l.valor_total)}</div></div></div>)}</div></section></>
+function Lancamentos({
+  trabalhadores,
+  unidades,
+}: {
+  trabalhadores: Trabalhador[];
+  unidades: Unidade[];
+}) {
+  const { obraAtiva } = useObra();
+  const [lista, setLista] = useState<ProducaoLancamento[]>([]),
+    [msg, setMsg] = useState<Msg>(null),
+    [salvando, setSalvando] = useState(false);
+  const [form, setForm] = useState({
+      data: hojeISO(),
+      unidade: "",
+      servico: "alvenaria",
+      parede: "",
+      comp: "",
+      alt: "",
+      preco: "",
+      obs: "",
+    }),
+    [selecionados, setSelecionados] = useState<string[]>([""]),
+    [aberturas, setAberturas] = useState<Abertura[]>([]);
+  async function carregar() {
+    if (!obraAtiva) return;
+    const { data } = await supabase
+      .from("producao_lancamentos")
+      .select("*")
+      .eq("obra_id", obraAtiva.id)
+      .eq("ativo", true)
+      .order("data_producao", { ascending: false });
+    setLista(data ?? []);
+  }
+  useEffect(() => {
+    carregar();
+  }, [obraAtiva]);
+  const participantes = selecionados.filter(Boolean);
+  const bruta = (numero(form.comp) || 0) * (numero(form.alt) || 0),
+    desc = aberturas.reduce(
+      (s, a) => s + (numero(a.comprimento) || 0) * (numero(a.altura) || 0),
+      0,
+    ),
+    liq = Math.max(0, bruta - desc),
+    total = liq * (numero(form.preco) || 0);
+  const mudaAbertura = (i: number, k: keyof Abertura, v: string) =>
+    setAberturas((a) => a.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  async function salvar() {
+    if (
+      !obraAtiva ||
+      !form.unidade ||
+      !form.parede.trim() ||
+      liq <= 0 ||
+      numero(form.preco) <= 0 ||
+      !participantes.length
+    )
+      return setMsg({
+        tipo: "erro",
+        texto: "Preencha unidade, parede, medidas, preço e profissionais.",
+      });
+    setSalvando(true);
+    const { error } = await supabase.rpc("producao_criar_lancamento", {
+      p_obra: obraAtiva.id,
+      p_unidade: form.unidade,
+      p_data: form.data,
+      p_servico: form.servico,
+      p_parede: form.parede.trim(),
+      p_comprimento: numero(form.comp),
+      p_altura: numero(form.alt),
+      p_preco: numero(form.preco),
+      p_observacao: form.obs || null,
+      p_trabalhadores: participantes,
+      p_aberturas: aberturas.map((a) => ({
+        ...a,
+        comprimento: numero(a.comprimento),
+        altura: numero(a.altura),
+      })),
+    });
+    setSalvando(false);
+    if (error) return setMsg({ tipo: "erro", texto: error.message });
+    setMsg({ tipo: "ok", texto: "Produção salva e rateada." });
+    setForm((f) => ({ ...f, parede: "", comp: "", alt: "", obs: "" }));
+    setAberturas([]);
+    await carregar();
+  }
+  return (
+    <>
+      <section className={styles.bloco}>
+        <h2>Nova produção</h2>
+        <div className={styles.campos}>
+          <Campo label="Data">
+            <input
+              className={styles.input}
+              type="date"
+              value={form.data}
+              onChange={(e) => setForm({ ...form, data: e.target.value })}
+            />
+          </Campo>
+          <Campo label="Unidade">
+            <select
+              className={styles.select}
+              value={form.unidade}
+              onChange={(e) => setForm({ ...form, unidade: e.target.value })}
+            >
+              <option value="">Selecione…</option>
+              {unidades.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.nome}
+                </option>
+              ))}
+            </select>
+          </Campo>
+          <Campo label="Serviço">
+            <select
+              className={styles.select}
+              value={form.servico}
+              onChange={(e) => setForm({ ...form, servico: e.target.value })}
+            >
+              <option value="alvenaria">Alvenaria</option>
+              <option value="reboco">Reboco — uma face</option>
+            </select>
+          </Campo>
+          <Campo label="Parede / face">
+            <input
+              className={styles.input}
+              value={form.parede}
+              onChange={(e) => setForm({ ...form, parede: e.target.value })}
+            />
+          </Campo>
+          <Campo label="Comprimento (m)">
+            <input
+              className={styles.input}
+              inputMode="decimal"
+              value={form.comp}
+              onChange={(e) => setForm({ ...form, comp: e.target.value })}
+            />
+          </Campo>
+          <Campo label="Altura (m)">
+            <input
+              className={styles.input}
+              inputMode="decimal"
+              value={form.alt}
+              onChange={(e) => setForm({ ...form, alt: e.target.value })}
+            />
+          </Campo>
+          <Campo label="Preço do dia (R$/m²)">
+            <input
+              className={styles.input}
+              inputMode="decimal"
+              value={form.preco}
+              onChange={(e) => setForm({ ...form, preco: e.target.value })}
+            />
+          </Campo>
+          <Campo label="Observação">
+            <input
+              className={styles.input}
+              value={form.obs}
+              onChange={(e) => setForm({ ...form, obs: e.target.value })}
+            />
+          </Campo>
+        </div>
+        <h2>Profissionais</h2>
+        <div className={styles.lista}>
+          {selecionados.map((selecionado, i) => (
+            <div className={styles.linha} key={i}>
+              <select
+                className={styles.select}
+                value={selecionado}
+                onChange={(e) =>
+                  setSelecionados((atual) =>
+                    atual.map((id, j) => (j === i ? e.target.value : id)),
+                  )
+                }
+              >
+                <option value="">Selecione o profissional…</option>
+                {trabalhadores.map((t) => (
+                  <option
+                    key={t.id}
+                    value={t.id}
+                    disabled={selecionados.some(
+                      (id, j) => j !== i && id === t.id,
+                    )}
+                  >
+                    {t.nome} — {t.funcao}
+                  </option>
+                ))}
+              </select>
+              {selecionados.length > 1 && (
+                <button
+                  className={styles.btnSec}
+                  onClick={() =>
+                    setSelecionados((atual) =>
+                      atual.filter((_, j) => j !== i),
+                    )
+                  }
+                >
+                  Remover
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            className={styles.btnSec}
+            onClick={() => setSelecionados((atual) => [...atual, ""])}
+            disabled={participantes.length >= trabalhadores.length}
+          >
+            + Acrescentar profissional
+          </button>
+        </div>
+        <h2>Aberturas</h2>
+        {aberturas.map((a, i) => (
+          <div className={styles.abertura} key={i}>
+            <select
+              className={styles.select}
+              value={a.tipo}
+              onChange={(e) => mudaAbertura(i, "tipo", e.target.value)}
+            >
+              <option value="porta">Porta</option>
+              <option value="janela">Janela</option>
+              <option value="outro">Outro vão</option>
+            </select>
+            <input
+              className={styles.input}
+              placeholder="Identificação"
+              value={a.identificacao}
+              onChange={(e) => mudaAbertura(i, "identificacao", e.target.value)}
+            />
+            <input
+              className={styles.input}
+              placeholder="Comprimento"
+              value={a.comprimento}
+              onChange={(e) => mudaAbertura(i, "comprimento", e.target.value)}
+            />
+            <input
+              className={styles.input}
+              placeholder="Altura"
+              value={a.altura}
+              onChange={(e) => mudaAbertura(i, "altura", e.target.value)}
+            />
+            <button
+              className={styles.btnSec}
+              onClick={() => setAberturas((v) => v.filter((_, j) => j !== i))}
+            >
+              Remover
+            </button>
+          </div>
+        ))}
+        <button
+          className={styles.btnSec}
+          onClick={() =>
+            setAberturas((a) => [
+              ...a,
+              { tipo: "porta", identificacao: "", comprimento: "", altura: "" },
+            ])
+          }
+        >
+          + Porta/janela/vão
+        </button>
+        <div className={styles.resumo}>
+          <span>
+            Bruta: <strong>{bruta.toFixed(2)} m²</strong>
+          </span>
+          <span>
+            Aberturas: <strong>{desc.toFixed(2)} m²</strong>
+          </span>
+          <span>
+            Líquida: <strong>{liq.toFixed(2)} m²</strong>
+          </span>
+          <span>
+            Total: <strong>R$ {formatarMoeda(total)}</strong>
+          </span>
+          <span>
+            Por profissional:{" "}
+            <strong>
+              R${" "}
+              {formatarMoeda(
+                participantes.length ? total / participantes.length : 0,
+              )}
+            </strong>
+          </span>
+        </div>
+        <div className={styles.acoes}>
+          <button className={styles.btn} disabled={salvando} onClick={salvar}>
+            {salvando ? "Salvando…" : "Salvar lançamento"}
+          </button>
+        </div>
+      </section>
+      <Mensagem msg={msg} />
+      <section className={styles.bloco}>
+        <h2>Lançamentos recentes</h2>
+        <div className={styles.lista}>
+          {lista.map((l) => (
+            <div className={styles.linha} key={l.id}>
+              <div>
+                <strong>{l.parede_nome}</strong>
+                <div className={styles.meta}>
+                  {fmt(l.data_producao)} · {l.servico} ·{" "}
+                  {unidades.find((u) => u.id === l.unidade_id)?.nome}
+                </div>
+              </div>
+              <div>
+                <strong>{l.area_liquida.toFixed(2)} m²</strong>
+                <div className={styles.meta}>
+                  R$ {formatarMoeda(l.valor_total)}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
 }
 
-function Dias({trabalhadores}:{trabalhadores:Trabalhador[]}){
- const {obraAtiva}=useObra(); const [trab,setTrab]=useState(''),[data,setData]=useState(hojeISO()),[motivo,setMotivo]=useState(''),[salarios,setSalarios]=useState<ProducaoSalario[]>([]),[dias,setDias]=useState<ProducaoDiaSalarial[]>([]),[msg,setMsg]=useState<Msg>(null)
- useEffect(()=>{if(!obraAtiva)return;Promise.all([supabase.from('producao_salarios').select('*').eq('obra_id',obraAtiva.id).eq('ativo',true),supabase.from('producao_dias_salariais').select('*').eq('obra_id',obraAtiva.id).eq('ativo',true).order('data',{ascending:false})]).then(([s,d])=>{setSalarios(s.data??[]);setDias(d.data??[])})},[obraAtiva])
- const salario=useMemo(()=>salarios.find(s=>s.trabalhador_id===trab&&s.vigente_desde<=data&&(!s.vigente_ate||s.vigente_ate>=data)),[salarios,trab,data])
- async function salvar(){if(!obraAtiva||!trab||!salario||!motivo.trim())return setMsg({tipo:'erro',texto:'Selecione profissional com salário vigente e informe o motivo.'});const {data:novo,error}=await supabase.from('producao_dias_salariais').insert({obra_id:obraAtiva.id,trabalhador_id:trab,data,salario_id:salario.id,motivo:motivo.trim()}).select().single();if(error)return setMsg({tipo:'erro',texto:error.message});setDias(p=>[novo,...p]);setMotivo('');setMsg({tipo:'ok',texto:'Dia salarial registrado.'})}
- return <><section className={styles.bloco}><h2>Registrar dia sem produção</h2><div className={styles.campos}><Campo label="Profissional"><select className={styles.select} value={trab} onChange={e=>setTrab(e.target.value)}><option value="">Selecione…</option>{trabalhadores.map(t=><option key={t.id} value={t.id}>{t.nome} — {t.funcao}</option>)}</select></Campo><Campo label="Data"><input className={styles.input} type="date" value={data} onChange={e=>setData(e.target.value)}/></Campo><Campo label="Motivo/atividade"><input className={styles.input} value={motivo} onChange={e=>setMotivo(e.target.value)}/></Campo></div><div className={styles.resumo}>{salario?<>Salário: <strong>R$ {formatarMoeda(salario.salario_mensal)}</strong> · dia: <strong>R$ {formatarMoeda(salario.salario_mensal/30)}</strong></>:'Nenhum salário vigente para a seleção.'}</div><button className={styles.btn} onClick={salvar}>Registrar dia salarial</button></section><Mensagem msg={msg}/><section className={styles.bloco}><h2>Dias registrados</h2><div className={styles.lista}>{dias.map(d=><div className={styles.linha} key={d.id}><div><strong>{trabalhadores.find(t=>t.id===d.trabalhador_id)?.nome}</strong><div className={styles.meta}>{fmt(d.data)} · {d.motivo}</div></div><strong>R$ {formatarMoeda(d.valor_dia)}</strong></div>)}</div></section></>
+function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
+  const { obraAtiva } = useObra();
+  const [trab, setTrab] = useState(""),
+    [data, setData] = useState(hojeISO()),
+    [motivo, setMotivo] = useState(""),
+    [salarios, setSalarios] = useState<ProducaoSalario[]>([]),
+    [dias, setDias] = useState<ProducaoDiaSalarial[]>([]),
+    [msg, setMsg] = useState<Msg>(null);
+  useEffect(() => {
+    if (!obraAtiva) return;
+    Promise.all([
+      supabase
+        .from("producao_salarios")
+        .select("*")
+        .eq("obra_id", obraAtiva.id)
+        .eq("ativo", true),
+      supabase
+        .from("producao_dias_salariais")
+        .select("*")
+        .eq("obra_id", obraAtiva.id)
+        .eq("ativo", true)
+        .order("data", { ascending: false }),
+    ]).then(([s, d]) => {
+      setSalarios(s.data ?? []);
+      setDias(d.data ?? []);
+    });
+  }, [obraAtiva]);
+  const salario = useMemo(
+    () =>
+      salarios.find(
+        (s) =>
+          s.trabalhador_id === trab &&
+          s.vigente_desde <= data &&
+          (!s.vigente_ate || s.vigente_ate >= data),
+      ),
+    [salarios, trab, data],
+  );
+  async function salvar() {
+    if (!obraAtiva || !trab || !salario || !motivo.trim())
+      return setMsg({
+        tipo: "erro",
+        texto: "Selecione profissional com salário vigente e informe o motivo.",
+      });
+    const { data: novo, error } = await supabase
+      .from("producao_dias_salariais")
+      .insert({
+        obra_id: obraAtiva.id,
+        trabalhador_id: trab,
+        data,
+        salario_id: salario.id,
+        motivo: motivo.trim(),
+      })
+      .select()
+      .single();
+    if (error) return setMsg({ tipo: "erro", texto: error.message });
+    setDias((p) => [novo, ...p]);
+    setMotivo("");
+    setMsg({ tipo: "ok", texto: "Dia salarial registrado." });
+  }
+  return (
+    <>
+      <section className={styles.bloco}>
+        <h2>Registrar dia sem produção</h2>
+        <div className={styles.campos}>
+          <Campo label="Profissional">
+            <select
+              className={styles.select}
+              value={trab}
+              onChange={(e) => setTrab(e.target.value)}
+            >
+              <option value="">Selecione…</option>
+              {trabalhadores.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nome} — {t.funcao}
+                </option>
+              ))}
+            </select>
+          </Campo>
+          <Campo label="Data">
+            <input
+              className={styles.input}
+              type="date"
+              value={data}
+              onChange={(e) => setData(e.target.value)}
+            />
+          </Campo>
+          <Campo label="Motivo/atividade">
+            <input
+              className={styles.input}
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+            />
+          </Campo>
+        </div>
+        <div className={styles.resumo}>
+          {salario ? (
+            <>
+              Salário:{" "}
+              <strong>R$ {formatarMoeda(salario.salario_mensal)}</strong> · dia:{" "}
+              <strong>R$ {formatarMoeda(salario.salario_mensal / 30)}</strong>
+            </>
+          ) : (
+            "Nenhum salário vigente para a seleção."
+          )}
+        </div>
+        <button className={styles.btn} onClick={salvar}>
+          Registrar dia salarial
+        </button>
+      </section>
+      <Mensagem msg={msg} />
+      <section className={styles.bloco}>
+        <h2>Dias registrados</h2>
+        <div className={styles.lista}>
+          {dias.map((d) => (
+            <div className={styles.linha} key={d.id}>
+              <div>
+                <strong>
+                  {trabalhadores.find((t) => t.id === d.trabalhador_id)?.nome}
+                </strong>
+                <div className={styles.meta}>
+                  {fmt(d.data)} · {d.motivo}
+                </div>
+              </div>
+              <strong>R$ {formatarMoeda(d.valor_dia)}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+    </>
+  );
 }
 
-function Campo({label,children}:{label:string;children:React.ReactNode}){return <label className={styles.campo}>{label}{children}</label>}
-function Mensagem({msg}:{msg:Msg}){return msg?<p className={msg.tipo==='ok'?styles.msgOk:styles.msgErro}>{msg.texto}</p>:null}
+function Campo({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className={styles.campo}>
+      {label}
+      {children}
+    </label>
+  );
+}
+function Mensagem({ msg }: { msg: Msg }) {
+  return msg ? (
+    <p className={msg.tipo === "ok" ? styles.msgOk : styles.msgErro}>
+      {msg.texto}
+    </p>
+  ) : null;
+}

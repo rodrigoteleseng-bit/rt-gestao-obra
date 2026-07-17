@@ -137,50 +137,39 @@ export default function MedicaoForm() {
     if (!contrato) return
     setSalvando(true)
     setMsg(null)
-    const { data: novaMedicao, error } = await supabase.from('medicoes').insert({
-      contrato_id: contrato.id,
-      data_referencia: dataReferencia,
-    }).select().single()
-    if (error || !novaMedicao) {
+    const { data: novaMedicaoId, error } = await supabase.rpc('criar_medicao_com_itens', {
+      p_contrato: contrato.id,
+      p_data_referencia: dataReferencia,
+      p_itens: linhas.map(l => ({
+        contrato_item_id: l.contratoItemId,
+        quantidade_periodo: Number(l.quantidadePeriodo) || 0,
+      })),
+    })
+    if (error || !novaMedicaoId) {
       setSalvando(false)
       setMsg({ tipo: 'erro', texto: `Erro ao criar medição: ${error?.message}` })
       return
     }
-    const { error: eItens } = await supabase.from('medicoes_itens').insert(
-      linhas.map(l => ({
-        medicao_id: novaMedicao.id,
-        contrato_item_id: l.contratoItemId,
-        quantidade_periodo: Number(l.quantidadePeriodo) || 0,
-      }))
-    )
     setSalvando(false)
-    if (eItens) {
-      setMsg({ tipo: 'erro', texto: `Medição criada, mas falhou ao salvar itens: ${eItens.message}` })
-      return
-    }
-    navigate(`/contratos/${contrato.id}/medicoes/${novaMedicao.id}`, { replace: true })
+    navigate(`/contratos/${contrato.id}/medicoes/${novaMedicaoId}`, { replace: true })
   }
 
   async function salvarEdicao() {
+    if (!medicao) return
     setSalvando(true)
     setMsg(null)
-    for (const l of linhas) {
-      if (!l.medicaoItemId) continue
-      const { data, error } = await supabase.from('medicoes_itens')
-        .update({ quantidade_periodo: Number(l.quantidadePeriodo) || 0 })
-        .eq('id', l.medicaoItemId)
-        .select()
-      if (error) {
-        setSalvando(false)
-        setMsg({ tipo: 'erro', texto: `Erro ao salvar item: ${error.message}` })
-        return
-      }
-      if (!data || data.length === 0) {
-        setSalvando(false)
-        setMsg({ tipo: 'erro', texto: 'Não foi possível salvar — a medição pode ter sido aprovada por outra pessoa enquanto você editava.' })
-        if (contratoId) carregar(contratoId)
-        return
-      }
+    const { error } = await supabase.rpc('salvar_itens_medicao', {
+      p_medicao: medicao.id,
+      p_itens: linhas.map(l => ({
+        id: l.medicaoItemId,
+        quantidade_periodo: Number(l.quantidadePeriodo) || 0,
+      })),
+    })
+    if (error) {
+      setSalvando(false)
+      setMsg({ tipo: 'erro', texto: `Não foi possível salvar os itens: ${error.message}` })
+      if (contratoId) carregar(contratoId)
+      return
     }
     setSalvando(false)
     setMsg({ tipo: 'ok', texto: 'Itens atualizados.' })

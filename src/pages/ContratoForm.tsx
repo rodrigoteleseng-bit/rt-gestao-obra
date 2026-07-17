@@ -158,34 +158,26 @@ export default function ContratoForm() {
     }
     setSalvando(true)
     setMsg(null)
-    const { data: novoContrato, error } = await supabase.from('contratos').insert({
-      obra_id: obraAtiva.id,
-      empreiteiro_id: empreiteiroId,
-      objeto: objeto.trim(),
-      condicao_pagamento: condicaoPagamento.trim() || null,
-      retencao_pct: retencaoPct ? Number(retencaoPct) : null,
-    }).select().single()
-    if (error || !novoContrato) {
-      setSalvando(false)
-      setMsg({ tipo: 'erro', texto: `Erro ao criar contrato: ${error?.message}` })
-      return
-    }
-    const { error: eItens } = await supabase.from('contratos_itens').insert(
-      itensValidos.map(it => ({
-        contrato_id: novoContrato.id,
+    const { data: contratoId, error } = await supabase.rpc('criar_contrato_com_itens', {
+      p_obra: obraAtiva.id,
+      p_empreiteiro: empreiteiroId,
+      p_objeto: objeto.trim(),
+      p_condicao_pagamento: condicaoPagamento.trim(),
+      p_retencao_pct: retencaoPct ? Number(retencaoPct) : null,
+      p_itens: itensValidos.map(it => ({
         servico_id: it.servico_id,
         unidade_id: it.unidade_id,
         quantidade: Number(it.quantidade),
         valor_unitario: Number(it.valor_unitario),
-        valor_total: Number(it.quantidade) * Number(it.valor_unitario),
-      }))
-    )
-    setSalvando(false)
-    if (eItens) {
-      setMsg({ tipo: 'erro', texto: `Contrato criado, mas falhou ao salvar itens: ${eItens.message}` })
+      })),
+    })
+    if (error || !contratoId) {
+      setSalvando(false)
+      setMsg({ tipo: 'erro', texto: `Erro ao criar contrato: ${error?.message}` })
       return
     }
-    navigate(`/contratos/${novoContrato.id}`, { replace: true })
+    setSalvando(false)
+    navigate(`/contratos/${contratoId}`, { replace: true })
   }
 
   if (perfil?.papel === 'cliente') {
@@ -387,26 +379,21 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
   async function salvarItens() {
     setSalvandoItens(true)
     setMsg(null)
-    for (const it of itensEdit) {
-      if (it.removido) {
-        if (it.id) {
-          const { error } = await supabase.from('contratos_itens').update({ ativo: false }).eq('id', it.id)
-          if (error) { setSalvandoItens(false); setMsg({ tipo: 'erro', texto: `Erro ao remover item: ${error.message}` }); return }
-        }
-        continue
-      }
-      if (!it.servico_id || !it.unidade_id || !(Number(it.quantidade) > 0) || !(Number(it.valor_unitario) > 0)) continue
-      const valores = {
+    const { error } = await supabase.rpc('salvar_itens_contrato', {
+      p_contrato: contrato.id,
+      p_itens: itensEdit.map(it => ({
+        id: it.id,
+        removido: it.removido,
         servico_id: it.servico_id,
         unidade_id: it.unidade_id,
         quantidade: Number(it.quantidade),
         valor_unitario: Number(it.valor_unitario),
-        valor_total: Number(it.quantidade) * Number(it.valor_unitario),
-      }
-      const { error } = it.id
-        ? await supabase.from('contratos_itens').update(valores).eq('id', it.id)
-        : await supabase.from('contratos_itens').insert({ ...valores, contrato_id: contrato.id })
-      if (error) { setSalvandoItens(false); setMsg({ tipo: 'erro', texto: `Erro ao salvar item: ${error.message}` }); return }
+      })),
+    })
+    if (error) {
+      setSalvandoItens(false)
+      setMsg({ tipo: 'erro', texto: `Erro ao salvar os itens: ${error.message}` })
+      return
     }
     setSalvandoItens(false)
     setEditando(false)

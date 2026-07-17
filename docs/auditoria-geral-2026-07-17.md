@@ -104,6 +104,14 @@ Status: auditoria técnica concluída; validação visual autenticada continua n
 
 **Validação:** todos os usuários existentes foram vinculados à obra atual para preservar o funcionamento. Em teste transacional reversível, um perfil real de equipe continuou vendo a obra vinculada e não conseguiu consultar uma segunda obra temporária não vinculada. A obra temporária foi revertida e não permaneceu no banco.
 
+### [Médio] Gravações parciais em Compras, Contratos e Medições
+
+**Evidência:** a criação do cabeçalho e dos itens, além da edição de lotes de itens, era feita em chamadas sucessivas. Uma falha intermediária podia deixar um pedido, contrato ou medição incompleto, ou aplicar somente parte de uma edição.
+
+**Correção:** a migração `20260717_atomicidade_compras_contratos_medicoes.sql` criou seis RPCs transacionais: criação e edição em lote para os três módulos. As funções usam `SECURITY INVOKER`, preservam RLS e isolamento por obra, bloqueiam edição fora do rascunho e validam os vínculos entre obra, serviço, unidade, contrato e medição.
+
+**Validação:** em produção, um teste com o papel `authenticated` forçou falha no segundo item de cada criação e confirmou rollback integral nos três módulos. As seis funções foram verificadas como `SECURITY INVOKER`, sem execução por `anon` e liberadas somente para `authenticated`.
+
 ## Permissões validadas em produção
 
 | Perfil real | Compras | Almoxarifado | RDO | FVS | Medições |
@@ -121,12 +129,7 @@ Todos os resultados coincidiram com `modulos_permitidos`. As consultas de leitur
 
 Não há perfil `cliente` ativo no banco. As policies e restrições foram revisadas estaticamente, mas o aceite exige uma conta real de cliente para confirmar menus, telas de leitura e bloqueios de escrita ponta a ponta.
 
-### [Médio] Outras gravações compostas ainda não são transações únicas
-
-FVS e Pendências já foram convertidas para transações únicas. Compras, Contratos e Medições ainda criam o registro principal e seus itens em chamadas separadas. As falhas são mostradas, mas a atomicidade total desses três módulos exige RPCs transacionais no banco para impedir registros parciais.
-
 ## Próximos passos recomendados
 
 1. testar no celular os cartões de Compras, Contratos e Medições e os painéis corrigidos de Almoxarifado;
 2. criar uma conta cliente de teste e executar o roteiro dos três papéis;
-3. converter Compras, Contratos e Medições, por prioridade, em RPCs transacionais;

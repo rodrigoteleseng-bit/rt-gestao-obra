@@ -182,32 +182,25 @@ export default function CompraForm() {
     }
     setSalvando(true)
     setMsg(null)
-    const { data: pedido, error } = await supabase.from('pedidos_compra').insert({
-      obra_id: obraAtiva.id,
-      descricao: descricao.trim() || null,
-    }).select().single()
-    if (error || !pedido) {
-      setSalvando(false)
-      setMsg({ tipo: 'erro', texto: `Erro ao criar pedido: ${error?.message}` })
-      return
-    }
-    const { error: eItens } = await supabase.from('pedidos_compra_itens').insert(
-      itensValidos.map(it => ({
-        pedido_id: pedido.id,
+    const { data: pedidoId, error } = await supabase.rpc('criar_pedido_compra_com_itens', {
+      p_obra: obraAtiva.id,
+      p_descricao: descricao.trim(),
+      p_itens: itensValidos.map(it => ({
         servico_id: it.servico_id,
         descricao_item: it.descricao_item.trim(),
         quantidade_pedida: Number(it.quantidade_pedida),
         und: it.und.trim() || null,
         data_necessaria: it.data_necessaria || null,
         urgente: it.urgente,
-      }))
-    )
-    setSalvando(false)
-    if (eItens) {
-      setMsg({ tipo: 'erro', texto: `Pedido criado, mas falhou ao salvar itens: ${eItens.message}` })
+      })),
+    })
+    if (error || !pedidoId) {
+      setSalvando(false)
+      setMsg({ tipo: 'erro', texto: `Erro ao criar pedido: ${error?.message}` })
       return
     }
-    navigate(`/compras/${pedido.id}`, { replace: true })
+    setSalvando(false)
+    navigate(`/compras/${pedidoId}`, { replace: true })
   }
 
   if (!novo) {
@@ -411,47 +404,23 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
     setSalvandoItens(true)
     setMsgItens(null)
 
-    for (const it of itensEdit.filter(it => it.removido && it.id)) {
-      const { error } = await supabase.from('pedidos_compra_itens').update({ ativo: false }).eq('id', it.id!)
-      if (error) {
-        setSalvandoItens(false)
-        setMsgItens({ tipo: 'erro', texto: `Falha ao remover "${it.descricao_item}": ${error.message}` })
-        return
-      }
-    }
-
-    for (const it of validos.filter(it => it.id)) {
-      const { error } = await supabase.from('pedidos_compra_itens').update({
+    const { error } = await supabase.rpc('salvar_itens_pedido_compra', {
+      p_pedido: pedido.id,
+      p_itens: itensEdit.map(it => ({
+        id: it.id,
+        removido: it.removido,
         descricao_item: it.descricao_item.trim(),
         servico_id: it.servico_id,
         quantidade_pedida: Number(it.quantidade_pedida),
         und: it.und.trim() || null,
         data_necessaria: it.data_necessaria || null,
         urgente: it.urgente,
-      }).eq('id', it.id!)
-      if (error) {
-        setSalvandoItens(false)
-        setMsgItens({ tipo: 'erro', texto: `Falha ao salvar "${it.descricao_item}": ${error.message}` })
-        return
-      }
-    }
-
-    const novos = validos.filter(it => !it.id)
-    if (novos.length > 0) {
-      const { error } = await supabase.from('pedidos_compra_itens').insert(novos.map(it => ({
-        pedido_id: pedido.id,
-        servico_id: it.servico_id,
-        descricao_item: it.descricao_item.trim(),
-        quantidade_pedida: Number(it.quantidade_pedida),
-        und: it.und.trim() || null,
-        data_necessaria: it.data_necessaria || null,
-        urgente: it.urgente,
-      })))
-      if (error) {
-        setSalvandoItens(false)
-        setMsgItens({ tipo: 'erro', texto: `Falha ao adicionar novos itens: ${error.message}` })
-        return
-      }
+      })),
+    })
+    if (error) {
+      setSalvandoItens(false)
+      setMsgItens({ tipo: 'erro', texto: `Falha ao salvar os itens: ${error.message}` })
+      return
     }
 
     setSalvandoItens(false)

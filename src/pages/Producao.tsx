@@ -307,6 +307,8 @@ function Lancamentos({
     setFaceEscolha(null);
   }
 
+  const saldoPorParede = new Map(paredesDaPlanta.map((p) => [p.id, saldoDaParede(p)]));
+
   const saldoRestante = paredeSelecionada
     ? form.servico === "alvenaria"
       ? saldoDaParede(paredeSelecionada).alvenaria
@@ -392,7 +394,7 @@ function Lancamentos({
         ) : !urlImagem ? (
           <p className={styles.sub}>Nenhuma planta deste pavimento cadastrada ainda — cadastre na aba "Plantas".</p>
         ) : (
-          <PlantaClicavel imagemUrl={urlImagem} paredes={paredesDaPlanta} modo="selecionar" onSelecionar={aoSelecionarParede} />
+          <PlantaClicavel imagemUrl={urlImagem} paredes={paredesDaPlanta} modo="selecionar" onSelecionar={aoSelecionarParede} saldoPorParede={saldoPorParede} />
         )}
         {paredeSelecionada && form.servico === "reboco" && !faceEscolha && (
           <div className={styles.modalFundo} onClick={() => setParedeSelecionada(null)}>

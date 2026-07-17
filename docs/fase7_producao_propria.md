@@ -1,6 +1,6 @@
 # Fase 7 — Produção própria
 
-> Implementada em 16/07/2026. Seleção de parede por planta PDF implementada em 17/07/2026; aguardando revisão obrigatória do Claude Code antes de teste com dados reais por Rodrigo.
+> Implementada em 16/07/2026. Seleção de parede por planta PDF implementada em 17/07/2026; revisão obrigatória do Claude Code concluída em 17/07/2026 (`docs/revisao-2026-07-17-producao-selecao-parede.md`), achados tratados e migrações aplicadas em produção pelo próprio Claude Code (transferência excepcional, Codex indisponível até 23/07/2026 — ver `docs/sequencia-trabalho-codex-claude.md` §10). Aguardando teste com dados reais por Rodrigo.
 
 ## Entrega original
 
@@ -17,7 +17,7 @@
 - Nova aba **Plantas** em Produção própria.
 - Upload de planta em PDF por obra, pavimento e unidade opcional.
 - Conversão do PDF para imagem no navegador para uso como base visual.
-- Cadastro de paredes por clique/desenho sobre a planta, com código, serviço, pavimento, unidade opcional e metas de alvenaria/reboco.
+- Cadastro de paredes por clique/desenho sobre a planta (uma vez por pavimento, reaproveitada nos 13 sobrados), com nome e metas de alvenaria e/ou reboco (face A/B). Serviço, sobrado e saldo produzido ficam em `producao_paredes_progresso`, não na parede — a mesma parede cadastrada uma vez é compartilhada por todos os sobrados "Tipo", cada um com saldo independente.
 - Lançamento diário selecionando a parede diretamente na planta, com:
   - saldo independente por sobrado/unidade;
   - alvenaria controlada por parede;
@@ -74,10 +74,10 @@ Roteiro funcional recomendado:
 
 ## Pontos de atenção
 
-- A alteração envolve RLS, triggers e RPC de escrita composta; revisão do Claude Code é obrigatória antes do teste real.
-- A aplicação das migrações no Supabase deve preservar o isolamento por obra e as permissões por módulo.
-- A Task 2 altera triggers de `producao_lancamentos`, tabela que já pode ter dados reais; antes de aplicar em produção, validar em transação com `ROLLBACK`.
-- O push para `main` aciona deploy automático na Vercel; não fazer push antes de a estratégia de migração estar confirmada.
+- Revisão do Claude Code concluída em 17/07/2026 (`docs/revisao-2026-07-17-producao-selecao-parede.md`): 1 achado crítico (migrações não aplicadas em produção, embora o frontend já estivesse em `main`) e 1 achado médio (destaque visual de parede concluída não aparecia — `saldoPorParede` não chegava ao `PlantaClicavel` em Lançamentos), ambos tratados no mesmo dia.
+- As duas migrações (`20260718_producao_plantas_paredes.sql` e `20260718_producao_progresso_lancamento.sql`) foram aplicadas em produção pelo Claude Code em 17/07/2026 — a segunda foi validada antes em transação com `ROLLBACK` (a tabela `producao_lancamentos` estava vazia em produção, sem lançamentos reais ainda, então o risco era baixo).
+- Isolamento por obra e permissões por módulo confirmados na revisão (RLS via função `SECURITY DEFINER` dedicada por tabela-pai, nunca subquery inline).
+- Arquivos órfãos no Storage ao recadastrar uma planta (achado baixo, não bloqueante) ficam para uma iteração futura se o uso real mostrar que o recadastro é frequente.
 
 ## Fora do MVP
 

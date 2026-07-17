@@ -143,6 +143,15 @@ Para **cada fase**, o Claude segue exatamente esta sequência:
 
 Na entrega de qualquer análise ou documento: marcar dados como [extraído], [estimado] ou [lacuna]; citar base de cada estimativa; sinalizar opcionais como [sugestão].
 
+## 7.1 Colaboração com o Codex
+
+Quando Codex e Claude Code forem usados no mesmo projeto, ler e cumprir integralmente
+`docs/colaboracao-codex-claude.md`. Por padrão, o Codex é o responsável pela execução
+contínua e o Claude Code atua como arquiteto/revisor independente em modo somente
+leitura. O Claude Code só pode assumir implementação quando Rodrigo declarar
+explicitamente o escopo, os arquivos reservados e o commit-base. Nunca editar ao mesmo
+tempo arquivos que estejam sob responsabilidade ativa do Codex.
+
 ## 8. Definição de pronto (por módulo)
 
 Um módulo só é considerado entregue quando:
@@ -169,6 +178,7 @@ Respondidas em 07/07/2026 [extraído]:
 
 ---
 
+*Versão 1.12 — 17/07/2026 — adiciona o §7.1 e referencia `docs/colaboracao-codex-claude.md`, formalizando Codex como executor contínuo e Claude Code como arquiteto/revisor independente por padrão, com prevenção de edição concorrente.*
 *Versão 1.11 — 14/07/2026 — §0 registra dois ajustes no Almoxarifado: lançamento de entrada em lote (vários insumos por NF, mesmo padrão de lista de Contratos/Compras) e edição de entrada pelo admin (corrige quantidade/material/fornecedor/NF sem inativar e relançar, grava editado_por/editado_em). Corrigido também o trigger `sincroniza_recebimento_pedido()`, que só reagia à inativação — agora reage a mudança de quantidade/vínculo também, requisito pra edição ser segura sem desatualizar o pedido de compra vinculado.*
 *Versão 1.10 — 14/07/2026 — §0 registra o módulo Medições (Fase 7) entregue: lançamento de quantidade executada por item de contrato ativo (aceita fração), trava de saldo no banco sem exceção pra admin, cálculo de retenção (bruto/retido/líquido), aprovação exclusiva do admin, PDF com identidade RT. Cobre só o regime de empreiteiros por serviço — produção própria fica pra spec futura. Implementado via subagent-driven-development; revisão da Task 1 encontrou 3 lacunas de RLS/trigger próprias (reatribuição de item aprovado, saldo somado por linha em vez de por item, valores calculados graváveis direto) fechadas no mesmo dia, antes da interface. Ver `docs/fase7_medicoes.md`.*
 *Versão 1.9 — 13/07/2026 — §0 registra o módulo Contratos (Fase 7) entregue: cadastro de empreiteiros, contrato com itens vinculados ao orçamento (serviço × unidade), numeração `CT-001...`, fluxo rascunho→ativo→encerrado exclusivo do admin em ordem única, itens imutáveis fora do rascunho sem exceção pra admin (RLS corrigida em 2 rodadas de revisão no mesmo dia — bypass de admin indevido nos itens e transição de status fora de ordem). Base para o futuro módulo de Medições. Ver `docs/fase7_contratos.md`.*

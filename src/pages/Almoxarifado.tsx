@@ -9,6 +9,7 @@ import {
 import { gerarPdfBlocoRequisicoes } from '../lib/requisicoesPdf'
 import { gerarPdfEstoque } from '../lib/estoquePdf'
 import { dataLocalISO, dataHoje, diasEntre } from '../lib/almoxarifado'
+import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Almoxarifado.module.css'
 
 type Aba = 'estoque' | 'ferramentas' | 'requisicoes'
@@ -193,6 +194,7 @@ function AbaRequisicoes() {
 }
 
 function AbaEstoque() {
+  const { confirmar } = useConfirmDialog()
   const { perfil } = useAuth()
   const { obraAtiva } = useObra()
   const admin = perfil?.papel === 'admin'
@@ -298,7 +300,12 @@ function AbaEstoque() {
   }
 
   async function inativarMovimento(mv: EstoqueMovimento) {
-    if (!window.confirm('Inativar este movimento? Ele deixa de contar no saldo, mas o registro é mantido no histórico (exclusão lógica).')) return
+    if (!await confirmar({
+      titulo: 'Inativar movimento',
+      mensagem: 'Ele deixará de contar no saldo, mas continuará preservado no histórico como exclusão lógica.',
+      confirmarTexto: 'Inativar movimento',
+      perigoso: true,
+    })) return
     const { error } = await supabase.from('estoque_movimentos').update({ ativo: false }).eq('id', mv.id)
     if (error) { setMsg({ tipo: 'erro', texto: `Erro ao inativar: ${error.message}` }); return }
     // recarrega saldos + extrato do material aberto
@@ -602,6 +609,7 @@ function estadoDoEmprestimo(emprestimo: FerramentaEmprestimo | undefined): { est
 }
 
 function AbaFerramentas() {
+  const { confirmar } = useConfirmDialog()
   const { perfil } = useAuth()
   const { obraAtiva } = useObra()
 
@@ -682,7 +690,11 @@ function AbaFerramentas() {
 
   async function devolver(emprestimo: FerramentaEmprestimo) {
     if (!perfil) return
-    if (!window.confirm('Confirma a devolução desta ferramenta?')) return
+    if (!await confirmar({
+      titulo: 'Registrar devolução',
+      mensagem: 'Confirma que a ferramenta foi devolvida ao almoxarifado?',
+      confirmarTexto: 'Confirmar devolução',
+    })) return
     setMsg(null)
     const { data, error } = await supabase.from('ferramenta_emprestimos')
       .update({ devolvida_em: new Date().toISOString(), devolvida_recebida_por: perfil.id })

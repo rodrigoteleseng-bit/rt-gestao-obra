@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ObraProvider } from './contexts/ObraContext'
 import Layout from './components/Layout'
+import { ConfirmDialogProvider } from './components/ConfirmDialog'
 import Login from './pages/Login'
 import NovaSenha from './pages/NovaSenha'
 
@@ -95,9 +96,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <ConfirmDialogProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ConfirmDialogProvider>
     </BrowserRouter>
   )
 }

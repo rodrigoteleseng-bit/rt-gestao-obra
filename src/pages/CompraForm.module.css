@@ -254,4 +254,40 @@
   .linha2 {
     grid-template-columns: 1fr;
   }
+
+  .tabelaComparativa {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0 12px;
+  }
+
+  .tabelaComparativa thead { display: none; }
+  .tabelaComparativa tbody,
+  .tabelaComparativa tr,
+  .tabelaComparativa td { display: block; width: 100%; }
+
+  .tabelaComparativa tr {
+    overflow: hidden;
+    border: 1px solid var(--cinza-200);
+    border-radius: var(--radius-sm);
+    background: var(--branco);
+  }
+
+  .tabelaComparativa td {
+    display: grid;
+    grid-template-columns: minmax(105px, 38%) minmax(0, 1fr);
+    gap: 10px;
+    border: 0;
+    border-bottom: 1px solid var(--cinza-200);
+    overflow-wrap: anywhere;
+  }
+
+  .tabelaComparativa td:last-child { border-bottom: 0; }
+  .tabelaComparativa td::before {
+    content: attr(data-label);
+    color: var(--cinza-600);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
 }

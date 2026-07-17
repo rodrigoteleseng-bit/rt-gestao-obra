@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import { supabase, type EfetivoPresenca, type Trabalhador } from '../lib/supabase'
 import { dataHoje } from '../lib/almoxarifado'
+import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Efetivo.module.css'
 
 type Aba = 'trabalhadores' | 'chamada'
@@ -46,6 +47,7 @@ export default function Efetivo() {
 }
 
 function AbaTrabalhadores() {
+  const { confirmar } = useConfirmDialog()
   const { perfil, temModulo } = useAuth()
   const { obraAtiva } = useObra()
   const podeEditar = perfil?.papel === 'admin' || temModulo('efetivo')
@@ -90,7 +92,12 @@ function AbaTrabalhadores() {
   }
 
   async function inativar(t: Trabalhador) {
-    if (!window.confirm(`Inativar ${t.nome}? O histórico é mantido, mas ele deixa de aparecer na chamada.`)) return
+    if (!await confirmar({
+      titulo: `Inativar ${t.nome}`,
+      mensagem: 'O histórico será mantido, mas o trabalhador deixará de aparecer na chamada.',
+      confirmarTexto: 'Inativar trabalhador',
+      perigoso: true,
+    })) return
     setMsg(null)
     const { error } = await supabase.from('trabalhadores').update({ ativo: false }).eq('id', t.id)
     if (error) {

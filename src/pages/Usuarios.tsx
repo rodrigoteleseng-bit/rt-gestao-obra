@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, type PerfilUsuario, type ModuloApp } from '../lib/supabase'
 import { resetSenha } from '../lib/auth'
+import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Usuarios.module.css'
 
 const MODULOS_LABELS: Record<ModuloApp, string> = {
@@ -25,6 +26,7 @@ const TODOS_MODULOS = Object.keys(MODULOS_LABELS) as ModuloApp[]
 
 export default function Usuarios() {
   const { perfil: meuPerfil } = useAuth()
+  const { confirmar } = useConfirmDialog()
   const navigate = useNavigate()
   const [usuarios, setUsuarios] = useState<PerfilUsuario[]>([])
   const [editando, setEditando] = useState<string | null>(null)
@@ -101,7 +103,12 @@ export default function Usuarios() {
       reativar: `Reativar o acesso de ${u.nome}?`,
       excluir_pendente: `Excluir definitivamente o convite de ${u.nome}? Só é possível se a pessoa nunca acessou o sistema.`,
     }
-    if (!window.confirm(confirmacoes[acao])) return
+    if (!await confirmar({
+      titulo: acao === 'reativar' ? 'Reativar acesso' : acao === 'desativar' ? 'Desativar acesso' : 'Excluir convite',
+      mensagem: confirmacoes[acao],
+      confirmarTexto: acao === 'reativar' ? 'Reativar' : acao === 'desativar' ? 'Desativar' : 'Excluir convite',
+      perigoso: acao !== 'reativar',
+    })) return
 
     setLoading(true)
     const { data, error } = await supabase.functions.invoke('gerenciar-usuario', {
@@ -116,7 +123,11 @@ export default function Usuarios() {
   }
 
   async function enviarLinkSenha(u: PerfilUsuario) {
-    if (!window.confirm(`Enviar link de redefinição de senha para ${u.email}? A pessoa recebe um e-mail e define a nova senha sozinha.`)) return
+    if (!await confirmar({
+      titulo: 'Enviar link de nova senha',
+      mensagem: `Enviar o link para ${u.email}? A pessoa receberá um e-mail e definirá a nova senha sozinha.`,
+      confirmarTexto: 'Enviar link',
+    })) return
     setLoading(true)
     try {
       await resetSenha(u.email)

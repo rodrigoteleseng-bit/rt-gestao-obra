@@ -7,6 +7,7 @@ import {
 } from '../lib/supabase'
 import { gerarPdfMedicao } from '../lib/medicoesPdf'
 import { formatarMoeda } from '../lib/formato'
+import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './MedicaoForm.module.css'
 
 export const STATUS_MEDICAO_LABEL: Record<StatusMedicao, string> = {
@@ -27,6 +28,7 @@ interface ItemLinha {
 }
 
 export default function MedicaoForm() {
+  const { confirmar } = useConfirmDialog()
   const { contratoId, medicaoId } = useParams()
   const nova = medicaoId === 'nova'
   const navigate = useNavigate()
@@ -187,7 +189,11 @@ export default function MedicaoForm() {
 
   async function aprovar() {
     if (!medicao) return
-    if (!confirm('Aprovar esta medição? Os itens ficarão travados e não poderão mais ser alterados.')) return
+    if (!await confirmar({
+      titulo: 'Aprovar medição',
+      mensagem: 'Os itens ficarão travados e não poderão mais ser alterados.',
+      confirmarTexto: 'Aprovar medição',
+    })) return
     setSalvando(true)
     setMsg(null)
     const { data, error } = await supabase.from('medicoes').update({
@@ -292,19 +298,19 @@ export default function MedicaoForm() {
               const valorPeriodo = (Number(l.quantidadePeriodo) || 0) * l.valorUnitario
               return (
                 <tr key={l.contratoItemId}>
-                  <td>{l.servicoCodigo ? `${l.servicoCodigo} — ` : ''}{l.servicoNome}</td>
-                  <td>{l.unidadeNome}</td>
-                  <td>{l.quantidadeContratada}</td>
-                  <td>{l.jaAprovado}</td>
-                  <td>{saldoAntes}</td>
-                  <td>
+                  <td data-label="Serviço">{l.servicoCodigo ? `${l.servicoCodigo} — ` : ''}{l.servicoNome}</td>
+                  <td data-label="Unidade">{l.unidadeNome}</td>
+                  <td data-label="Qtd. contratada">{l.quantidadeContratada}</td>
+                  <td data-label="Já aprovado">{l.jaAprovado}</td>
+                  <td data-label="Saldo antes">{saldoAntes}</td>
+                  <td data-label="Qtd. neste período">
                     {podeEditarItens
                       ? <input type="number" min="0" step="0.0001" value={l.quantidadePeriodo}
                           onChange={e => atualizarLinha(l.contratoItemId, e.target.value)} className={styles.inputQtd} />
                       : l.quantidadePeriodo}
                   </td>
-                  <td>R$ {formatarMoeda(l.valorUnitario)}</td>
-                  <td>R$ {formatarMoeda(valorPeriodo)}</td>
+                  <td data-label="Valor unitário">R$ {formatarMoeda(l.valorUnitario)}</td>
+                  <td data-label="Valor do período">R$ {formatarMoeda(valorPeriodo)}</td>
                 </tr>
               )
             })}

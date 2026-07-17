@@ -9,6 +9,7 @@ import {
 import { STATUS_LABEL } from './Contratos'
 import { STATUS_MEDICAO_LABEL } from './MedicaoForm'
 import { formatarMoeda } from '../lib/formato'
+import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './ContratoForm.module.css'
 
 interface ItemNovo {
@@ -323,6 +324,7 @@ interface DetalheContratoProps {
 }
 
 function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, podeEditar, podeEditarMedicoes, ehAdmin, perfilId, onRecarregar }: DetalheContratoProps) {
+  const { confirmar } = useConfirmDialog()
   const navigate = useNavigate()
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [processando, setProcessando] = useState(false)
@@ -422,7 +424,12 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
   }
 
   async function encerrarContrato() {
-    if (!confirm('Encerrar este contrato? Ele deixará de aceitar alterações.')) return
+    if (!await confirmar({
+      titulo: 'Encerrar contrato',
+      mensagem: 'O contrato deixará de aceitar alterações e novas medições.',
+      confirmarTexto: 'Encerrar contrato',
+      perigoso: true,
+    })) return
     setProcessando(true)
     const { error } = await supabase.from('contratos').update({
       status: 'encerrado', encerrado_por: perfilId, encerrado_em: new Date().toISOString(),
@@ -481,12 +488,12 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
                   const s = nomeServico.get(it.servico_id)
                   return (
                     <tr key={it.id}>
-                      <td>{s?.codigo ? `${s.codigo} — ` : ''}{s?.nome ?? '—'}</td>
-                      <td>{nomeUnidade.get(it.unidade_id) ?? '—'}</td>
-                      <td>{it.quantidade}</td>
-                      <td>R$ {formatarMoeda(it.valor_unitario)}</td>
-                      <td>R$ {formatarMoeda(it.valor_total)}</td>
-                      <td>{s?.valor_unit != null ? `R$ ${formatarMoeda(s.valor_unit)}` : '—'}</td>
+                      <td data-label="Serviço">{s?.codigo ? `${s.codigo} — ` : ''}{s?.nome ?? '—'}</td>
+                      <td data-label="Unidade">{nomeUnidade.get(it.unidade_id) ?? '—'}</td>
+                      <td data-label="Quantidade">{it.quantidade}</td>
+                      <td data-label="Valor unitário">R$ {formatarMoeda(it.valor_unitario)}</td>
+                      <td data-label="Valor total">R$ {formatarMoeda(it.valor_total)}</td>
+                      <td data-label="Orçado unitário">{s?.valor_unit != null ? `R$ ${formatarMoeda(s.valor_unit)}` : '—'}</td>
                     </tr>
                   )
                 })}

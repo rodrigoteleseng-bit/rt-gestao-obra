@@ -5,6 +5,7 @@ import { useObra } from '../contexts/ObraContext'
 import { supabase, type ProducaoMedicao, type Trabalhador } from '../lib/supabase'
 import { hojeISO } from '../lib/cronograma'
 import { formatarMoeda } from '../lib/formato'
+import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Producao.module.css'
 
 type LinhaProd={id:string;data_producao:string;servico:string;parede_nome:string;area_atribuida:number;preco_m2:number;valor_atribuido:number}
@@ -12,7 +13,7 @@ type LinhaDia={id:string;data:string;salario_mensal:number;divisor:number;valor_
 const fmt=(d:string)=>`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`
 
 export default function ProducaoMedicaoForm(){
- const {id}=useParams(),navigate=useNavigate(),{perfil}=useAuth(),{obraAtiva}=useObra(); const nova=id==='nova'
+ const {id}=useParams(),navigate=useNavigate(),{perfil}=useAuth(),{obraAtiva}=useObra(),{confirmar,solicitarTexto}=useConfirmDialog(); const nova=id==='nova'
  const [trabalhadores,setTrabalhadores]=useState<Trabalhador[]>([]),[trab,setTrab]=useState(''),[inicio,setInicio]=useState(hojeISO().slice(0,8)+'01'),[fim,setFim]=useState(hojeISO())
  const [medicao,setMedicao]=useState<ProducaoMedicao|null>(null),[prod,setProd]=useState<LinhaProd[]>([]),[dias,setDias]=useState<LinhaDia[]>([]),[msg,setMsg]=useState(''),[carregando,setCarregando]=useState(false)
  useEffect(()=>{if(!obraAtiva)return;supabase.from('trabalhadores').select('*').eq('obra_id',obraAtiva.id).eq('ativo',true).order('nome').then(({data})=>setTrabalhadores(data??[]))},[obraAtiva])
@@ -26,9 +27,9 @@ export default function ProducaoMedicaoForm(){
  async function carregarMedicao(mid:string){const {data:m,error}=await supabase.from('producao_medicoes').select('*').eq('id',mid).single();if(error||!m)return setMsg(error?.message??'Medição não encontrada.');setMedicao(m);setTrab(m.trabalhador_id);setInicio(m.data_inicio);setFim(m.data_fim);if(m.status==='rascunho'){await carregarPreviaDetalhe(m)}else{const [p,d]=await Promise.all([supabase.from('producao_medicao_lancamentos').select('*').eq('medicao_id',mid).eq('ativo',true),supabase.from('producao_medicao_dias').select('*').eq('medicao_id',mid).eq('ativo',true)]);setProd((p.data??[]).map(x=>({id:x.id,data_producao:x.data_producao,servico:x.servico,parede_nome:x.parede_nome,area_atribuida:x.area_atribuida,preco_m2:x.preco_m2,valor_atribuido:x.valor_atribuido})));setDias((d.data??[]).map(x=>({id:x.id,data:x.data,salario_mensal:x.salario_mensal,divisor:x.divisor,valor_dia:x.valor_dia,motivo:x.motivo})))}}
  async function carregarPreviaDetalhe(m:ProducaoMedicao){await carregarPrevia(m.trabalhador_id,m.data_inicio,m.data_fim)}
  async function criar(){if(!obraAtiva||!trab)return setMsg('Selecione o profissional.');const {data,error}=await supabase.from('producao_medicoes').insert({obra_id:obraAtiva.id,trabalhador_id:trab,data_inicio:inicio,data_fim:fim}).select().single();if(error)return setMsg(error.message);navigate(`/medicoes/producao/${data.id}`)}
- async function aprovar(){if(!medicao||!window.confirm('Aprovar e congelar esta medição?'))return;const {error}=await supabase.rpc('producao_aprovar_medicao',{p_medicao:medicao.id});if(error)return setMsg(error.message);await carregarMedicao(medicao.id);setMsg('Medição aprovada.')}
- async function pagar(){if(!medicao||!window.confirm('Marcar esta medição como paga?'))return;const {error}=await supabase.from('producao_medicoes').update({status:'paga'}).eq('id',medicao.id);if(error)return setMsg(error.message);await carregarMedicao(medicao.id)}
- async function cancelar(){if(!medicao)return;const motivo=window.prompt('Motivo do cancelamento:');if(!motivo)return;const {error}=await supabase.rpc('producao_cancelar_medicao',{p_medicao:medicao.id,p_motivo:motivo});if(error)return setMsg(error.message);await carregarMedicao(medicao.id)}
+ async function aprovar(){if(!medicao||!await confirmar({titulo:'Aprovar medição de produção',mensagem:'A medição será congelada e não poderá mais ser editada.',confirmarTexto:'Aprovar medição'}))return;const {error}=await supabase.rpc('producao_aprovar_medicao',{p_medicao:medicao.id});if(error)return setMsg(error.message);await carregarMedicao(medicao.id);setMsg('Medição aprovada.')}
+ async function pagar(){if(!medicao||!await confirmar({titulo:'Marcar medição como paga',mensagem:'Confirma que o pagamento desta medição foi realizado?',confirmarTexto:'Marcar como paga'}))return;const {error}=await supabase.from('producao_medicoes').update({status:'paga'}).eq('id',medicao.id);if(error)return setMsg(error.message);await carregarMedicao(medicao.id)}
+ async function cancelar(){if(!medicao)return;const motivo=await solicitarTexto({titulo:'Cancelar medição',mensagem:'Informe o motivo. O registro será preservado no histórico.',confirmarTexto:'Cancelar medição',perigoso:true,campo:{rotulo:'Motivo do cancelamento',placeholder:'Descreva o motivo…'}});if(!motivo)return;const {error}=await supabase.rpc('producao_cancelar_medicao',{p_medicao:medicao.id,p_motivo:motivo});if(error)return setMsg(error.message);await carregarMedicao(medicao.id)}
  async function imprimir(){if(!medicao||!obraAtiva)return;const t=trabalhadores.find(x=>x.id===trab);const {gerarPdfProducao}=await import('../lib/producaoMedicaoPdf');gerarPdfProducao({medicao,obraNome:obraAtiva.nome,profissionalNome:t?.nome??'Profissional',funcao:t?.funcao??'',producao:prod,dias})}
  const valorProd=prod.reduce((s,x)=>s+Number(x.valor_atribuido),0),valorSal=Math.round(dias.reduce((s,x)=>s+Number(x.valor_dia),0)*100)/100,total=valorProd+valorSal
  const nome=trabalhadores.find(t=>t.id===trab)?.nome??'Profissional'

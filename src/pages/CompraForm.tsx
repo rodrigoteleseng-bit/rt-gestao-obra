@@ -860,16 +860,16 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
             <tbody>
               {itens.map(it => (
                 <tr key={it.id}>
-                  <td>{it.urgente && '⚡ '}{it.descricao_item}</td>
-                  <td>{codigoAplicacao(it.servico_id)}</td>
-                  <td>{it.quantidade_pedida} {it.und}</td>
-                  <td>{it.data_necessaria ?? '—'}</td>
+                  <td data-label="Item">{it.urgente && '⚡ '}{it.descricao_item}</td>
+                  <td data-label="Aplicação">{codigoAplicacao(it.servico_id)}</td>
+                  <td data-label="Quantidade">{it.quantidade_pedida} {it.und}</td>
+                  <td data-label="Data na obra">{it.data_necessaria ?? '—'}</td>
                   {cotacoes.map(c => {
                     const preco = precoDe(c.id, it.id)
                     const cotItemId = idDoItemCotacao(c.id, it.id)
                     const vencedor = it.cotacao_item_vencedora_id !== null && cotItemId === it.cotacao_item_vencedora_id
                     return (
-                      <td key={c.id}>
+                      <td key={c.id} data-label={nomeFornecedor(c.fornecedor_id)}>
                         {preco !== null ? (
                           <>
                             <span className={vencedor ? styles.precoVencedor : ''}>R$ {formatarMoeda(preco)}</span>
@@ -1039,22 +1039,22 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
 
                 return (
                   <tr key={it.id} className={diverge ? styles.linhaDivergente : ''}>
-                    <td>{it.descricao_item}</td>
-                    <td>
+                    <td data-label="Item">{it.descricao_item}</td>
+                    <td data-label="Aprovado">
                       {it.quantidade_pedida} {it.und}
                       {preco !== null ? <div>R$ {formatarMoeda(preco)}/{it.und} — total R$ {formatarMoeda(valorAprovado!)}</div>
                         : <div className={styles.msgInfo}>preço vencedor não definido</div>}
                     </td>
-                    <td>
+                    <td data-label="Almoxarifado">
                       {qtdAlmoxarifado} {it.und}
                       {valorAlmoxarifado !== null && <div>~R$ {formatarMoeda(valorAlmoxarifado)} (a preço aprovado)</div>}
                     </td>
-                    <td>
+                    <td data-label="Nota fiscal">
                       {nfAnexada
                         ? (it.valor_recebido !== null ? <>R$ {formatarMoeda(it.valor_recebido)}</> : <span className={styles.msgInfo}>NF anexada — valor por item não informado</span>)
                         : <span className={styles.msgInfo}>sem NF anexada ainda</span>}
                     </td>
-                    <td>
+                    <td data-label="Conferência">
                       {diverge
                         ? <span className={styles.msgErro}>⚠ {avisos.join('; ')}</span>
                         : <span className={styles.msgOk}>✓ conferido</span>}

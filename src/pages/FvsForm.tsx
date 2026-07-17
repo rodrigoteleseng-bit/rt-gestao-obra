@@ -8,6 +8,7 @@ import {
 } from '../lib/supabase'
 import { obterPosicao, sha256Hex, carimbarFoto, fmtCoord } from '../lib/rdo'
 import { STATUS_FVS_LABEL } from './Fvs'
+import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Fvs.module.css'
 
 const fmtDataHora = (iso: string) => {
@@ -16,6 +17,7 @@ const fmtDataHora = (iso: string) => {
 }
 
 export default function FvsForm() {
+  const { confirmar } = useConfirmDialog()
   const { id } = useParams()
   const nova = id === 'nova'
   const navigate = useNavigate()
@@ -324,7 +326,12 @@ export default function FvsForm() {
 
   async function excluirFvs() {
     if (!fvs) return
-    if (!window.confirm('Excluir esta FVS? Ela sai das listagens e do mapa da qualidade, e as pendências que ela gerou são inativadas. O registro é mantido no banco (exclusão lógica). Use apenas para fichas salvas por engano.')) return
+    if (!await confirmar({
+      titulo: 'Excluir FVS',
+      mensagem: 'Ela sairá das listagens e do mapa da qualidade. As pendências geradas serão inativadas, mas todo o histórico continuará preservado no banco. Use somente para fichas salvas por engano.',
+      confirmarTexto: 'Excluir FVS',
+      perigoso: true,
+    })) return
     setSalvando(true)
     const { error } = await supabase.rpc('excluir_fvs', { p_fvs: fvs.id })
     setSalvando(false)

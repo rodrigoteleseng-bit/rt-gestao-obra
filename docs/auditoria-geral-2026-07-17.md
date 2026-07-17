@@ -96,6 +96,14 @@ Status: auditoria técnica concluída; validação visual autenticada continua n
 
 **Validação:** as três funções foram confirmadas em produção com `search_path=public`, sem privilégio para `anon` e com execução somente para `authenticated`. O frontend passou a usar exclusivamente as novas RPCs nesses fluxos.
 
+### [Alto] Ausência de vínculo usuário × obra
+
+**Evidência:** qualquer usuário autenticado conseguia consultar a única obra existente e seus RDOs; o modelo não possuía participação por obra e não estava preparado para separar clientes/equipes numa segunda obra.
+
+**Correção:** a migração `20260717_isolamento_usuario_obra.sql` criou `usuarios_obras`, helpers endurecidos e policies `RESTRICTIVE` sobre 52 tabelas operacionais, além dos quatro buckets privados. Administradores mantêm acesso global; equipe e cliente ficam restritos às obras explicitamente vinculadas. A tela Usuários passou a administrar módulos e obras em uma única transação.
+
+**Validação:** todos os usuários existentes foram vinculados à obra atual para preservar o funcionamento. Em teste transacional reversível, um perfil real de equipe continuou vendo a obra vinculada e não conseguiu consultar uma segunda obra temporária não vinculada. A obra temporária foi revertida e não permaneceu no banco.
+
 ## Permissões validadas em produção
 
 | Perfil real | Compras | Almoxarifado | RDO | FVS | Medições |
@@ -108,10 +116,6 @@ Status: auditoria técnica concluída; validação visual autenticada continua n
 Todos os resultados coincidiram com `modulos_permitidos`. As consultas de leitura de Obra/RDO ficaram disponíveis aos usuários autenticados, conforme o modelo atual do app.
 
 ## Achados abertos
-
-### [Alto antes da segunda obra] Não existe vínculo usuário × obra
-
-Hoje todo usuário autenticado consegue ler a única obra e os RDOs. O modelo não possui tabela de participação por obra; portanto, ao cadastrar uma segunda obra para outro cliente/equipe, será necessário criar esse vínculo e incorporá-lo às policies RLS antes de liberar os novos acessos.
 
 ### [Médio] Papel cliente sem conta ativa para teste real
 
@@ -126,4 +130,3 @@ FVS e Pendências já foram convertidas para transações únicas. Compras, Cont
 1. testar no celular os cartões de Compras, Contratos e Medições e os painéis corrigidos de Almoxarifado;
 2. criar uma conta cliente de teste e executar o roteiro dos três papéis;
 3. converter Compras, Contratos e Medições, por prioridade, em RPCs transacionais;
-4. implantar vínculo usuário × obra antes da entrada de uma segunda obra com acessos distintos.

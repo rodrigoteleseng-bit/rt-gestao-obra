@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase, type PerfilUsuario, type ModuloApp } from '../lib/supabase'
+import { supabase, type PerfilUsuario, type ModuloApp, type Obra, type UsuarioObra } from '../lib/supabase'
 import { resetSenha } from '../lib/auth'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Usuarios.module.css'
@@ -29,8 +29,11 @@ export default function Usuarios() {
   const { confirmar } = useConfirmDialog()
   const navigate = useNavigate()
   const [usuarios, setUsuarios] = useState<PerfilUsuario[]>([])
+  const [obras, setObras] = useState<Obra[]>([])
+  const [obrasPorUsuario, setObrasPorUsuario] = useState<Record<string, string[]>>({})
   const [editando, setEditando] = useState<string | null>(null)
   const [modulosEdit, setModulosEdit] = useState<ModuloApp[]>([])
+  const [obrasEdit, setObrasEdit] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
   const [convidando, setConvidando] = useState(false)
@@ -38,6 +41,7 @@ export default function Usuarios() {
   const [convEmail, setConvEmail] = useState('')
   const [convPapel, setConvPapel] = useState<'equipe' | 'cliente'>('equipe')
   const [convModulos, setConvModulos] = useState<ModuloApp[]>([])
+  const [convObras, setConvObras] = useState<string[]>([])
   const [convErro, setConvErro] = useState('')
   const [convOk, setConvOk] = useState('')
 
@@ -50,13 +54,24 @@ export default function Usuarios() {
   }, [meuPerfil])
 
   async function carregarUsuarios() {
-    const { data } = await supabase.from('perfis_usuario').select('*').order('nome')
-    setUsuarios(data ?? [])
+    const [resUsuarios, resObras, resVinculos] = await Promise.all([
+      supabase.from('perfis_usuario').select('*').order('nome'),
+      supabase.from('obras').select('*').order('nome'),
+      supabase.from('usuarios_obras').select('*').eq('ativo', true),
+    ])
+    setUsuarios(resUsuarios.data ?? [])
+    setObras((resObras.data ?? []) as Obra[])
+    const mapa: Record<string, string[]> = {}
+    for (const vinculo of (resVinculos.data ?? []) as UsuarioObra[]) {
+      mapa[vinculo.usuario_id] = [...(mapa[vinculo.usuario_id] ?? []), vinculo.obra_id]
+    }
+    setObrasPorUsuario(mapa)
   }
 
   function iniciarEdicao(u: PerfilUsuario) {
     setEditando(u.id)
     setModulosEdit([...u.modulos_permitidos])
+    setObrasEdit([...(obrasPorUsuario[u.id] ?? [])])
   }
 
   function toggleModulo(m: ModuloApp) {
@@ -75,6 +90,10 @@ export default function Usuarios() {
     e.preventDefault()
     setConvErro('')
     setConvOk('')
+    if (convObras.length === 0) {
+      setConvErro('Selecione ao menos uma obra para este usuário.')
+      return
+    }
     setLoading(true)
     const { data, error } = await supabase.functions.invoke('convidar-usuario', {
       body: {
@@ -85,16 +104,41 @@ export default function Usuarios() {
         redirect_to: `${window.location.origin}/nova-senha`,
       },
     })
-    setLoading(false)
     if (error || data?.error) {
+      setLoading(false)
       setConvErro(data?.error ?? 'Falha ao enviar o convite. Tente novamente.')
+      return
+    }
+
+    const emailNormalizado = convEmail.trim().toLowerCase()
+    const idRetornado = data?.user_id ?? data?.user?.id ?? data?.id
+    const { data: perfilCriado } = idRetornado
+      ? await supabase.from('perfis_usuario').select('id').eq('id', idRetornado).maybeSingle()
+      : await supabase.from('perfis_usuario').select('id').eq('email', emailNormalizado).maybeSingle()
+    if (!perfilCriado?.id) {
+      setLoading(false)
+      setConvErro('O convite foi enviado, mas o perfil ainda não apareceu para vincular as obras. Atualize a tela e edite o usuário antes que ele acesse.')
+      await carregarUsuarios()
+      return
+    }
+    const { error: erroAcessos } = await supabase.rpc('atualizar_acessos_usuario', {
+      p_usuario: perfilCriado.id,
+      p_modulos: convPapel === 'equipe' ? convModulos : [],
+      p_obras: convObras,
+    })
+    if (erroAcessos) {
+      setLoading(false)
+      setConvErro(`O convite foi enviado, mas os acessos não foram vinculados: ${erroAcessos.message}`)
+      await carregarUsuarios()
       return
     }
     setConvOk(`Convite enviado para ${convEmail}.`)
     setConvNome('')
     setConvEmail('')
     setConvModulos([])
-    carregarUsuarios()
+    setConvObras([])
+    await carregarUsuarios()
+    setLoading(false)
   }
 
   async function gerenciarAcesso(u: PerfilUsuario, acao: 'desativar' | 'reativar' | 'excluir_pendente') {
@@ -138,12 +182,17 @@ export default function Usuarios() {
     setLoading(false)
   }
 
-  async function salvarModulos(userId: string) {
+  async function salvarAcessos(u: PerfilUsuario) {
+    if (obrasEdit.length === 0) {
+      window.alert('Selecione ao menos uma obra para este usuário.')
+      return
+    }
     setLoading(true)
-    const { error } = await supabase
-      .from('perfis_usuario')
-      .update({ modulos_permitidos: modulosEdit })
-      .eq('id', userId)
+    const { error } = await supabase.rpc('atualizar_acessos_usuario', {
+      p_usuario: u.id,
+      p_modulos: u.papel === 'equipe' ? modulosEdit : [],
+      p_obras: obrasEdit,
+    })
     setLoading(false)
     if (error) {
       window.alert(`Falha ao salvar as permissões: ${error.message}`)
@@ -151,6 +200,12 @@ export default function Usuarios() {
     }
     setEditando(null)
     carregarUsuarios()
+  }
+
+  function toggleObra(id: string, modo: 'convite' | 'edicao') {
+    const alterar = (prev: string[]) => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    if (modo === 'convite') setConvObras(alterar)
+    else setObrasEdit(alterar)
   }
 
   const papelLabel: Record<string, string> = {
@@ -228,6 +283,23 @@ export default function Usuarios() {
             </div>
           )}
 
+          <div className={styles.campoConv}>
+            <label>Obras permitidas</label>
+            <div className={styles.obrasGrid}>
+              {obras.map(obra => (
+                <label key={obra.id} className={styles.checkItem}>
+                  <input
+                    type="checkbox"
+                    checked={convObras.includes(obra.id)}
+                    onChange={() => toggleObra(obra.id, 'convite')}
+                  />
+                  <span>{obra.nome}</span>
+                </label>
+              ))}
+            </div>
+            {obras.length === 0 && <span className={styles.semModulo}>Nenhuma obra disponível.</span>}
+          </div>
+
           {convErro && <p className={styles.msgErro}>{convErro}</p>}
           {convOk && <p className={styles.msgOk}>{convOk}</p>}
 
@@ -300,47 +372,73 @@ export default function Usuarios() {
               )}
             </div>
 
-            {u.papel === 'equipe' && editando === u.id ? (
+            {u.papel !== 'admin' && editando === u.id ? (
               <div className={styles.editModulos}>
-                <p className={styles.editLabel}>Módulos permitidos:</p>
-                <div className={styles.checkGrid}>
-                  {TODOS_MODULOS.map(m => (
-                    <label key={m} className={styles.checkItem}>
+                {u.papel === 'equipe' && (
+                  <>
+                    <p className={styles.editLabel}>Módulos permitidos:</p>
+                    <div className={styles.checkGrid}>
+                      {TODOS_MODULOS.map(m => (
+                        <label key={m} className={styles.checkItem}>
+                          <input
+                            type="checkbox"
+                            checked={modulosEdit.includes(m)}
+                            onChange={() => toggleModulo(m)}
+                          />
+                          {MODULOS_LABELS[m]}
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                )}
+                <p className={styles.editLabel}>Obras permitidas:</p>
+                <div className={styles.obrasGrid}>
+                  {obras.map(obra => (
+                    <label key={obra.id} className={styles.checkItem}>
                       <input
                         type="checkbox"
-                        checked={modulosEdit.includes(m)}
-                        onChange={() => toggleModulo(m)}
+                        checked={obrasEdit.includes(obra.id)}
+                        onChange={() => toggleObra(obra.id, 'edicao')}
                       />
-                      {MODULOS_LABELS[m]}
+                      <span>{obra.nome}</span>
                     </label>
                   ))}
                 </div>
                 <button
                   className={styles.btnSalvar}
-                  onClick={() => salvarModulos(u.id)}
+                  onClick={() => salvarAcessos(u)}
                   disabled={loading}
                 >
-                  {loading ? 'Salvando…' : 'Salvar permissões'}
+                  {loading ? 'Salvando…' : 'Salvar acessos'}
                 </button>
               </div>
-            ) : u.papel === 'equipe' ? (
-              <div className={styles.modulos}>
-                {u.modulos_permitidos.length === 0
-                  ? <span className={styles.semModulo}>Nenhum módulo atribuído</span>
-                  : u.modulos_permitidos.map(m => (
-                    <span key={m} className={styles.moduloTag}>{MODULOS_LABELS[m]}</span>
-                  ))
-                }
+            ) : u.papel !== 'admin' ? (
+              <div className={styles.acessosResumo}>
+                {u.papel === 'equipe' && (
+                  <div className={styles.modulos}>
+                    {u.modulos_permitidos.length === 0
+                      ? <span className={styles.semModulo}>Nenhum módulo atribuído</span>
+                      : u.modulos_permitidos.map(m => (
+                        <span key={m} className={styles.moduloTag}>{MODULOS_LABELS[m]}</span>
+                      ))
+                    }
+                  </div>
+                )}
+                {u.papel === 'cliente' && <span className={styles.moduloTag}>Somente leitura</span>}
+                <div className={styles.obrasResumo}>
+                  <span className={styles.resumoLabel}>Obras:</span>
+                  {(obrasPorUsuario[u.id] ?? []).length === 0
+                    ? <span className={styles.semModulo}>Nenhuma obra atribuída</span>
+                    : (obrasPorUsuario[u.id] ?? []).map(id => (
+                      <span key={id} className={styles.obraTag}>{obras.find(o => o.id === id)?.nome ?? 'Obra indisponível'}</span>
+                    ))}
+                </div>
               </div>
             ) : u.papel === 'admin' ? (
               <div className={styles.modulos}>
                 <span className={styles.moduloTagAdmin}>Acesso total</span>
               </div>
-            ) : (
-              <div className={styles.modulos}>
-                <span className={styles.moduloTag}>Somente leitura</span>
-              </div>
-            )}
+            ) : null}
           </div>
         ))}
       </div>

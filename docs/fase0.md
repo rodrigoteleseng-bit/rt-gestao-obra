@@ -15,12 +15,12 @@
 
 Enums: `papel_usuario` (admin/equipe/cliente), `status_obra`, `tipo_unidade`, `modulo_app`.
 
-Tabelas: `perfis_usuario`, `obras`, `unidades`, `etapas`, `servicos` (recriada na Fase 1 — ver fase1.md).
+Tabelas: `perfis_usuario`, `obras`, `unidades`, `etapas`, `servicos` (recriada na Fase 1 — ver fase1.md) e, desde 17/07/2026, `usuarios_obras`.
 
 - Todas com RLS ativa, soft delete (`ativo`), autoria (`criado_em`, `criado_por`).
 - Funções `meu_papel()` e `meus_modulos()` (SECURITY DEFINER) usadas nas policies.
 - Trigger `on_auth_user_created` cria o perfil automaticamente a partir dos metadados do convite.
-- Escrita restrita a admin; leitura para autenticados.
+- Escrita restrita a admin. A leitura operacional exige autenticação e acesso à obra: admin vê todas; equipe e cliente veem somente as obras vinculadas.
 
 ## Obra piloto seedada
 
@@ -32,7 +32,7 @@ Obra **Tharsos Imperial** com 16 unidades. IDs das unidades estão em `scripts/i
 - **Edge functions** (service role):
   - `convidar-usuario` — admin convida por e-mail com papel + módulos; convidado define a própria senha.
   - `gerenciar-usuario` — ações `desativar`, `reativar`, `excluir_pendente` (só convites nunca acessados).
-- Tela `/usuarios` (só admin): convidar, editar módulos da equipe, desativar/reativar/excluir convite.
+- Tela `/usuarios` (só admin): convidar, editar módulos e obras permitidas, desativar/reativar/excluir convite. Equipe e cliente exigem ao menos uma obra; o admin possui acesso global.
 - **Botão "🔑 Nova senha" (adicionado 09/07/2026):** admin envia link de redefinição direto da tela Usuários, sem depender do usuário clicar "Esqueci minha senha". Chama `supabase.auth.resetPasswordForEmail` (mesmo fluxo do login). Aparece apenas para usuários ativos não-admin.
 - Papéis: admin (tudo), equipe (módulos configuráveis por checkbox), cliente (somente leitura; **vê valores** — confirmado pelo Rodrigo).
 - **Armadilha:** usuário criado via SQL direto falha o 1º login (GoTrue não reconhece a senha). Solução: `UPDATE auth.users SET updated_at = now(), encrypted_password = crypt('senha', gen_salt('bf')) WHERE email = ...`

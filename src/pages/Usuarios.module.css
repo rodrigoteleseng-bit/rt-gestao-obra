@@ -286,6 +286,48 @@
   margin-bottom: 14px;
 }
 
+.obrasGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  background: var(--cinza-100);
+}
+
+.acessosResumo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.obrasResumo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 9px;
+  border-top: 1px solid var(--cinza-100);
+}
+
+.resumoLabel {
+  color: var(--cinza-600);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.obraTag {
+  background: #e8ecf5;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--azul-gelo);
+}
+
 .checkItem {
   display: flex;
   align-items: center;

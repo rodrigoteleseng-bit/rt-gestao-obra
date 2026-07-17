@@ -34,6 +34,14 @@ export interface Obra {
   status: StatusObra
 }
 
+export interface UsuarioObra {
+  usuario_id: string
+  obra_id: string
+  ativo: boolean
+  criado_em: string
+  atualizado_em: string
+}
+
 export interface Unidade {
   id: string
   obra_id: string

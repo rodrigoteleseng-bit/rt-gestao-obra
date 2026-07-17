@@ -9,6 +9,9 @@ import {
   type ProducaoPlanta,
   type ProducaoParede,
   type Pavimento,
+  type TipoServicoProducao,
+  type FaceParede,
+  type ProducaoParedeProgresso,
   type Trabalhador,
   type Unidade,
 } from "../lib/supabase";
@@ -20,12 +23,6 @@ import styles from "./Producao.module.css";
 
 type Aba = "lancamentos" | "plantas" | "dias" | "salarios";
 type Msg = { tipo: "ok" | "erro"; texto: string } | null;
-type Abertura = {
-  tipo: "porta" | "janela" | "outro";
-  identificacao: string;
-  comprimento: string;
-  altura: string;
-};
 const fmt = (d: string) =>
   `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
@@ -248,273 +245,215 @@ function Lancamentos({
     [msg, setMsg] = useState<Msg>(null),
     [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState({
-      data: hojeISO(),
-      unidade: "",
-      servico: "alvenaria",
-      parede: "",
-      comp: "",
-      alt: "",
-      preco: "",
-      obs: "",
+      data: hojeISO(), unidade: "", servico: "alvenaria" as TipoServicoProducao,
+      pavimento: "terreo" as Pavimento, preco: "", obs: "", area: "",
     }),
     [selecionados, setSelecionados] = useState<string[]>([""]),
-    [aberturas, setAberturas] = useState<Abertura[]>([]);
+    [plantas, setPlantas] = useState<ProducaoPlanta[]>([]),
+    [paredes, setParedes] = useState<ProducaoParede[]>([]),
+    [progresso, setProgresso] = useState<ProducaoParedeProgresso[]>([]),
+    [urlImagem, setUrlImagem] = useState<string | null>(null),
+    [paredeSelecionada, setParedeSelecionada] = useState<ProducaoParede | null>(null),
+    [faceEscolha, setFaceEscolha] = useState<FaceParede | null>(null),
+    [cancelandoId, setCancelandoId] = useState<string | null>(null),
+    [motivoCancelamento, setMotivoCancelamento] = useState("");
+
   async function carregar() {
     if (!obraAtiva) return;
-    const { data } = await supabase
-      .from("producao_lancamentos")
-      .select("*")
-      .eq("obra_id", obraAtiva.id)
-      .eq("ativo", true)
-      .order("data_producao", { ascending: false });
-    setLista(data ?? []);
+    const [l, pl, pa] = await Promise.all([
+      supabase.from("producao_lancamentos").select("*").eq("obra_id", obraAtiva.id)
+        .eq("ativo", true).order("data_producao", { ascending: false }),
+      supabase.from("producao_plantas").select("*").eq("obra_id", obraAtiva.id).eq("ativo", true),
+      supabase.from("producao_paredes").select("*").eq("ativo", true),
+    ]);
+    setLista(l.data ?? []);
+    setPlantas(pl.data ?? []);
+    setParedes(pa.data ?? []);
   }
+  useEffect(() => { carregar(); }, [obraAtiva]);
+
   useEffect(() => {
-    carregar();
-  }, [obraAtiva]);
+    if (!form.unidade) { setProgresso([]); return; }
+    supabase.from("producao_paredes_progresso").select("*").eq("unidade_id", form.unidade)
+      .then(({ data }) => setProgresso(data ?? []));
+  }, [form.unidade]);
+
+  const plantaAtual = plantas.find((p) => p.pavimento === form.pavimento) ?? null;
+  const paredesDaPlanta = paredes.filter((p) => p.planta_id === plantaAtual?.id);
+
+  useEffect(() => {
+    let cancelado = false;
+    async function carregarUrl() {
+      if (!plantaAtual) { setUrlImagem(null); return; }
+      const { data } = await supabase.storage.from("producao-plantas").createSignedUrl(plantaAtual.imagem_path, 3600);
+      if (!cancelado) setUrlImagem(data?.signedUrl ?? null);
+    }
+    carregarUrl();
+    return () => { cancelado = true; };
+  }, [plantaAtual]);
+
+  function saldoDaParede(parede: ProducaoParede) {
+    const buscar = (servico: TipoServicoProducao, face: FaceParede | null) =>
+      progresso.find((p) => p.parede_id === parede.id && p.servico === servico && p.face === face)?.produzido_m2 ?? 0;
+    return {
+      alvenaria: parede.meta_alvenaria_m2 != null ? parede.meta_alvenaria_m2 - buscar("alvenaria", null) : null,
+      rebocoA: parede.meta_reboco_a_m2 != null ? parede.meta_reboco_a_m2 - buscar("reboco", "a") : null,
+      rebocoB: parede.meta_reboco_b_m2 != null ? parede.meta_reboco_b_m2 - buscar("reboco", "b") : null,
+    };
+  }
+
+  function aoSelecionarParede(parede: ProducaoParede) {
+    setParedeSelecionada(parede);
+    setFaceEscolha(null);
+  }
+
+  const saldoRestante = paredeSelecionada
+    ? form.servico === "alvenaria"
+      ? saldoDaParede(paredeSelecionada).alvenaria
+      : faceEscolha === "a" ? saldoDaParede(paredeSelecionada).rebocoA
+      : faceEscolha === "b" ? saldoDaParede(paredeSelecionada).rebocoB
+      : null
+    : null;
+
   const participantes = selecionados.filter(Boolean);
-  const bruta = (numero(form.comp) || 0) * (numero(form.alt) || 0),
-    desc = aberturas.reduce(
-      (s, a) => s + (numero(a.comprimento) || 0) * (numero(a.altura) || 0),
-      0,
-    ),
-    liq = Math.max(0, bruta - desc),
-    total = liq * (numero(form.preco) || 0);
-  const mudaAbertura = (i: number, k: keyof Abertura, v: string) =>
-    setAberturas((a) => a.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const areaNum = numero(form.area) || 0;
+  const total = areaNum * (numero(form.preco) || 0);
+
   async function salvar() {
-    if (
-      !obraAtiva ||
-      !form.unidade ||
-      !form.parede.trim() ||
-      liq <= 0 ||
-      numero(form.preco) <= 0 ||
-      !participantes.length
-    )
-      return setMsg({
-        tipo: "erro",
-        texto: "Preencha unidade, parede, medidas, preço e profissionais.",
-      });
+    if (!obraAtiva || !form.unidade || !paredeSelecionada || (form.servico === "reboco" && !faceEscolha)
+      || areaNum <= 0 || numero(form.preco) <= 0 || !participantes.length) {
+      setMsg({ tipo: "erro", texto: "Selecione unidade, parede, área, preço e profissionais." });
+      return;
+    }
+    if (saldoRestante != null && areaNum > saldoRestante) {
+      setMsg({ tipo: "erro", texto: `Área maior que o saldo restante (${saldoRestante.toFixed(2)} m²).` });
+      return;
+    }
     setSalvando(true);
-    const { error } = await supabase.rpc("producao_criar_lancamento", {
-      p_obra: obraAtiva.id,
-      p_unidade: form.unidade,
-      p_data: form.data,
-      p_servico: form.servico,
-      p_parede: form.parede.trim(),
-      p_comprimento: numero(form.comp),
-      p_altura: numero(form.alt),
-      p_preco: numero(form.preco),
-      p_observacao: form.obs || null,
+    const { error } = await supabase.rpc("producao_registrar_producao_parede", {
+      p_obra: obraAtiva.id, p_unidade: form.unidade, p_data: form.data,
+      p_parede: paredeSelecionada.id, p_face: form.servico === "reboco" ? faceEscolha : null,
+      p_area_m2: areaNum, p_preco: numero(form.preco), p_observacao: form.obs || null,
       p_trabalhadores: participantes,
-      p_aberturas: aberturas.map((a) => ({
-        ...a,
-        comprimento: numero(a.comprimento),
-        altura: numero(a.altura),
-      })),
     });
     setSalvando(false);
-    if (error) return setMsg({ tipo: "erro", texto: error.message });
+    if (error) { setMsg({ tipo: "erro", texto: error.message }); return; }
     setMsg({ tipo: "ok", texto: "Produção salva e rateada." });
-    setForm((f) => ({ ...f, parede: "", comp: "", alt: "", obs: "" }));
-    setAberturas([]);
+    setForm((f) => ({ ...f, area: "", obs: "" }));
+    setParedeSelecionada(null); setFaceEscolha(null);
+    const unidadeAtual = form.unidade;
+    await carregar();
+    supabase.from("producao_paredes_progresso").select("*").eq("unidade_id", unidadeAtual)
+      .then(({ data }) => setProgresso(data ?? []));
+  }
+
+  async function confirmarCancelamento() {
+    if (!cancelandoId || !motivoCancelamento.trim()) return;
+    const { error } = await supabase.rpc("producao_cancelar_lancamento", {
+      p_lancamento: cancelandoId, p_motivo: motivoCancelamento.trim(),
+    });
+    if (error) { setMsg({ tipo: "erro", texto: error.message }); return; }
+    setCancelandoId(null); setMotivoCancelamento("");
     await carregar();
   }
+
   return (
     <>
       <section className={styles.bloco}>
         <h2>Nova produção</h2>
         <div className={styles.campos}>
           <Campo label="Data">
-            <input
-              className={styles.input}
-              type="date"
-              value={form.data}
-              onChange={(e) => setForm({ ...form, data: e.target.value })}
-            />
+            <input className={styles.input} type="date" value={form.data}
+              onChange={(e) => setForm({ ...form, data: e.target.value })} />
           </Campo>
           <Campo label="Unidade">
-            <select
-              className={styles.select}
-              value={form.unidade}
-              onChange={(e) => setForm({ ...form, unidade: e.target.value })}
-            >
+            <select className={styles.select} value={form.unidade}
+              onChange={(e) => { setForm({ ...form, unidade: e.target.value }); setParedeSelecionada(null); }}>
               <option value="">Selecione…</option>
-              {unidades.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.nome}
-                </option>
-              ))}
+              {unidades.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
             </select>
           </Campo>
           <Campo label="Serviço">
-            <select
-              className={styles.select}
-              value={form.servico}
-              onChange={(e) => setForm({ ...form, servico: e.target.value })}
-            >
+            <select className={styles.select} value={form.servico}
+              onChange={(e) => { setForm({ ...form, servico: e.target.value as TipoServicoProducao }); setParedeSelecionada(null); setFaceEscolha(null); }}>
               <option value="alvenaria">Alvenaria</option>
-              <option value="reboco">Reboco — uma face</option>
+              <option value="reboco">Reboco</option>
             </select>
           </Campo>
-          <Campo label="Parede / face">
-            <input
-              className={styles.input}
-              value={form.parede}
-              onChange={(e) => setForm({ ...form, parede: e.target.value })}
-            />
+          <Campo label="Pavimento">
+            <select className={styles.select} value={form.pavimento}
+              onChange={(e) => { setForm({ ...form, pavimento: e.target.value as Pavimento }); setParedeSelecionada(null); setFaceEscolha(null); }}>
+              {PAVIMENTOS.map((p) => <option key={p.valor} value={p.valor}>{p.rotulo}</option>)}
+            </select>
           </Campo>
-          <Campo label="Comprimento (m)">
-            <input
-              className={styles.input}
-              inputMode="decimal"
-              value={form.comp}
-              onChange={(e) => setForm({ ...form, comp: e.target.value })}
-            />
-          </Campo>
-          <Campo label="Altura (m)">
-            <input
-              className={styles.input}
-              inputMode="decimal"
-              value={form.alt}
-              onChange={(e) => setForm({ ...form, alt: e.target.value })}
-            />
+        </div>
+        {!form.unidade ? (
+          <p className={styles.sub}>Selecione a unidade para escolher a parede.</p>
+        ) : !urlImagem ? (
+          <p className={styles.sub}>Nenhuma planta deste pavimento cadastrada ainda — cadastre na aba "Plantas".</p>
+        ) : (
+          <PlantaClicavel imagemUrl={urlImagem} paredes={paredesDaPlanta} modo="selecionar" onSelecionar={aoSelecionarParede} />
+        )}
+        {paredeSelecionada && form.servico === "reboco" && !faceEscolha && (
+          <div className={styles.modalFundo} onClick={() => setParedeSelecionada(null)}>
+            <div className={styles.modalCaixa} onClick={(e) => e.stopPropagation()}>
+              <h3>{paredeSelecionada.nome} — qual face?</h3>
+              <div className={styles.acoes}>
+                <button className={styles.btn} onClick={() => setFaceEscolha("a")}>Face A</button>
+                <button className={styles.btn} onClick={() => setFaceEscolha("b")}>Face B</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {paredeSelecionada && (form.servico === "alvenaria" || faceEscolha) && (
+          <div className={styles.resumo}>
+            <span>Parede: <strong>{paredeSelecionada.nome}{faceEscolha ? ` — Face ${faceEscolha.toUpperCase()}` : ""}</strong></span>
+            <span>Saldo restante: <strong>{saldoRestante?.toFixed(2) ?? "—"} m²</strong></span>
+          </div>
+        )}
+        <div className={styles.campos}>
+          <Campo label="Área produzida hoje (m²)">
+            <input className={styles.input} inputMode="decimal" value={form.area}
+              onChange={(e) => setForm({ ...form, area: e.target.value })} />
           </Campo>
           <Campo label="Preço do dia (R$/m²)">
-            <input
-              className={styles.input}
-              inputMode="decimal"
-              value={form.preco}
-              onChange={(e) => setForm({ ...form, preco: e.target.value })}
-            />
+            <input className={styles.input} inputMode="decimal" value={form.preco}
+              onChange={(e) => setForm({ ...form, preco: e.target.value })} />
           </Campo>
           <Campo label="Observação">
-            <input
-              className={styles.input}
-              value={form.obs}
-              onChange={(e) => setForm({ ...form, obs: e.target.value })}
-            />
+            <input className={styles.input} value={form.obs}
+              onChange={(e) => setForm({ ...form, obs: e.target.value })} />
           </Campo>
         </div>
         <h2>Profissionais</h2>
         <div className={styles.lista}>
           {selecionados.map((selecionado, i) => (
             <div className={styles.linha} key={i}>
-              <select
-                className={styles.select}
-                value={selecionado}
-                onChange={(e) =>
-                  setSelecionados((atual) =>
-                    atual.map((id, j) => (j === i ? e.target.value : id)),
-                  )
-                }
-              >
+              <select className={styles.select} value={selecionado}
+                onChange={(e) => setSelecionados((atual) => atual.map((id, j) => (j === i ? e.target.value : id)))}>
                 <option value="">Selecione o profissional…</option>
                 {trabalhadores.map((t) => (
-                  <option
-                    key={t.id}
-                    value={t.id}
-                    disabled={selecionados.some(
-                      (id, j) => j !== i && id === t.id,
-                    )}
-                  >
+                  <option key={t.id} value={t.id} disabled={selecionados.some((id, j) => j !== i && id === t.id)}>
                     {t.nome} — {t.funcao}
                   </option>
                 ))}
               </select>
               {selecionados.length > 1 && (
-                <button
-                  className={styles.btnSec}
-                  onClick={() =>
-                    setSelecionados((atual) =>
-                      atual.filter((_, j) => j !== i),
-                    )
-                  }
-                >
+                <button className={styles.btnSec} onClick={() => setSelecionados((atual) => atual.filter((_, j) => j !== i))}>
                   Remover
                 </button>
               )}
             </div>
           ))}
-          <button
-            className={styles.btnSec}
-            onClick={() => setSelecionados((atual) => [...atual, ""])}
-            disabled={participantes.length >= trabalhadores.length}
-          >
+          <button className={styles.btnSec} onClick={() => setSelecionados((atual) => [...atual, ""])}
+            disabled={participantes.length >= trabalhadores.length}>
             + Acrescentar profissional
           </button>
         </div>
-        <h2>Aberturas</h2>
-        {aberturas.map((a, i) => (
-          <div className={styles.abertura} key={i}>
-            <select
-              className={styles.select}
-              value={a.tipo}
-              onChange={(e) => mudaAbertura(i, "tipo", e.target.value)}
-            >
-              <option value="porta">Porta</option>
-              <option value="janela">Janela</option>
-              <option value="outro">Outro vão</option>
-            </select>
-            <input
-              className={styles.input}
-              placeholder="Identificação"
-              value={a.identificacao}
-              onChange={(e) => mudaAbertura(i, "identificacao", e.target.value)}
-            />
-            <input
-              className={styles.input}
-              placeholder="Comprimento"
-              value={a.comprimento}
-              onChange={(e) => mudaAbertura(i, "comprimento", e.target.value)}
-            />
-            <input
-              className={styles.input}
-              placeholder="Altura"
-              value={a.altura}
-              onChange={(e) => mudaAbertura(i, "altura", e.target.value)}
-            />
-            <button
-              className={styles.btnSec}
-              onClick={() => setAberturas((v) => v.filter((_, j) => j !== i))}
-            >
-              Remover
-            </button>
-          </div>
-        ))}
-        <button
-          className={styles.btnSec}
-          onClick={() =>
-            setAberturas((a) => [
-              ...a,
-              { tipo: "porta", identificacao: "", comprimento: "", altura: "" },
-            ])
-          }
-        >
-          + Porta/janela/vão
-        </button>
         <div className={styles.resumo}>
-          <span>
-            Bruta: <strong>{bruta.toFixed(2)} m²</strong>
-          </span>
-          <span>
-            Aberturas: <strong>{desc.toFixed(2)} m²</strong>
-          </span>
-          <span>
-            Líquida: <strong>{liq.toFixed(2)} m²</strong>
-          </span>
-          <span>
-            Total: <strong>R$ {formatarMoeda(total)}</strong>
-          </span>
-          <span>
-            Por profissional:{" "}
-            <strong>
-              R${" "}
-              {formatarMoeda(
-                participantes.length ? total / participantes.length : 0,
-              )}
-            </strong>
-          </span>
+          <span>Área: <strong>{areaNum.toFixed(2)} m²</strong></span>
+          <span>Total: <strong>R$ {formatarMoeda(total)}</strong></span>
+          <span>Por profissional: <strong>R$ {formatarMoeda(participantes.length ? total / participantes.length : 0)}</strong></span>
         </div>
         <div className={styles.acoes}>
           <button className={styles.btn} disabled={salvando} onClick={salvar}>
@@ -529,26 +468,40 @@ function Lancamentos({
           {lista.map((l) => (
             <div className={styles.linha} key={l.id}>
               <div>
-                <strong>{l.parede_nome}</strong>
+                <strong>{l.parede_nome}{l.face ? ` — Face ${l.face.toUpperCase()}` : ""}</strong>
                 <div className={styles.meta}>
-                  {fmt(l.data_producao)} · {l.servico} ·{" "}
-                  {unidades.find((u) => u.id === l.unidade_id)?.nome}
+                  {fmt(l.data_producao)} · {l.servico} · {unidades.find((u) => u.id === l.unidade_id)?.nome}
+                  {l.cancelado_em && " · CANCELADO"}
                 </div>
               </div>
               <div>
                 <strong>{l.area_liquida.toFixed(2)} m²</strong>
-                <div className={styles.meta}>
-                  R$ {formatarMoeda(l.valor_total)}
-                </div>
+                <div className={styles.meta}>R$ {formatarMoeda(l.valor_total)}</div>
               </div>
+              {!l.cancelado_em && (
+                <button className={styles.btnSec} onClick={() => setCancelandoId(l.id)}>Cancelar</button>
+              )}
             </div>
           ))}
         </div>
       </section>
+      {cancelandoId && (
+        <div className={styles.modalFundo} onClick={() => setCancelandoId(null)}>
+          <div className={styles.modalCaixa} onClick={(e) => e.stopPropagation()}>
+            <h3>Cancelar lançamento</h3>
+            <Campo label="Motivo">
+              <input className={styles.input} value={motivoCancelamento} onChange={(e) => setMotivoCancelamento(e.target.value)} />
+            </Campo>
+            <div className={styles.acoes}>
+              <button className={styles.btn} disabled={!motivoCancelamento.trim()} onClick={confirmarCancelamento}>Confirmar</button>
+              <button className={styles.btnSec} onClick={() => setCancelandoId(null)}>Voltar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
-
 function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
   const { obraAtiva } = useObra();
   const [trab, setTrab] = useState(""),

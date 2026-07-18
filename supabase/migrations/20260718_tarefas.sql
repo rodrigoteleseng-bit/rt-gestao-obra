@@ -310,3 +310,10 @@ CREATE POLICY tarefas_comentarios_insert ON tarefas_comentarios FOR INSERT TO au
       AND t.ativo = true
       AND meu_papel() IN ('admin', 'equipe')
   ));
+
+-- Funcoes de trigger SECURITY DEFINER nao devem ser chamaveis diretamente via RPC
+-- (mesmo padrao de hardening aplicado a vincular_admin_nova_obra/validar_acesso_obra_linha
+-- em 20260717_isolamento_usuario_obra.sql). O REVOKE nao afeta o disparo do trigger.
+REVOKE ALL ON FUNCTION validar_tarefa_mesma_obra() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION registrar_evento_tarefa() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION registrar_edicao_tarefa() FROM PUBLIC, anon, authenticated;

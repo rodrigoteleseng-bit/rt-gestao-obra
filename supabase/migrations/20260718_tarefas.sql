@@ -178,6 +178,9 @@ BEGIN
         RAISE EXCEPTION 'Transicao de status invalida para tarefa: % -> %.', OLD.status, NEW.status;
       END IF;
     ELSE
+      IF OLD.status IN ('concluida', 'cancelada') THEN
+        RAISE EXCEPTION 'Tarefa concluida ou cancelada fica em modo leitura. Reabra antes de editar.';
+      END IF;
       NEW.concluida_por := OLD.concluida_por;
       NEW.concluida_em := OLD.concluida_em;
       NEW.cancelada_por := OLD.cancelada_por;
@@ -228,6 +231,35 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION registrar_edicao_tarefa()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_partes TEXT[] := ARRAY[]::TEXT[];
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.titulo IS DISTINCT FROM OLD.titulo THEN v_partes := array_append(v_partes, 'titulo'); END IF;
+  IF NEW.descricao IS DISTINCT FROM OLD.descricao THEN v_partes := array_append(v_partes, 'descricao'); END IF;
+  IF NEW.responsavel_id IS DISTINCT FROM OLD.responsavel_id THEN v_partes := array_append(v_partes, 'responsavel'); END IF;
+  IF NEW.prazo IS DISTINCT FROM OLD.prazo THEN v_partes := array_append(v_partes, 'prazo'); END IF;
+  IF NEW.prioridade IS DISTINCT FROM OLD.prioridade THEN v_partes := array_append(v_partes, 'prioridade'); END IF;
+  IF NEW.unidade_id IS DISTINCT FROM OLD.unidade_id THEN v_partes := array_append(v_partes, 'unidade'); END IF;
+  IF NEW.etapa_id IS DISTINCT FROM OLD.etapa_id THEN v_partes := array_append(v_partes, 'etapa'); END IF;
+  IF NEW.servico_id IS DISTINCT FROM OLD.servico_id THEN v_partes := array_append(v_partes, 'servico'); END IF;
+
+  IF cardinality(v_partes) > 0 THEN
+    INSERT INTO tarefas_comentarios (tarefa_id, tipo, comentario, criado_por)
+    VALUES (NEW.id, 'editada', 'Tarefa editada: ' || array_to_string(v_partes, ', ') || '.', auth.uid());
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE TRIGGER trg_validar_tarefa_mesma_obra
   BEFORE INSERT OR UPDATE ON tarefas
   FOR EACH ROW EXECUTE FUNCTION validar_tarefa_mesma_obra();
@@ -243,6 +275,10 @@ CREATE TRIGGER trg_registrar_evento_tarefa_insert
 CREATE TRIGGER trg_registrar_evento_tarefa_status
   AFTER UPDATE OF status ON tarefas
   FOR EACH ROW EXECUTE FUNCTION registrar_evento_tarefa();
+
+CREATE TRIGGER trg_registrar_edicao_tarefa
+  AFTER UPDATE OF titulo, descricao, responsavel_id, prazo, prioridade, unidade_id, etapa_id, servico_id ON tarefas
+  FOR EACH ROW EXECUTE FUNCTION registrar_edicao_tarefa();
 
 CREATE POLICY isolamento_obra ON tarefas AS RESTRICTIVE FOR ALL TO authenticated
   USING (pode_acessar_obra(obra_id))
@@ -264,7 +300,7 @@ CREATE POLICY tarefas_comentarios_select ON tarefas_comentarios FOR SELECT TO au
   USING (EXISTS (
     SELECT 1 FROM tarefas t
     WHERE t.id = tarefa_id
-      AND t.ativo = true
+      AND (t.ativo = true OR pode_editar_tarefas())
       AND meu_papel() IN ('admin', 'equipe')
   ));
 CREATE POLICY tarefas_comentarios_insert ON tarefas_comentarios FOR INSERT TO authenticated

@@ -8,7 +8,7 @@ export const supabase = createClient(url, key)
 export type PapelUsuario = 'admin' | 'equipe' | 'cliente'
 export type ModuloApp =
   | 'rdo' | 'avanco' | 'pendencias' | 'almoxarifado' | 'financeiro' | 'compras'
-  | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas' | 'definicoes'
+  | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas' | 'definicoes' | 'tarefas'
 export type StatusObra = 'ativa' | 'pausada' | 'concluida' | 'arquivada'
 export type TipoUnidade = 'sobrado' | 'portaria' | 'area_comum' | 'canteiro' | 'outro'
 
@@ -297,6 +297,43 @@ export interface DefinicaoProjeto {
   ativo: boolean
   criado_em: string
   criado_por: string
+}
+
+export type StatusTarefa = 'aberta' | 'em_andamento' | 'concluida' | 'cancelada'
+export type PrioridadeTarefa = 'baixa' | 'normal' | 'alta' | 'urgente'
+export type TipoTarefaComentario = 'comentario' | 'criada' | 'iniciada' | 'concluida' | 'cancelada' | 'reaberta' | 'editada'
+
+export interface Tarefa {
+  id: string
+  obra_id: string
+  unidade_id: string | null
+  etapa_id: string | null
+  servico_id: string | null
+  titulo: string
+  descricao: string | null
+  responsavel_id: string | null
+  prazo: string
+  prioridade: PrioridadeTarefa
+  status: StatusTarefa
+  motivo_cancelamento: string | null
+  concluida_por: string | null
+  concluida_em: string | null
+  cancelada_por: string | null
+  cancelada_em: string | null
+  ativo: boolean
+  criado_por: string
+  criado_em: string
+  atualizado_por: string | null
+  atualizado_em: string
+}
+
+export interface TarefaComentario {
+  id: string
+  tarefa_id: string
+  tipo: TipoTarefaComentario
+  comentario: string
+  criado_por: string
+  criado_em: string
 }
 
 export type StatusFvs = 'em_andamento' | 'aprovada' | 'aprovada_restricao' | 'reprovada'

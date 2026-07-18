@@ -127,6 +127,7 @@
 .kpiPedidos { background: var(--navy); color: var(--branco); }
 .kpiPend { background: var(--branco); color: var(--navy); border-color: var(--cinza-200); }
 .kpiAlerta { background: var(--terracota); color: var(--branco); }
+.kpiTarefas { background: var(--branco); color: var(--navy); border-color: var(--azul-gelo); }
 
 /* ── MÓDULOS ── */
 .secaoTitulo {

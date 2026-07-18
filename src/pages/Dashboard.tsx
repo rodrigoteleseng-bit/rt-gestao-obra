@@ -93,6 +93,9 @@ const CARDS_MODULOS: CardModulo[] = [
     ],
   },
   {
+    key: 'tarefas', label: 'Tarefas', icon: '☑️', desc: 'Ações avulsas, responsáveis e prazos', path: '/tarefas',
+  },
+  {
     key: 'qualidade', label: 'Qualidade', icon: '🏷️', desc: 'FVS, checklists e pendências de obra',
     multiKey: ['fvs', 'pendencias'],
     subs: [
@@ -111,6 +114,8 @@ export default function Dashboard() {
   const [chamadaHoje, setChamadaHoje] = useState<ChamadaHoje | null>(null)
   const [pedidosAguardando, setPedidosAguardando] = useState(0)
   const [pendenciasAbertas, setPendenciasAbertas] = useState(0)
+  const [tarefasAtrasadas, setTarefasAtrasadas] = useState(0)
+  const [minhasTarefas, setMinhasTarefas] = useState(0)
   const [rdoHoje, setRdoHoje] = useState<RdoHojeResumo | null>(null)
   const veRdo = temModulo('rdo')
 
@@ -214,6 +219,25 @@ export default function Dashboard() {
       .then(({ count }) => setPendenciasAbertas(count ?? 0))
   }, [obra, vePendencias])
 
+  const veTarefas = perfil?.papel !== 'cliente' && temModulo('tarefas')
+
+  useEffect(() => {
+    if (!obra || !veTarefas) {
+      setTarefasAtrasadas(0)
+      setMinhasTarefas(0)
+      return
+    }
+    Promise.all([
+      supabase.from('tarefas').select('id', { count: 'exact', head: true })
+        .eq('obra_id', obra.id).eq('ativo', true).in('status', ['aberta', 'em_andamento']).lt('prazo', dataHoje()),
+      supabase.from('tarefas').select('id', { count: 'exact', head: true })
+        .eq('obra_id', obra.id).eq('ativo', true).in('status', ['aberta', 'em_andamento']).eq('responsavel_id', perfil?.id ?? ''),
+    ]).then(([atrasadas, minhas]) => {
+      setTarefasAtrasadas(atrasadas.count ?? 0)
+      setMinhasTarefas(minhas.count ?? 0)
+    })
+  }, [obra, veTarefas, perfil?.id])
+
   const veEfetivo = perfil?.papel !== 'cliente' && temModulo('efetivo')
 
   useEffect(() => {
@@ -290,6 +314,13 @@ export default function Dashboard() {
             <div className={styles.kpiNum}>{pendenciasAbertas}</div>
             <div className={styles.kpiLab}>Pendências</div>
             <div className={styles.kpiDet}>abertas na obra</div>
+          </button>
+        )}
+        {veTarefas && (
+          <button className={`${styles.kpi} ${styles.kpiTarefas}`} onClick={() => navigate('/tarefas')}>
+            <div className={styles.kpiNum}>{tarefasAtrasadas}</div>
+            <div className={styles.kpiLab}>Tarefas</div>
+            <div className={styles.kpiDet}>{minhasTarefas} aberta{minhasTarefas !== 1 ? 's' : ''} para você</div>
           </button>
         )}
         {ferramentasAtraso.length > 0 && (
@@ -417,7 +448,7 @@ export default function Dashboard() {
       </div>
 
       <div className={styles.futuro}>
-        <b>Em preparação:</b> Financeiro (Fase 3), Projetos, Planejamento (lookahead/PPC) e Tarefas.
+        <b>Em preparação:</b> Financeiro (Fase 3), Projetos e Planejamento (lookahead/PPC).
       </div>
 
       <p className={styles.versao}>Fase 0 — Fundação · v0.1 · Dados de {new Date().toLocaleDateString('pt-BR')}</p>

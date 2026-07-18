@@ -345,7 +345,27 @@ export default function Projetos() {
 
       {carregando ? <div className={styles.vazio}>Carregando projetos...</div> : documentos.length === 0 ? <div className={styles.vazio}>Nenhum documento cadastrado.</div> : documentosFiltrados.length === 0 ? <div className={styles.vazio}>Nenhum documento encontrado para os filtros.</div> : (
         <div className={styles.conteudo}>
-          <div className={styles.lista}>{documentosFiltrados.map(doc => { const atual = (revisoes[doc.id] ?? []).find(r => r.atual); return <button key={doc.id} className={[styles.card, selecionado?.id === doc.id ? styles.cardAtivo : ''].filter(Boolean).join(' ')} onClick={() => { setSelecionadoId(doc.id); setEditando(false); setRevisaoAberta(false) }}><div className={styles.cardTopo}><span className={styles.cardTitulo}>{doc.titulo}</span><span className={styles.chip}>{nomePasta(doc.pasta_id)}</span></div><div className={styles.cardMeta}>{atual ? 'Atual: ' + atual.revisao + ' • ' + fmtDataHora(atual.criado_em) : 'Sem revisão registrada'}</div>{doc.descricao && <div className={styles.cardDescricao}>{doc.descricao}</div>}</button> })}</div>
+          <div className={styles.lista}>{documentosFiltrados.map(doc => {
+            const atual = (revisoes[doc.id] ?? []).find(r => r.atual)
+            const selecionarCard = () => { setSelecionadoId(doc.id); setEditando(false); setRevisaoAberta(false) }
+            return (
+              <div
+                key={doc.id}
+                role="button"
+                tabIndex={0}
+                className={[styles.card, selecionado?.id === doc.id ? styles.cardAtivo : ''].filter(Boolean).join(' ')}
+                onClick={selecionarCard}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selecionarCard() } }}
+              >
+                <div className={styles.cardTopo}><span className={styles.cardTitulo}>{doc.titulo}</span><span className={styles.chip}>{nomePasta(doc.pasta_id)}</span></div>
+                <div className={styles.cardMeta}>
+                  <span>{atual ? 'Atual: ' + atual.revisao + ' • ' + fmtDataHora(atual.criado_em) : 'Sem revisão registrada'}</span>
+                  {atual && <button type="button" className={styles.btnAbrirCard} onClick={e => { e.stopPropagation(); abrirRevisao(atual) }}>Abrir</button>}
+                </div>
+                {doc.descricao && <div className={styles.cardDescricao}>{doc.descricao}</div>}
+              </div>
+            )
+          })}</div>
           <section className={styles.detalhe}>
             {!selecionado ? <p>Selecione um documento.</p> : <>
               <div className={styles.detalheTopo}><div><h2>{selecionado.titulo}</h2><span className={styles.chip}>{nomePasta(selecionado.pasta_id)}</span></div>{podeEditar && <div className={styles.acoesLinha}><button className={styles.btnSecundario} onClick={() => iniciarEdicao(selecionado)}>Editar</button><button className={styles.btnPerigo} onClick={inativarDocumento}>Inativar</button></div>}</div>

@@ -29,7 +29,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .cardTopo, .detalheTopo, .revisaoLinha { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 .cardTitulo { font-weight: 800; color: var(--navy); overflow-wrap: anywhere; }
 .cardMeta, .cardDescricao { margin-top: 7px; color: var(--cinza-600); font-size: 12.5px; }
+.cardMeta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.cardMeta > span { min-width: 0; overflow-wrap: anywhere; }
 .cardDescricao { color: var(--cinza-700); overflow-wrap: anywhere; }
+.btnAbrirCard { border: 0; border-radius: var(--radius-sm); padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; background: var(--navy); color: var(--branco); white-space: nowrap; flex-shrink: 0; }
 .chip { display: inline-flex; border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 800; white-space: nowrap; background: #edf4fa; color: var(--navy); }
 .detalhe { background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); padding: 16px; box-shadow: var(--sombra-sm); position: sticky; top: 12px; }
 .detalhe h2 { margin: 0 0 8px; font-size: 20px; color: var(--navy); overflow-wrap: anywhere; }

@@ -1,6 +1,6 @@
 # Fase 7 — Projetos
 
-> Detalhes técnicos do módulo Projetos. Implementado em 18/07/2026 pelo Codex a partir de `docs/superpowers/specs/2026-07-18-projetos-design.md` e `docs/superpowers/plans/2026-07-18-projetos.md`. A migração não foi aplicada ao Supabase nesta etapa. Como envolve tabela nova, RLS, trigger e Storage, exige revisão pós-commit do Claude Code antes de qualquer teste de campo com dados reais.
+> Detalhes técnicos do módulo Projetos. Implementado em 18/07/2026 pelo Codex a partir de `docs/superpowers/specs/2026-07-18-projetos-design.md` e `docs/superpowers/plans/2026-07-18-projetos.md`. Revisão prévia e pós-commit do Claude Code concluídas, migração aplicada em produção no mesmo dia. Falta o teste de campo do Rodrigo com documentos reais para o aceite formal.
 
 ## O que foi implementado
 
@@ -37,20 +37,29 @@ Criado em `supabase/migrations/20260718_projetos.sql`:
 
 ## Aplicação da migração
 
-A migração não foi aplicada nesta etapa.
+Aplicada pelo Claude Code em 18/07/2026, via MCP Supabase, em duas transações: o
+`ALTER TYPE modulo_app ADD VALUE IF NOT EXISTS 'projetos';` primeiro, depois o restante do
+arquivo — mesmo motivo já registrado em Tarefas: o Postgres não permite usar valor novo de
+enum na mesma transação em que ele foi adicionado.
 
-Ao aplicar no Supabase, executar o `ALTER TYPE modulo_app ADD VALUE IF NOT EXISTS 'projetos';` em transação separada do restante do arquivo, pelo mesmo motivo já registrado em Tarefas: o Postgres não permite usar valor novo de enum na mesma transação em que ele foi adicionado.
+Após aplicar, o advisor de segurança do Supabase não apontou nenhum achado novo para as
+funções do módulo (a função `SECURITY DEFINER` já nasceu com o `REVOKE` aplicado na própria
+migração).
 
-## Validação técnica nesta sessão
+## Validação técnica
 
-- `npx tsc -b` passou após as Tasks 1, 2/3 e 4.
-- `npm run build` não pôde ser concluído no sandbox: o Vite/esbuild falhou ao carregar `vite.config.ts` por bloqueio de permissão ao tentar ler diretórios acima do workspace (`Cannot read directory "../../../..": Access is denied`).
-- Testes reais de RLS, Storage, permissões dos três papéis e isolamento entre obras não foram executados porque a migração não foi aplicada ao Supabase nesta etapa.
+- `npx tsc -b` passou no sandbox do Codex após as Tasks 1, 2/3 e 4.
+- `npm run build` completo rodado pelo Claude Code fora do sandbox: passou limpo (o bloqueio
+  `Access is denied` era específico do sandbox do Codex, não um problema de código).
+- Revisão pós-commit do Claude Code conferiu o código real (não só o relato do Codex):
+  trigger `BEFORE INSERT`, path do Storage sem texto livre, policy `isolamento_obra_storage`
+  e `REVOKE` confirmados corretos.
+- Corrigida nessa mesma revisão uma dessincronização entre `CLAUDE.md` e `AGENTS.md` (o
+  segundo nunca tinha recebido a entrada do módulo Tarefas).
 
-## Pendências antes de teste com dados reais
+## Pendências antes do aceite formal
 
-- Aplicar os commits externamente, pois o `.git` ficou somente leitura nesta sessão.
-- Rodar `npm run build` fora do sandbox bloqueado.
-- Aplicar a migração no Supabase somente quando Rodrigo decidir.
-- Fazer revisão pós-commit obrigatória do Claude Code antes do Rodrigo testar com documentos reais.
-- Após a revisão e correções, validar admin, equipe com módulo, equipe sem módulo, cliente leitura e isolamento entre obras.
+- Testes reais de RLS/permissão dos três papéis (admin, equipe com/sem módulo, cliente
+  leitura) e isolamento entre obras, logando de fato no app — nenhuma ferramenta automatizada
+  substitui esse teste.
+- Teste de campo do Rodrigo com documentos reais da obra.

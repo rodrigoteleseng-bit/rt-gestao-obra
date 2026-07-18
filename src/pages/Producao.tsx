@@ -789,6 +789,16 @@ function Plantas() {
     if (error) { setMsg({ tipo: "erro", texto: error.message }); return; }
     await carregar();
   }
+
+  async function ajustarEscalaRotulo(parede: ProducaoParede, delta: number) {
+    const atual = parede.rotulo_escala ?? 1;
+    const nova = Math.min(2, Math.max(0.5, Math.round((atual + delta) * 10) / 10));
+    if (nova === atual) return;
+    const { error } = await supabase.from("producao_paredes").update({ rotulo_escala: nova }).eq("id", parede.id);
+    if (error) { setMsg({ tipo: "erro", texto: error.message }); return; }
+    setParedes((lista) => lista.map((item) => (item.id === parede.id ? { ...item, rotulo_escala: nova } : item)));
+  }
+
   return (
     <>
       <section className={styles.bloco}>
@@ -826,6 +836,11 @@ function Plantas() {
                     {p.meta_alvenaria_m2 != null && `Alvenaria: ${p.meta_alvenaria_m2.toFixed(2)} m²`}
                     {p.meta_reboco_a_m2 != null && ` · Reboco A: ${p.meta_reboco_a_m2.toFixed(2)} m²`}
                     {p.meta_reboco_b_m2 != null && ` · Reboco B: ${p.meta_reboco_b_m2.toFixed(2)} m²`}
+                  </div>
+                  <div className={styles.escalaControle}>
+                    <button className={styles.btnEscala} onClick={() => ajustarEscalaRotulo(p, -0.1)} aria-label="Diminuir nome da parede">A-</button>
+                    <span>{Math.round(p.rotulo_escala * 100)}%</span>
+                    <button className={styles.btnEscala} onClick={() => ajustarEscalaRotulo(p, 0.1)} aria-label="Aumentar nome da parede">A+</button>
                   </div>
                   <button className={styles.btnSec} onClick={() => abrirEdicao(p)}>Editar</button>
                   <button className={styles.btnExcluir} onClick={() => excluirParede(p)}>Excluir</button>

@@ -99,9 +99,27 @@ nenhum achado novo.
   (Map de pastas incluindo inativas; select de edição preservando a pasta atual mesmo
   inativa) confirmados corretamente implementados.
 
+### Ajuste pós-teste — botão Abrir no card da lista (18/07/2026)
+
+Durante o teste de campo, Rodrigo pediu para abrir o PDF da revisão atual direto do card da
+lista, sem precisar selecionar o documento e rolar até o painel de detalhe — importante no
+celular. Adicionado botão "Abrir" no `cardMeta`, ao lado do texto da revisão atual; o card
+deixou de ser um `<button>` nativo (não é válido aninhar botão dentro de botão) e virou
+`<div role="button" tabIndex={0}>` com suporte a teclado (Enter/Espaço) preservado. Commit
+`89bd0f1`.
+
+### Teste real do Rodrigo — 18/07/2026
+
+Rodrigo testou em produção com um caso real: criou a pasta "Projetos Aprovação" e cadastrou
+vários documentos reais (pranchas `ARQ_ANTES_IMPERIAL_QD06_ACRESCIMO-N-5_R1`) com revisão R01,
+confirmou que o botão "Abrir" no card funciona no desktop e no celular. Resultado: **tudo
+funcionando como esperado**.
+
+Os 2 documentos de teste anteriores (das categorias antigas) foram inativados a pedido do
+Rodrigo, preservados no banco e no storage.
+
 ### Pendências antes do aceite formal
 
 - Testes reais de RLS/permissão dos três papéis (admin, equipe com/sem módulo, cliente
-  leitura) e isolamento entre obras, logando de fato no app.
-- Teste de campo do Rodrigo criando pastas reais (Arquitetura, Estrutura, Hidrossanitário
-  etc.) e organizando documentos nelas.
+  leitura) e isolamento entre obras, logando de fato no app — o teste de campo cobriu o fluxo
+  como admin; falta confirmar equipe e cliente.

@@ -63,3 +63,37 @@ migração).
   leitura) e isolamento entre obras, logando de fato no app — nenhuma ferramenta automatizada
   substitui esse teste.
 - Teste de campo do Rodrigo com documentos reais da obra.
+
+## Evolução — pastas livres por obra
+
+Implementada localmente em 18/07/2026 a evolução planejada em `docs/superpowers/specs/2026-07-18-projetos-pastas-design.md` e `docs/superpowers/plans/2026-07-18-projetos-pastas.md`: as categorias fixas foram substituídas por pastas livres cadastradas por obra.
+
+### O que mudou
+
+- Criada a tabela `projetos_pastas`, com RLS e isolamento por obra.
+- `projetos_documentos` passou a usar `pasta_id` obrigatório em vez de `categoria`.
+- A migração preserva documentos existentes criando pastas equivalentes às categorias antigas: `Projeto Executivo`, `Memorial` e `Administrativo`.
+- A tela `/projetos` agora filtra por pasta e exibe o nome da pasta no card e no detalhe.
+- O cadastro de novo documento permite escolher pasta ativa existente ou criar uma nova pasta no próprio fluxo.
+- O formulário de edição permite trocar a pasta do documento, preservando a pasta atual no select mesmo se ela estiver inativa.
+- O painel `Gerenciar pastas` permite renomear e inativar pastas ativas.
+- Pastas inativas continuam carregadas para exibição, evitando que documentos preservados percam o rótulo da pasta.
+
+### Migração
+
+Criada em `supabase/migrations/20260718_projetos_pastas.sql`. A ordem é intencional: cria pastas, adiciona `pasta_id` nullable, migra os documentos existentes, torna `pasta_id` `NOT NULL`, remove o índice antigo de categoria, remove a coluna `categoria` e só então remove o enum `categoria_documento_projeto`.
+
+A migração não foi aplicada ao Supabase nesta sessão.
+
+### Validação técnica desta evolução
+
+- `npx tsc -b` passou após a migração da UI para pastas.
+- `npm run build` não pôde ser concluído no sandbox do Codex: Vite/esbuild falhou ao carregar `vite.config.ts` por bloqueio de permissão (`Cannot read directory "../../../..": Access is denied`). Esse mesmo bloqueio já ocorreu na implementação inicial de Projetos.
+- Testes reais de RLS, permissões dos três papéis e isolamento entre obras não foram executados porque a migração não foi aplicada nesta etapa.
+
+### Pendências antes de teste com dados reais
+
+- Aplicar os commits externamente, pois o `.git` ficou somente leitura nesta sessão.
+- Rodar `npm run build` fora do sandbox bloqueado.
+- Revisão pós-commit obrigatória do Claude Code antes de qualquer teste real do Rodrigo.
+- Aplicar a migração no Supabase somente quando Rodrigo decidir.

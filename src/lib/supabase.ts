@@ -299,14 +299,21 @@ export interface DefinicaoProjeto {
   criado_por: string
 }
 
-export type CategoriaDocumentoProjeto = 'projeto_executivo' | 'memorial' | 'administrativo'
-
 export interface ProjetoDocumento {
   id: string
   obra_id: string
   titulo: string
-  categoria: CategoriaDocumentoProjeto
+  pasta_id: string
   descricao: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface ProjetoPasta {
+  id: string
+  obra_id: string
+  nome: string
   ativo: boolean
   criado_em: string
   criado_por: string

@@ -1,5 +1,6 @@
 .page { max-width: 1180px; margin: 0 auto; }
 .header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+.headerAcoes { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .header h1 { margin: 0 0 4px; font-size: 26px; }
 .sub { margin: 0; color: var(--cinza-600); font-size: 14px; }
 .msgOk, .msgErro { border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13px; font-weight: 700; margin-bottom: 14px; }
@@ -10,7 +11,7 @@
 .formHeader h2 { margin: 0; font-size: 17px; }
 .campos { display: flex; flex-direction: column; gap: 12px; }
 .campo { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: var(--navy); min-width: 0; }
-.campo input, .campo select, .campo textarea, .filtros input, .filtros select { width: 100%; min-width: 0; border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); padding: 10px 11px; font: inherit; background: var(--branco); color: var(--cinza-900); }
+.campo input, .campo select, .campo textarea, .filtros input, .filtros select, .pastaLinha input { width: 100%; min-width: 0; border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); padding: 10px 11px; font: inherit; background: var(--branco); color: var(--cinza-900); }
 .campo textarea { min-height: 76px; resize: vertical; }
 .linha2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .acoesForm, .acoesLinha { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
@@ -42,9 +43,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .revisaoLinha span { display: block; margin-top: 3px; color: var(--cinza-600); font-size: 12.5px; }
 .revisaoLinha p { margin: 6px 0 0; color: var(--cinza-700); overflow-wrap: anywhere; }
 .vazio { background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); padding: 18px; color: var(--cinza-600); box-shadow: var(--sombra-sm); }
+.vazioInterno { border: 1px dashed var(--cinza-200); border-radius: var(--radius-sm); padding: 12px; color: var(--cinza-600); }
+.pastasLista { display: flex; flex-direction: column; gap: 8px; }
+.pastaLinha { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); padding: 10px; }
+.pastaLinha span { font-weight: 800; color: var(--navy); overflow-wrap: anywhere; min-width: 0; }
 @media (max-width: 860px) {
-  .header { flex-direction: column; }
-  .filtros, .conteudo, .linha2 { grid-template-columns: 1fr; }
+  .header, .headerAcoes { flex-direction: column; width: 100%; }
+  .filtros, .conteudo, .linha2, .pastaLinha { grid-template-columns: 1fr; }
   .detalhe { position: static; }
   .cardTopo, .detalheTopo, .revisaoLinha { flex-direction: column; }
   .acoesLinha { justify-content: flex-start; width: 100%; }

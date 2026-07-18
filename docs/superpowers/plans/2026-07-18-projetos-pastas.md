@@ -504,3 +504,43 @@ duplicado na criacao inline (Task 2 Step 5) e no renomear (Task 3 Step 2).
 
 Os dois achados sao defeitos de desenho reais (nao teoricos) que ja foram corrigidos
 diretamente no plano. Plano pronto para handoff ao Codex.
+
+---
+
+## Revisao pos-commit do Claude Code — 18/07/2026 (Etapa 8)
+
+**Revisor:** Claude Code, modo somente leitura durante a leitura do codigo. Codex implementou
+as 4 tasks localmente mas nao conseguiu commitar (sandbox com `.git` somente leitura, mesmo
+bloqueio das duas sessoes anteriores); o Claude Code aplicou o commit por fora, apos revisar.
+
+Conferido linha a linha contra o codigo real:
+
+- **Migracao SQL:** identica ao plano — ordem correta (pasta nullable → UPDATE → NOT NULL →
+  remove indice antigo → remove coluna → remove enum), seed usa o admin mais antigo como
+  `criado_por` (nao depende de `auth.uid()`), `INSERT ... SELECT DISTINCT` seguro com tabela
+  vazia.
+- **Achado 1 (Map de pastas ativas+inativas):** confirmado — `carregar()` busca
+  `projetos_pastas` sem filtrar `ativo`; `pastaPorId` usa a lista completa; `pastasAtivas`
+  (derivada) e usada so no filtro e no select de novo documento, como pedido.
+- **Achado 2 (select de edicao com pasta atual mesmo inativa):** confirmado —
+  `pastasEdicao = pastas.filter(p => p.ativo || p.id === selecionado.pasta_id)`, usado no
+  select do formulario de edicao.
+- **Criacao de pasta inline com fallback de duplicata:** `resolverPastaDocumento()` tenta
+  `INSERT`, detecta erro de indice unico (`erroNomeDuplicado`, checando `code === '23505'` e
+  variacoes de mensagem) e reaproveita a pasta existente via `ilike`, avisando o usuario.
+- **CSS mobile:** `.pastaLinha` ja nasce com `minmax(0, 1fr)` e colapsa no breakpoint de
+  860px — sem repetir o bug de overflow ja visto antes neste modulo.
+- **CLAUDE.md/AGENTS.md:** conferida paridade de conteudo entre os dois arquivos apos as
+  edicoes do Codex — mantida (so as duas diferencas ja intencionais de antes).
+
+### Validacao tecnica desta sessao
+
+- `npm run build` completo (fora do sandbox do Codex): passou limpo.
+- `npx tsc -b`: ja tinha passado no sandbox do Codex.
+
+### Ainda pendente, sem alteracao nesta sessao
+
+- Migracao nao aplicada em producao.
+- Testes reais de RLS/permissao dos tres papeis e isolamento entre obras — dependem da
+  migracao estar aplicada.
+- Nenhum achado novo encontrado nesta revisao pos-commit.

@@ -174,6 +174,7 @@ export default function PlantaClicavel({
             className={`${styles.rotulo} ${arrastavel ? styles.rotuloArrastavel : ''}`}
             style={{ left: `${rotulo.pos_x}%`, top: `${rotulo.pos_y}%`, transform: `rotate(${rotulo.rotacao}deg) scale(${rotulo.escala})` }}
             onPointerDown={(e) => aoPressionarRotulo(e, parede.id)}
+            tabIndex={arrastavel ? 0 : undefined}
           >
             {parede.nome}
             {arrastavel && (

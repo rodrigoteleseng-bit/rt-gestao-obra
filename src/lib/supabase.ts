@@ -200,7 +200,7 @@ export interface ProducaoParede {
   id: string; planta_id: string; nome: string
   pos_x: number; pos_y: number; largura: number; altura_px: number
   meta_alvenaria_m2: number | null; meta_reboco_a_m2: number | null; meta_reboco_b_m2: number | null
-  rotulo_pos_x: number | null; rotulo_pos_y: number | null; rotulo_rotacao: number
+  rotulo_pos_x: number | null; rotulo_pos_y: number | null; rotulo_rotacao: number; rotulo_escala: number
   ativo: boolean; criado_por: string; criado_em: string
 }
 export interface ProducaoParedeProgresso {
@@ -595,3 +595,4 @@ export interface MedicaoItem {
   criado_em: string
   criado_por: string
 }
+

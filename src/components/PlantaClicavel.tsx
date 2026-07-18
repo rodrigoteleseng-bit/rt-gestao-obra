@@ -4,7 +4,7 @@ import styles from './PlantaClicavel.module.css'
 
 export type ZonaDesenhada = { pos_x: number; pos_y: number; largura: number; altura_px: number }
 export type SaldoParede = { alvenaria: number | null; rebocoA: number | null; rebocoB: number | null }
-export type RotuloAjustado = { pos_x: number; pos_y: number; rotacao: number }
+export type RotuloAjustado = { pos_x: number; pos_y: number; rotacao: number; escala: number }
 
 type Props = {
   imagemUrl: string
@@ -23,6 +23,7 @@ function rotuloPadrao(parede: ProducaoParede): RotuloAjustado {
     pos_x: parede.rotulo_pos_x ?? parede.pos_x,
     pos_y: parede.rotulo_pos_y ?? Math.max(0, parede.pos_y - LEVANTA_ROTULO_PADRAO),
     rotacao: parede.rotulo_rotacao,
+    escala: parede.rotulo_escala,
   }
 }
 
@@ -165,7 +166,7 @@ export default function PlantaClicavel({
             key={`rotulo-${parede.id}`}
             data-rotulo-parede={parede.id}
             className={`${styles.rotulo} ${arrastavel ? styles.rotuloArrastavel : ''}`}
-            style={{ left: `${rotulo.pos_x}%`, top: `${rotulo.pos_y}%`, transform: `rotate(${rotulo.rotacao}deg)` }}
+            style={{ left: `${rotulo.pos_x}%`, top: `${rotulo.pos_y}%`, transform: `rotate(${rotulo.rotacao}deg) scale(${rotulo.escala})` }}
             onPointerDown={(e) => aoPressionarRotulo(e, parede.id)}
           >
             {parede.nome}
@@ -179,3 +180,4 @@ export default function PlantaClicavel({
     </div>
   )
 }
+

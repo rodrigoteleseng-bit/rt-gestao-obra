@@ -203,20 +203,34 @@ git commit -m "feat: substitui categorias fixas por pastas em projetos"
 
 - [ ] **Step 1: Carregar pastas da obra**
 
-Junto do `carregar()` existente, buscar `projetos_pastas` ativas da obra
-(`.eq('obra_id', obraAtiva.id).eq('ativo', true).order('nome')`), guardar em estado.
+Junto do `carregar()` existente, buscar **todas** as `projetos_pastas` da obra, ativas e
+inativas (`.eq('obra_id', obraAtiva.id).order('nome')`, sem filtrar por `ativo`), guardar em
+estado. Derivar dessa lista, com `useMemo`, uma segunda lista só com as ativas
+(`pastas.filter(p => p.ativo)`) para usar em qualquer lugar que só deva oferecer pasta ativa
+(filtro, select de novo documento, select de editar documento, painel de gerenciar).
+
+**Por que carregar as inativas também:** se a busca de pastas trouxer só as ativas, um
+documento cuja pasta foi inativada (Task 3) fica sem correspondência no `Map` de pastas por id
+usado no Step 3 abaixo — o nome da pasta desapareceria da tela (undefined/em branco) para
+documentos que continuam existindo e visíveis. O documento não pode "perder" seu rótulo de
+pasta só porque a pasta foi arquivada.
 
 - [ ] **Step 2: Filtro por pasta**
 
-Trocar o filtro de categoria por um filtro de pasta: select com as pastas ativas da obra em
-ordem alfabetica, mais opcao "Todas". Atualizar `documentosFiltrados` para comparar
-`doc.pasta_id` em vez de `doc.categoria`.
+Trocar o filtro de categoria por um filtro de pasta: select com as pastas **ativas** da obra
+(lista derivada do Step 1) em ordem alfabética, mais opção "Todas". Atualizar
+`documentosFiltrados` para comparar `doc.pasta_id` em vez de `doc.categoria` — isso continua
+mostrando documentos de pasta inativa quando "Todas" estiver selecionado, só não oferece a
+pasta inativa como opção de filtro específico.
 
 - [ ] **Step 3: Exibir nome da pasta no card e no detalhe**
 
-Trocar toda referencia a `CATEGORIA_LABEL[doc.categoria]` por uma busca do nome da pasta a
-partir de `pasta_id` (usar um `Map` de pastas por id, mesmo padrao ja usado em
-`usuarioPorId`/`etapaPorId` em `Tarefas.tsx`).
+Trocar toda referência a `CATEGORIA_LABEL[doc.categoria]` por uma busca do nome da pasta a
+partir de `pasta_id`, usando um `Map` construído a partir da lista **completa** (ativas +
+inativas) do Step 1 — mesmo padrão já usado em `usuarioPorId`/`etapaPorId` em `Tarefas.tsx`,
+mas sem o filtro de `ativo` que aquele padrão normalmente aplicaria. Se a pasta estiver
+inativa, mostrar o nome normalmente (sem indicação especial é aceitável para o MVP; um rótulo
+tipo "(arquivada)" ao lado é uma melhoria opcional, não bloqueante).
 
 - [ ] **Step 4: Campo de pasta no formulario de novo documento**
 
@@ -248,6 +262,16 @@ ela apareca no filtro e nas proximas telas sem precisar de F5.
 No formulario de edicao (`salvarEdicao`), trocar o campo de categoria pelo mesmo select de
 pasta do Step 4 (sem a opcao de criar pasta nova ali — se precisar de pasta nova, criar via
 novo documento ou via gerenciamento de pastas do Task 3 primeiro).
+
+**Cuidado com pasta inativa:** se o documento sendo editado estiver numa pasta que foi
+inativada (Task 3), essa pasta nao aparece na lista de pastas ativas usada no select — o
+`<select>` cairia sem opcao correspondente ao valor atual e o navegador selecionaria a
+primeira opcao da lista por padrao. Se o usuario salvar sem mexer nesse campo, o documento
+seria reatribuido silenciosamente pra outra pasta sem ter sido essa a intencao. Ao montar as
+opcoes do select de edicao, incluir tambem a pasta atual do documento mesmo se ela estiver
+inativa (usar a lista completa do Step 1 filtrada por `p.ativo || p.id === documento.pasta_id`
+em vez da lista so-ativas), garantindo que o valor pre-selecionado sempre corresponda a
+realidade.
 
 - [ ] **Step 7: Build**
 
@@ -419,3 +443,64 @@ Classifique achados como critico, alto, medio ou baixo. Para cada achado, inform
 arquivo/trecho do plano ou spec, evidencia, impacto, correcao recomendada e teste de
 validacao. Diferencie defeito comprovado de sugestao.
 ```
+
+---
+
+## Revisao previa do Claude Code — 18/07/2026
+
+**Revisor:** Claude Code, modo somente leitura. Nenhum arquivo de codigo/migracao alterado,
+nenhum commit criado. Plano escrito pelo proprio Claude Code; revisado com o mesmo rigor de
+uma revisao de terceiro.
+
+**Commit-base considerado:** `d10de5a`. Nada implementado ainda.
+
+### Medio 1 — Map de pastas por id so-ativas apagava o nome da pasta de documentos preservados
+
+- **Modulo/cenario:** Projetos — visualizar a lista/detalhe de um documento cuja pasta foi
+  inativada.
+- **Arquivo/trecho:** versao original do Task 2 Step 1 e Step 3 (ja corrigida neste plano).
+- **Evidencia:** a busca de pastas so trazia `ativo = true`; o `Map` de pastas por id usado
+  pra exibir o nome no card/detalhe seria construido so com essa lista. Um documento cuja
+  pasta foi inativada (Task 3 permite isso e promete "documentos continuam preservados")
+  ficaria sem correspondencia nesse `Map` — o nome da pasta sumiria (undefined/em branco) da
+  tela, mesmo o documento continuando totalmente visivel e acessivel.
+- **Impacto:** quebra a promessa do proprio Task 3 ("os documentos da pasta continuam
+  preservados") na pratica visual — o documento fica orfao de rotulo, parecendo com defeito.
+- **Correcao aplicada:** Step 1 agora carrega TODAS as pastas (ativas e inativas) pra montar
+  o `Map` de exibicao, e deriva uma lista so-ativas (via `useMemo`) pra qualquer lugar que deva
+  oferecer so pasta ativa (filtro, selects). Step 3 usa a lista completa pro `Map`.
+- **Teste de validacao:** inativar uma pasta com documento dentro; confirmar que o nome da
+  pasta continua aparecendo normalmente no card e no detalhe desse documento.
+- **Status:** defeito comprovado de desenho, corrigido no proprio plano antes do handoff.
+
+### Baixo/Medio 2 — editar documento de pasta inativa podia reatribuir a pasta sem intencao
+
+- **Modulo/cenario:** Projetos — abrir "Editar" num documento cuja pasta atual foi inativada.
+- **Arquivo/trecho:** versao original do Task 2 Step 6 (ja corrigida neste plano).
+- **Evidencia:** o select de edicao usaria so a lista de pastas ativas; se a pasta atual do
+  documento nao estiver nessa lista, o `<select>` nao teria opcao correspondente ao valor
+  atual, e o navegador cairia pra primeira opcao por padrao. Salvar sem mexer nesse campo
+  reatribuiria o documento pra outra pasta sem essa ter sido a intencao do usuario.
+- **Impacto:** mudanca de dado silenciosa, disparada por um fluxo comum (editar um documento
+  por outro motivo — ex.: corrigir o titulo — sem querer, muda a pasta tambem).
+- **Correcao aplicada:** o select de edicao passa a incluir a pasta atual do documento mesmo
+  se ela estiver inativa, garantindo que o valor pre-selecionado sempre corresponda ao dado
+  real.
+- **Teste de validacao:** inativar a pasta de um documento, abrir "Editar" nesse documento sem
+  tocar no campo de pasta, salvar, e confirmar que o `pasta_id` nao mudou.
+- **Status:** defeito comprovado de desenho, corrigido no proprio plano antes do handoff.
+
+### Verificado sem achados
+
+Seguranca da migracao de dados (Step 3/4 do Task 1 — todo documento existente tem categoria
+valida, logo toda pasta correspondente ja existe antes do `UPDATE`, logo `pasta_id` nunca fica
+NULL antes do `NOT NULL`; comportamento correto com `projetos_documentos` vazia), RLS e
+isolamento por obra em `projetos_pastas`, indice unico parcial (permite reaproveitar nome de
+pasta inativa, nao bloqueia renomear pra nome de pasta ja inativa), ausencia de outras
+dependencias do enum `categoria_documento_projeto` antes de remove-lo, tratamento de nome
+duplicado na criacao inline (Task 2 Step 5) e no renomear (Task 3 Step 2).
+
+### Recomendacao
+
+Os dois achados sao defeitos de desenho reais (nao teoricos) que ja foram corrigidos
+diretamente no plano. Plano pronto para handoff ao Codex.

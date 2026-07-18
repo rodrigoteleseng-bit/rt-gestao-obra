@@ -324,11 +324,10 @@ Após o aceite do Financeiro:
 1. Planejamento lookahead/PPC;
 2. Central de Alertas;
 3. Projetos e documentos versionados;
-4. Tarefas avulsas;
-5. Exportações Excel/PDF e relatórios gerenciais;
-6. integrações automáticas entre módulos;
-7. assistente de implantação de novas obras;
-8. preparação futura para múltiplas empresas e comercialização.
+4. Exportações Excel/PDF e relatórios gerenciais;
+5. integrações automáticas entre módulos;
+6. assistente de implantação de novas obras;
+7. preparação futura para múltiplas empresas e comercialização.
 
 Cada módulo repete integralmente as etapas 1 a 10 deste documento.
 

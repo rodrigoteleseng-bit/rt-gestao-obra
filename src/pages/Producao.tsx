@@ -19,6 +19,7 @@ import { hojeISO } from "../lib/cronograma";
 import { formatarMoeda } from "../lib/formato";
 import { converterPdfParaImagem } from "../lib/pdfParaImagem";
 import PlantaClicavel, { type ZonaDesenhada, type RotuloAjustado } from "../components/PlantaClicavel";
+import { useConfirmDialog } from "../components/ConfirmDialogContext";
 import styles from "./Producao.module.css";
 
 type Aba = "lancamentos" | "plantas" | "dias" | "salarios";
@@ -645,6 +646,7 @@ const PAVIMENTOS: { valor: Pavimento; rotulo: string }[] = [
 
 function Plantas() {
   const { obraAtiva } = useObra();
+  const { confirmar } = useConfirmDialog();
   const [plantas, setPlantas] = useState<ProducaoPlanta[]>([]),
     [paredes, setParedes] = useState<ProducaoParede[]>([]),
     [pavimentoSel, setPavimentoSel] = useState<Pavimento>("terreo"),
@@ -773,6 +775,20 @@ function Plantas() {
     await carregar();
   }
 
+  async function excluirParede(parede: ProducaoParede) {
+    const { data } = await supabase
+      .from("producao_paredes_progresso")
+      .select("produzido_m2")
+      .eq("parede_id", parede.id);
+    const total = (data ?? []).reduce((soma, linha) => soma + Number(linha.produzido_m2), 0);
+    const mensagem = total > 0
+      ? `Esta parede ja tem ${total.toFixed(2)} m2 de producao lancada (somando todos os sobrados). O historico continua preservado, mas a parede some da lista e da planta de lancamento.`
+      : "A parede some da lista e da planta de lancamento. Nenhuma producao foi lancada nela ainda.";
+    if (!await confirmar({ titulo: "Excluir parede", mensagem, confirmarTexto: "Excluir parede", perigoso: true })) return;
+    const { error } = await supabase.from("producao_paredes").update({ ativo: false }).eq("id", parede.id);
+    if (error) { setMsg({ tipo: "erro", texto: error.message }); return; }
+    await carregar();
+  }
   return (
     <>
       <section className={styles.bloco}>
@@ -812,6 +828,7 @@ function Plantas() {
                     {p.meta_reboco_b_m2 != null && ` · Reboco B: ${p.meta_reboco_b_m2.toFixed(2)} m²`}
                   </div>
                   <button className={styles.btnSec} onClick={() => abrirEdicao(p)}>Editar</button>
+                  <button className={styles.btnExcluir} onClick={() => excluirParede(p)}>Excluir</button>
                 </div>
               ))}
             </div>

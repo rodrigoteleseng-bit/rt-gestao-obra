@@ -27,6 +27,20 @@ type Msg = { tipo: "ok" | "erro"; texto: string } | null;
 const fmt = (d: string) =>
   `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
+const datasDoPeriodo = (inicio: string, fim: string): string[] => {
+  if (!inicio || !fim || inicio > fim) return [];
+  const [anoInicio, mesInicio, diaInicio] = inicio.split("-").map(Number);
+  const [anoFim, mesFim, diaFim] = fim.split("-").map(Number);
+  const atual = new Date(Date.UTC(anoInicio, mesInicio - 1, diaInicio));
+  const limite = new Date(Date.UTC(anoFim, mesFim - 1, diaFim));
+  const datas: string[] = [];
+  while (atual <= limite) {
+    datas.push(atual.toISOString().slice(0, 10));
+    atual.setUTCDate(atual.getUTCDate() + 1);
+  }
+  return datas;
+};
+
 const numero = (valor: string | number): number => {
   if (typeof valor === "number") return valor;
   const texto = valor.trim();
@@ -508,7 +522,8 @@ function Lancamentos({
 function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
   const { obraAtiva } = useObra();
   const [trab, setTrab] = useState(""),
-    [data, setData] = useState(hojeISO()),
+    [inicio, setInicio] = useState(hojeISO()),
+    [fim, setFim] = useState(hojeISO()),
     [motivo, setMotivo] = useState(""),
     [salarios, setSalarios] = useState<ProducaoSalario[]>([]),
     [dias, setDias] = useState<ProducaoDiaSalarial[]>([]),
@@ -532,42 +547,73 @@ function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
       setDias(d.data ?? []);
     });
   }, [obraAtiva]);
-  const salario = useMemo(
-    () =>
-      salarios.find(
-        (s) =>
-          s.trabalhador_id === trab &&
-          s.vigente_desde <= data &&
-          (!s.vigente_ate || s.vigente_ate >= data),
-      ),
-    [salarios, trab, data],
+
+  const periodo = useMemo(() => datasDoPeriodo(inicio, fim), [inicio, fim]);
+  const salarioNaData = (dataRef: string) =>
+    salarios.find(
+      (s) =>
+        s.trabalhador_id === trab &&
+        s.vigente_desde <= dataRef &&
+        (!s.vigente_ate || s.vigente_ate >= dataRef),
+    );
+  const datasSemSalario = useMemo(
+    () => periodo.filter((dataRef) => !salarioNaData(dataRef)),
+    [periodo, salarios, trab],
   );
+  const valorPeriodo = useMemo(
+    () =>
+      periodo.reduce((total, dataRef) => {
+        const salario = salarioNaData(dataRef);
+        return total + (salario ? Number(salario.salario_mensal) / 30 : 0);
+      }, 0),
+    [periodo, salarios, trab],
+  );
+
   async function salvar() {
-    if (!obraAtiva || !trab || !salario || !motivo.trim())
+    if (!obraAtiva || !trab || !motivo.trim())
       return setMsg({
         tipo: "erro",
-        texto: "Selecione profissional com salário vigente e informe o motivo.",
+        texto: "Selecione profissional e informe o motivo.",
       });
-    const { data: novo, error } = await supabase
+    if (periodo.length === 0)
+      return setMsg({
+        tipo: "erro",
+        texto: "Informe um período válido, com data final igual ou posterior à inicial.",
+      });
+    if (datasSemSalario.length > 0)
+      return setMsg({
+        tipo: "erro",
+        texto: `Não existe salário vigente para: ${datasSemSalario.map(fmt).join(", ")}.`,
+      });
+    const diasJaRegistrados = dias
+      .filter((d) => d.trabalhador_id === trab && periodo.includes(d.data))
+      .map((d) => d.data);
+    if (diasJaRegistrados.length > 0)
+      return setMsg({
+        tipo: "erro",
+        texto: `Já existe dia salarial registrado em: ${diasJaRegistrados.map(fmt).join(", ")}.`,
+      });
+
+    const linhas = periodo.map((dataRef) => ({
+      obra_id: obraAtiva.id,
+      trabalhador_id: trab,
+      data: dataRef,
+      salario_id: salarioNaData(dataRef)!.id,
+      motivo: motivo.trim(),
+    }));
+    const { data: novos, error } = await supabase
       .from("producao_dias_salariais")
-      .insert({
-        obra_id: obraAtiva.id,
-        trabalhador_id: trab,
-        data,
-        salario_id: salario.id,
-        motivo: motivo.trim(),
-      })
-      .select()
-      .single();
+      .insert(linhas)
+      .select();
     if (error) return setMsg({ tipo: "erro", texto: error.message });
-    setDias((p) => [novo, ...p]);
+    setDias((p) => [...(novos ?? []), ...p].sort((a, b) => b.data.localeCompare(a.data)));
     setMotivo("");
-    setMsg({ tipo: "ok", texto: "Dia salarial registrado." });
+    setMsg({ tipo: "ok", texto: `Período salarial registrado (${linhas.length} dias).` });
   }
   return (
     <>
       <section className={styles.bloco}>
-        <h2>Registrar dia sem produção</h2>
+        <h2>Registrar período sem produção</h2>
         <div className={styles.campos}>
           <Campo label="Profissional">
             <select
@@ -583,12 +629,20 @@ function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
               ))}
             </select>
           </Campo>
-          <Campo label="Data">
+          <Campo label="Data inicial">
             <input
               className={styles.input}
               type="date"
-              value={data}
-              onChange={(e) => setData(e.target.value)}
+              value={inicio}
+              onChange={(e) => setInicio(e.target.value)}
+            />
+          </Campo>
+          <Campo label="Data final">
+            <input
+              className={styles.input}
+              type="date"
+              value={fim}
+              onChange={(e) => setFim(e.target.value)}
             />
           </Campo>
           <Campo label="Motivo/atividade">
@@ -600,18 +654,19 @@ function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
           </Campo>
         </div>
         <div className={styles.resumo}>
-          {salario ? (
-            <>
-              Salário:{" "}
-              <strong>R$ {formatarMoeda(salario.salario_mensal)}</strong> · dia:{" "}
-              <strong>R$ {formatarMoeda(salario.salario_mensal / 30)}</strong>
-            </>
+          {periodo.length === 0 ? (
+            "Período inválido."
+          ) : datasSemSalario.length > 0 ? (
+            `Sem salário vigente em ${datasSemSalario.length} dia(s) do período.`
           ) : (
-            "Nenhum salário vigente para a seleção."
+            <>
+              Período: <strong>{periodo.length} dia(s)</strong> · total salarial: {" "}
+              <strong>R$ {formatarMoeda(valorPeriodo)}</strong>
+            </>
           )}
         </div>
         <button className={styles.btn} onClick={salvar}>
-          Registrar dia salarial
+          Registrar período salarial
         </button>
       </section>
       <Mensagem msg={msg} />
@@ -636,7 +691,6 @@ function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
     </>
   );
 }
-
 const PAVIMENTOS: { valor: Pavimento; rotulo: string }[] = [
   { valor: "terreo", rotulo: "Térreo" },
   { valor: "superior", rotulo: "Superior" },

@@ -83,17 +83,25 @@ Implementada localmente em 18/07/2026 a evolução planejada em `docs/superpower
 
 Criada em `supabase/migrations/20260718_projetos_pastas.sql`. A ordem é intencional: cria pastas, adiciona `pasta_id` nullable, migra os documentos existentes, torna `pasta_id` `NOT NULL`, remove o índice antigo de categoria, remove a coluna `categoria` e só então remove o enum `categoria_documento_projeto`.
 
-A migração não foi aplicada ao Supabase nesta sessão.
+Aplicada pelo Claude Code em 18/07/2026 via MCP Supabase, numa transação só (sem `ALTER TYPE
+ADD VALUE`, então não precisou da mesma separação de transações usada em Tarefas/Projetos
+original). Confirmado por SQL direto que os 2 documentos já existentes migraram para a pasta
+"Projeto Executivo", preservando o vínculo. O advisor de segurança do Supabase não apontou
+nenhum achado novo.
 
 ### Validação técnica desta evolução
 
-- `npx tsc -b` passou após a migração da UI para pastas.
-- `npm run build` não pôde ser concluído no sandbox do Codex: Vite/esbuild falhou ao carregar `vite.config.ts` por bloqueio de permissão (`Cannot read directory "../../../..": Access is denied`). Esse mesmo bloqueio já ocorreu na implementação inicial de Projetos.
-- Testes reais de RLS, permissões dos três papéis e isolamento entre obras não foram executados porque a migração não foi aplicada nesta etapa.
+- `npx tsc -b` passou no sandbox do Codex após a migração da UI para pastas.
+- `npm run build` completo rodado pelo Claude Code fora do sandbox: passou limpo (mesmo
+  bloqueio `Access is denied` específico do sandbox do Codex, já visto nas duas
+  implementações anteriores).
+- Revisão pós-commit do Claude Code conferiu o código real: os dois achados da revisão prévia
+  (Map de pastas incluindo inativas; select de edição preservando a pasta atual mesmo
+  inativa) confirmados corretamente implementados.
 
-### Pendências antes de teste com dados reais
+### Pendências antes do aceite formal
 
-- Aplicar os commits externamente, pois o `.git` ficou somente leitura nesta sessão.
-- Rodar `npm run build` fora do sandbox bloqueado.
-- Revisão pós-commit obrigatória do Claude Code antes de qualquer teste real do Rodrigo.
-- Aplicar a migração no Supabase somente quando Rodrigo decidir.
+- Testes reais de RLS/permissão dos três papéis (admin, equipe com/sem módulo, cliente
+  leitura) e isolamento entre obras, logando de fato no app.
+- Teste de campo do Rodrigo criando pastas reais (Arquitetura, Estrutura, Hidrossanitário
+  etc.) e organizando documentos nelas.

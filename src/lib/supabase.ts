@@ -8,7 +8,7 @@ export const supabase = createClient(url, key)
 export type PapelUsuario = 'admin' | 'equipe' | 'cliente'
 export type ModuloApp =
   | 'rdo' | 'avanco' | 'pendencias' | 'almoxarifado' | 'financeiro' | 'compras'
-  | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas' | 'definicoes' | 'tarefas'
+  | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas' | 'definicoes' | 'tarefas' | 'projetos'
 export type StatusObra = 'ativa' | 'pausada' | 'concluida' | 'arquivada'
 export type TipoUnidade = 'sobrado' | 'portaria' | 'area_comum' | 'canteiro' | 'outro'
 
@@ -295,6 +295,30 @@ export interface DefinicaoProjeto {
   resolvida_em: string | null
   resolvida_por: string | null
   ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export type CategoriaDocumentoProjeto = 'projeto_executivo' | 'memorial' | 'administrativo'
+
+export interface ProjetoDocumento {
+  id: string
+  obra_id: string
+  titulo: string
+  categoria: CategoriaDocumentoProjeto
+  descricao: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface ProjetoRevisao {
+  id: string
+  documento_id: string
+  revisao: string
+  path: string
+  observacao: string | null
+  atual: boolean
   criado_em: string
   criado_por: string
 }

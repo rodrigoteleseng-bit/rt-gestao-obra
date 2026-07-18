@@ -1,0 +1,52 @@
+.page { max-width: 1180px; margin: 0 auto; }
+.header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; }
+.header h1 { margin: 0 0 4px; font-size: 26px; }
+.sub { margin: 0; color: var(--cinza-600); font-size: 14px; }
+.msgOk, .msgErro { border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13px; font-weight: 700; margin-bottom: 14px; }
+.msgOk { background: #e6f4ec; color: var(--sucesso); }
+.msgErro { background: #fdeaea; color: var(--erro); }
+.formulario, .box { background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px; box-shadow: var(--sombra-sm); }
+.formHeader { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.formHeader h2 { margin: 0; font-size: 17px; }
+.campos { display: flex; flex-direction: column; gap: 12px; }
+.campo { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: var(--navy); min-width: 0; }
+.campo input, .campo select, .campo textarea, .filtros input, .filtros select { width: 100%; min-width: 0; border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); padding: 10px 11px; font: inherit; background: var(--branco); color: var(--cinza-900); }
+.campo textarea { min-height: 76px; resize: vertical; }
+.linha2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.acoesForm, .acoesLinha { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.acoesLinha { margin-top: 0; justify-content: flex-end; }
+.btnPrimario, .btnSecundario, .btnPerigo { border-radius: var(--radius-sm); padding: 10px 13px; font: inherit; font-weight: 800; cursor: pointer; }
+.btnPrimario { border: 0; background: var(--navy); color: var(--branco); }
+.btnSecundario { background: var(--nude); color: var(--navy); border: 1px solid var(--cinza-200); }
+.btnPerigo { border: 0; background: var(--terracota); color: var(--branco); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+.filtros { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, 280px); gap: 8px; align-items: center; margin-bottom: 16px; }
+.conteudo { display: grid; grid-template-columns: minmax(300px, .9fr) minmax(360px, 1.1fr); gap: 16px; align-items: start; }
+.lista, .detalhe { min-width: 0; }
+.card { width: 100%; display: block; text-align: left; border: 1px solid var(--cinza-200); border-radius: var(--radius-md); background: var(--branco); padding: 14px; margin-bottom: 10px; cursor: pointer; box-shadow: var(--sombra-sm); }
+.cardAtivo { border-color: var(--navy); }
+.cardTopo, .detalheTopo, .revisaoLinha { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.cardTitulo { font-weight: 800; color: var(--navy); overflow-wrap: anywhere; }
+.cardMeta, .cardDescricao { margin-top: 7px; color: var(--cinza-600); font-size: 12.5px; }
+.cardDescricao { color: var(--cinza-700); overflow-wrap: anywhere; }
+.chip { display: inline-flex; border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 800; white-space: nowrap; background: #edf4fa; color: var(--navy); }
+.detalhe { background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); padding: 16px; box-shadow: var(--sombra-sm); position: sticky; top: 12px; }
+.detalhe h2 { margin: 0 0 8px; font-size: 20px; color: var(--navy); overflow-wrap: anywhere; }
+.detalhe h3 { margin: 0 0 10px; font-size: 15px; color: var(--navy); }
+.descricao { color: var(--cinza-700); line-height: 1.45; margin: 12px 0 0; overflow-wrap: anywhere; }
+.revisaoAtual, .historico { margin-top: 16px; }
+.revisaoAtual { background: var(--nude); border-radius: var(--radius-sm); padding: 12px; }
+.revisaoLinha { border-top: 1px solid var(--cinza-200); padding: 12px 0; }
+.revisaoAtual .revisaoLinha { border-top: 0; padding: 0; }
+.revisaoLinha b { display: block; color: var(--navy); overflow-wrap: anywhere; }
+.revisaoLinha span { display: block; margin-top: 3px; color: var(--cinza-600); font-size: 12.5px; }
+.revisaoLinha p { margin: 6px 0 0; color: var(--cinza-700); overflow-wrap: anywhere; }
+.vazio { background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); padding: 18px; color: var(--cinza-600); box-shadow: var(--sombra-sm); }
+@media (max-width: 860px) {
+  .header { flex-direction: column; }
+  .filtros, .conteudo, .linha2 { grid-template-columns: 1fr; }
+  .detalhe { position: static; }
+  .cardTopo, .detalheTopo, .revisaoLinha { flex-direction: column; }
+  .acoesLinha { justify-content: flex-start; width: 100%; }
+  .btnPrimario, .btnSecundario, .btnPerigo { width: 100%; }
+}

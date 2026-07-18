@@ -33,6 +33,7 @@ const Almoxarifado = lazy(() => import('./pages/Almoxarifado'))
 const Efetivo = lazy(() => import('./pages/Efetivo'))
 const Producao = lazy(() => import('./pages/Producao'))
 const Tarefas = lazy(() => import('./pages/Tarefas'))
+const Projetos = lazy(() => import('./pages/Projetos'))
 const ProducaoMedicaoForm = lazy(() => import('./pages/ProducaoMedicaoForm'))
 const EmConstrucao = lazy(() => import('./pages/EmConstrucao'))
 
@@ -86,6 +87,7 @@ function AppRoutes() {
         <Route path="efetivo" element={<Efetivo />} />
         <Route path="producao" element={<Producao />} />
         <Route path="tarefas" element={<Tarefas />} />
+        <Route path="projetos" element={<Projetos />} />
         <Route path="medicoes/producao/:id" element={<ProducaoMedicaoForm />} />
         <Route path="alertas" element={<EmConstrucao modulo="Alertas" fase={7} />} />
       </Route>

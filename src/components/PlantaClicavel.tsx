@@ -13,6 +13,7 @@ type Props = {
   onDesenhar?: (zona: ZonaDesenhada) => void
   onSelecionar?: (parede: ProducaoParede) => void
   onMoverRotulo?: (paredeId: string, dados: RotuloAjustado) => void
+  onAjustarEscalaRotulo?: (parede: ProducaoParede, delta: number) => void
   saldoPorParede?: Map<string, SaldoParede>
 }
 
@@ -28,7 +29,7 @@ function rotuloPadrao(parede: ProducaoParede): RotuloAjustado {
 }
 
 export default function PlantaClicavel({
-  imagemUrl, paredes, modo, onDesenhar, onSelecionar, onMoverRotulo, saldoPorParede,
+  imagemUrl, paredes, modo, onDesenhar, onSelecionar, onMoverRotulo, onAjustarEscalaRotulo, saldoPorParede,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [inicio, setInicio] = useState<{ x: number; y: number } | null>(null)
@@ -125,6 +126,11 @@ export default function PlantaClicavel({
     })
   }
 
+  function aoAjustarEscala(evento: React.PointerEvent | React.MouseEvent, parede: ProducaoParede, delta: number) {
+    evento.stopPropagation()
+    onAjustarEscalaRotulo?.(parede, delta)
+  }
+
   const zonaAtual = inicio && atual ? {
     left: `${Math.min(inicio.x, atual.x)}%`, top: `${Math.min(inicio.y, atual.y)}%`,
     width: `${Math.abs(atual.x - inicio.x)}%`, height: `${Math.abs(atual.y - inicio.y)}%`,
@@ -171,7 +177,13 @@ export default function PlantaClicavel({
           >
             {parede.nome}
             {arrastavel && (
-              <span className={styles.alcaGirar} onPointerDown={(e) => aoPressionarAlca(e, parede)} />
+              <>
+                <span className={styles.controlesEscala} onPointerDown={(e) => e.stopPropagation()}>
+                  <button type="button" className={styles.btnEscala} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => aoAjustarEscala(e, parede, -0.1)} aria-label="Diminuir nome da parede">A-</button>
+                  <button type="button" className={styles.btnEscala} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => aoAjustarEscala(e, parede, 0.1)} aria-label="Aumentar nome da parede">A+</button>
+                </span>
+                <span className={styles.alcaGirar} onPointerDown={(e) => aoPressionarAlca(e, parede)} />
+              </>
             )}
           </div>
         )

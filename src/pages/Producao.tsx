@@ -826,6 +826,7 @@ function Plantas() {
               modo="desenhar"
               onDesenhar={setZonaPendente}
               onMoverRotulo={moverRotulo}
+              onAjustarEscalaRotulo={ajustarEscalaRotulo}
             />
             <p className={styles.sub}>Arraste o nome de uma parede pra reposicionar; arraste a bolinha ao lado dele pra girar.</p>
             <div className={styles.lista}>
@@ -836,11 +837,6 @@ function Plantas() {
                     {p.meta_alvenaria_m2 != null && `Alvenaria: ${p.meta_alvenaria_m2.toFixed(2)} m²`}
                     {p.meta_reboco_a_m2 != null && ` · Reboco A: ${p.meta_reboco_a_m2.toFixed(2)} m²`}
                     {p.meta_reboco_b_m2 != null && ` · Reboco B: ${p.meta_reboco_b_m2.toFixed(2)} m²`}
-                  </div>
-                  <div className={styles.escalaControle}>
-                    <button className={styles.btnEscala} onClick={() => ajustarEscalaRotulo(p, -0.1)} aria-label="Diminuir nome da parede">A-</button>
-                    <span>{Math.round(p.rotulo_escala * 100)}%</span>
-                    <button className={styles.btnEscala} onClick={() => ajustarEscalaRotulo(p, 0.1)} aria-label="Aumentar nome da parede">A+</button>
                   </div>
                   <button className={styles.btnSec} onClick={() => abrirEdicao(p)}>Editar</button>
                   <button className={styles.btnExcluir} onClick={() => excluirParede(p)}>Excluir</button>

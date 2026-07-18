@@ -5,17 +5,32 @@
 import { supabase } from './supabase'
 import type { CronogramaVersao, CronogramaTarefa, CronogramaPrevisto, AvancoFisico } from './supabase'
 
-// Supabase limita 1000 linhas por consulta — pagina até trazer tudo
-async function paginado<T>(monta: (de: number, ate: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
-  const todos: T[] = []
+// Supabase limita linhas por resposta: busca a primeira página com count e paraleliza o restante.
+type RespostaPaginada<T> = { data: T[] | null; count?: number | null; error?: { message: string } | null }
+
+async function paginado<T>(monta: (de: number, ate: number, contar: boolean) => PromiseLike<RespostaPaginada<T>>): Promise<T[]> {
   const PAGINA = 1000
-  for (let de = 0; ; de += PAGINA) {
-    const { data } = await monta(de, de + PAGINA - 1)
-    const lote = data ?? []
-    todos.push(...lote)
-    if (lote.length < PAGINA) break
+  const primeira = await monta(0, PAGINA - 1, true)
+  if (primeira.error) throw new Error(primeira.error.message)
+
+  const todos = [...(primeira.data ?? [])]
+  const total = primeira.count ?? todos.length
+  const consultas: PromiseLike<RespostaPaginada<T>>[] = []
+  for (let de = PAGINA; de < total; de += PAGINA) {
+    consultas.push(monta(de, Math.min(de + PAGINA - 1, total - 1), false))
+  }
+  const lotes = await Promise.all(consultas)
+  for (const lote of lotes) {
+    if (lote.error) throw new Error(lote.error.message)
+    todos.push(...(lote.data ?? []))
   }
   return todos
+}
+
+function fatiar<T>(itens: T[], tamanho: number): T[][] {
+  const fatias: T[][] = []
+  for (let i = 0; i < itens.length; i += tamanho) fatias.push(itens.slice(i, i + tamanho))
+  return fatias
 }
 
 export interface DadosCronograma {
@@ -36,17 +51,36 @@ export async function carregarCronograma(obraId: string): Promise<DadosCronogram
   const versao = (versoes ?? [])[0] ?? null
   if (!versao) return { versao: null, tarefas: [], previstoPorTarefa: new Map(), avancos: [] }
 
-  const [tarefas, previstos, avancos] = await Promise.all([
-    paginado<CronogramaTarefa>((de, ate) =>
-      supabase.from('cronograma_tarefas').select('*')
-        .eq('obra_id', obraId).eq('ativo', true).order('ordem').range(de, ate)),
-    paginado<CronogramaPrevisto>((de, ate) =>
-      supabase.from('cronograma_previsto').select('*')
-        .eq('versao_id', versao.id).order('tarefa_id').range(de, ate)),
-    paginado<AvancoFisico>((de, ate) =>
-      supabase.from('avancos_fisicos').select('*')
-        .eq('ativo', true).order('criado_em').range(de, ate)),
+  const [tarefas, previstos] = await Promise.all([
+    paginado<CronogramaTarefa>((de, ate, contar) =>
+      supabase
+        .from('cronograma_tarefas')
+        .select('id,obra_id,unidade_id,parent_id,uid_project,outline_number,nivel,ordem,nome,resumo,grupo_ataque,etapa_id,servico_id,und,quant_total,quant_definida_por,quant_definida_em', contar ? { count: 'exact' } : undefined)
+        .eq('obra_id', obraId)
+        .eq('ativo', true)
+        .order('ordem')
+        .range(de, ate)),
+    paginado<CronogramaPrevisto>((de, ate, contar) =>
+      supabase
+        .from('cronograma_previsto')
+        .select('id,tarefa_id,versao_id,inicio,fim,duracao_horas', contar ? { count: 'exact' } : undefined)
+        .eq('versao_id', versao.id)
+        .order('tarefa_id')
+        .range(de, ate)),
   ])
+
+  const tarefaIds = tarefas.map(t => t.id)
+  const avancos = tarefaIds.length === 0
+    ? []
+    : (await Promise.all(fatiar(tarefaIds, 500).map(ids =>
+      paginado<AvancoFisico>((de, ate, contar) =>
+        supabase
+          .from('avancos_fisicos')
+          .select('id,tarefa_id,data_referencia,percentual,quantidade,observacao,ativo,criado_em,criado_por', contar ? { count: 'exact' } : undefined)
+          .eq('ativo', true)
+          .in('tarefa_id', ids)
+          .order('criado_em')
+          .range(de, ate))))).flat().sort((a, b) => a.criado_em.localeCompare(b.criado_em))
 
   const previstoPorTarefa = new Map(previstos.map(p => [p.tarefa_id, p]))
   return { versao, tarefas, previstoPorTarefa, avancos }

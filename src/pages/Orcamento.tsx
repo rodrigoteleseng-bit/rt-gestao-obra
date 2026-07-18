@@ -6,6 +6,27 @@ import styles from './Orcamento.module.css'
 const fmtBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const fmtNum = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 })
 
+type RespostaPaginada<T> = { data: T[] | null; count?: number | null; error?: { message: string } | null }
+
+async function paginado<T>(monta: (de: number, ate: number, contar: boolean) => PromiseLike<RespostaPaginada<T>>): Promise<T[]> {
+  const PAGINA = 1000
+  const primeira = await monta(0, PAGINA - 1, true)
+  if (primeira.error) throw new Error(primeira.error.message)
+
+  const todos = [...(primeira.data ?? [])]
+  const total = primeira.count ?? todos.length
+  const consultas: PromiseLike<RespostaPaginada<T>>[] = []
+  for (let de = PAGINA; de < total; de += PAGINA) {
+    consultas.push(monta(de, Math.min(de + PAGINA - 1, total - 1), false))
+  }
+  const lotes = await Promise.all(consultas)
+  for (const lote of lotes) {
+    if (lote.error) throw new Error(lote.error.message)
+    todos.push(...(lote.data ?? []))
+  }
+  return todos
+}
+
 function moeda(v: number | null | undefined) {
   return v === null || v === undefined ? '—' : fmtBRL.format(v)
 }
@@ -28,11 +49,12 @@ export default function Orcamento() {
   async function carregar(obraId: string) {
     setCarregando(true)
 
-    const { data: unis } = await supabase
+    const { data: unis, error: erroUnidades } = await supabase
       .from('unidades')
-      .select('*')
+      .select('id,obra_id,nome,tipo,ordem')
       .eq('obra_id', obraId)
       .order('ordem')
+    if (erroUnidades) throw new Error(erroUnidades.message)
     const listaUnidades = unis ?? []
     setUnidades(listaUnidades)
 
@@ -44,31 +66,28 @@ export default function Orcamento() {
     }
 
     const uniIds = listaUnidades.map(u => u.id)
-    const { data: etps } = await supabase
+    const { data: etps, error: erroEtapas } = await supabase
       .from('etapas')
-      .select('*')
+      .select('id,unidade_id,nome,codigo,ordem,placeholder')
       .in('unidade_id', uniIds)
       .eq('placeholder', false)
       .order('ordem')
+    if (erroEtapas) throw new Error(erroEtapas.message)
     const listaEtapas = etps ?? []
     setEtapas(listaEtapas)
 
-    // Supabase limita 1000 linhas por consulta — pagina até trazer tudo
-    const todos: Servico[] = []
-    const PAGINA = 1000
-    for (let de = 0; ; de += PAGINA) {
-      const { data: svcs } = await supabase
-        .from('servicos')
-        .select('*')
-        .eq('ativo', true)
-        .order('codigo')
-        .range(de, de + PAGINA - 1)
-      const lote = svcs ?? []
-      todos.push(...lote)
-      if (lote.length < PAGINA) break
-    }
-    const etapaIds = new Set(listaEtapas.map(e => e.id))
-    setServicos(todos.filter(s => etapaIds.has(s.etapa_id)))
+    const etapaIds = listaEtapas.map(e => e.id)
+    const todos = etapaIds.length === 0
+      ? []
+      : await paginado<Servico>((de, ate, contar) =>
+        supabase
+          .from('servicos')
+          .select('id,etapa_id,codigo,nome,grupo,und,quant,valor_unit,total,ativo', contar ? { count: 'exact' } : undefined)
+          .eq('ativo', true)
+          .in('etapa_id', etapaIds)
+          .order('codigo')
+          .range(de, ate))
+    setServicos(todos)
     setCarregando(false)
   }
 

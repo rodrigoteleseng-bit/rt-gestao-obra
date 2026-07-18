@@ -14,8 +14,9 @@
 .formHeader { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
 .formHeader h2 { margin: 0; font-size: 17px; }
 .campos { display: flex; flex-direction: column; gap: 12px; }
-.campo { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: var(--navy); }
-.campo input, .campo select, .campo textarea, .filtros input, .filtros select, .comentarioBox textarea { border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); padding: 10px 11px; font: inherit; background: var(--branco); color: var(--cinza-900); }
+.campo { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: var(--navy); min-width: 0; }
+.campo input, .campo select, .campo textarea, .filtros input, .filtros select, .comentarioBox textarea { width: 100%; min-width: 0; border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); padding: 10px 11px; font: inherit; background: var(--branco); color: var(--cinza-900); }
+.filtros > * { min-width: 0; }
 .campo textarea, .comentarioBox textarea { min-height: 76px; resize: vertical; }
 .linha3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .acoesForm, .acoesStatus { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

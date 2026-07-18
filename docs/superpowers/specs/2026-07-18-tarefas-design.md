@@ -1,6 +1,6 @@
 # Modulo Tarefas - Spec de design
 
-> Status: proposta inicial para aprovacao de Rodrigo.
+> Status: decisoes principais aprovadas por Rodrigo em 18/07/2026, aguardando plano de implementacao.
 > Sequencia aprovada em 18/07/2026: Tarefas -> Projetos -> Planejamento lookahead/PPC -> Financeiro por ultimo.
 > Responsavel pela implementacao futura: Codex. Revisor recomendado: Claude Code, especialmente por envolver tabela nova, RLS e integracoes.
 
@@ -31,7 +31,7 @@ Incluido:
 - detalhe da tarefa;
 - edicao de tarefa aberta;
 - responsavel;
-- prazo;
+- prazo obrigatorio;
 - prioridade;
 - status;
 - comentarios/historico simples;
@@ -72,6 +72,9 @@ Regras:
 - `cancelada` grava quem cancelou, quando e motivo obrigatorio;
 - tarefa concluida ou cancelada fica em modo leitura, exceto para admin reabrir se for necessario;
 - tarefa atrasada e toda tarefa ativa com prazo anterior a hoje e status diferente de `concluida`/`cancelada`.
+- equipe so pode concluir tarefa em que esteja como responsavel;
+- admin pode concluir qualquer tarefa;
+- reabertura de tarefa concluida/cancelada e exclusiva do admin.
 
 ### 3.2 Prioridade
 
@@ -157,7 +160,7 @@ CREATE TABLE tarefas (
   descricao       TEXT,
   status          status_tarefa NOT NULL DEFAULT 'aberta',
   prioridade      prioridade_tarefa NOT NULL DEFAULT 'normal',
-  prazo           DATE,
+  prazo           DATE NOT NULL,
   responsavel_id  UUID REFERENCES perfis_usuario(id),
   concluida_por   UUID REFERENCES perfis_usuario(id),
   concluida_em    TIMESTAMPTZ,
@@ -193,6 +196,8 @@ Regras:
 - admin tem acesso total;
 - equipe com modulo `tarefas` pode criar, comentar, editar tarefa ativa e alterar status;
 - cliente nao ve o modulo e nao acessa as rotas/tabelas;
+- equipe so conclui tarefas em que seja responsavel;
+- reabertura fica restrita ao admin;
 - leitura limitada a obras acessiveis pelo usuario, mantendo isolamento usuario x obra;
 - soft delete segue a regra aprendida no projeto: policy de SELECT nao pode bloquear update para `ativo = false`;
 - comentarios sao append-only no MVP.
@@ -225,7 +230,7 @@ Colunas/dados:
 
 - titulo;
 - responsavel;
-- prazo;
+- prazo obrigatorio;
 - prioridade;
 - status;
 - vinculo com unidade/etapa/servico, quando houver;
@@ -238,7 +243,7 @@ Campos:
 - titulo obrigatorio;
 - descricao;
 - responsavel;
-- prazo;
+- prazo obrigatorio;
 - prioridade;
 - unidade/etapa/servico opcionais.
 
@@ -258,7 +263,7 @@ Acoes:
 - iniciar;
 - concluir;
 - cancelar;
-- reabrir, somente admin na recomendacao inicial.
+- reabrir, somente admin.
 
 ## 7. Integracoes futuras
 
@@ -269,8 +274,9 @@ Integracoes planejadas, mas nao obrigatorias no MVP:
 - Compras: tarefa de follow-up de fornecedor/pedido;
 - Projetos: tarefa vinculada a revisao ou documento;
 - Lookahead/PPC: usar tarefas como restricoes ou providencias da semana;
-- Alertas: tarefa atrasada vira alerta no Dashboard;
+- Dashboard/Alertas: contador de tarefas atrasadas ja no MVP; alerta detalhado pode ficar para depois;
 - Financeiro: tarefas de cobranca/conferencia sem lancamento financeiro automatico.
+- Fotos: depois do MVP, permitir anexar fotos do problema resolvido na tarefa.
 
 ## 8. Estados de tela
 
@@ -288,36 +294,36 @@ Prever:
 
 - [ ] Funciona no desktop e celular.
 - [ ] Admin cria, edita, comenta, conclui, cancela e reabre tarefa.
-- [ ] Equipe com modulo `tarefas` cria, edita, comenta e altera status conforme regra aprovada.
+- [ ] Equipe com modulo `tarefas` cria, edita e comenta tarefas.
+- [ ] Equipe so conclui tarefas em que esteja como responsavel.
+- [ ] Reabertura de tarefa concluida/cancelada funciona somente para admin.
 - [ ] Cliente nao ve o modulo e nao acessa a rota.
 - [ ] Tarefa sempre pertence a uma obra.
+- [ ] Prazo obrigatorio e validado no formulario e no banco.
 - [ ] Vinculo com unidade/etapa/servico e opcional e salva corretamente.
 - [ ] Tarefa atrasada aparece destacada.
+- [ ] Dashboard mostra contador simples de tarefas atrasadas.
 - [ ] Historico registra alteracoes principais.
 - [ ] Comentarios ficam rastreados por autor e data.
 - [ ] Soft delete nao sofre bloqueio de RLS.
 - [ ] Isolamento entre obras preservado.
 - [ ] Migracao versionada em `supabase/migrations`.
 - [ ] Rodrigo testou com tarefas reais e deu aceite.
-
 ## 10. Lacunas para decisao de Rodrigo
 
-1. A equipe pode concluir qualquer tarefa do modulo ou apenas tarefas em que seja responsavel?
-2. Tarefa concluida pode ser reaberta por equipe ou somente admin?
-3. Comentarios devem aceitar anexos/fotos ja no MVP ou deixamos anexos para depois?
-4. A tarefa pode ficar sem prazo ou prazo deve ser obrigatorio?
-5. Deseja notificar visualmente no Dashboard ja no MVP, ou apenas listar dentro do modulo Tarefas?
+1. [respondida] Equipe conclui apenas tarefas em que seja responsavel.
+2. [respondida] Tarefa concluida/cancelada so pode ser reaberta por admin.
+3. [respondida] Fotos/anexos ficam depois do MVP; objetivo futuro e anexar fotos do problema resolvido.
+4. [respondida] Prazo deve ser obrigatorio.
+5. [respondida] Dashboard deve mostrar contador simples de tarefas atrasadas ja no MVP.
 
-## 11. Recomendacao inicial
+## 11. Decisoes aprovadas para o MVP
 
-Recomendacao para o MVP:
-
-- prazo opcional;
-- responsavel opcional;
-- equipe com modulo `tarefas` pode concluir tarefas;
+- prazo obrigatorio;
+- responsavel opcional na criacao, mas equipe so conclui quando for a responsavel;
 - reabertura somente admin;
 - anexos fora do MVP inicial;
-- Dashboard mostra apenas contador de tarefas atrasadas e tarefas abertas do usuario;
+- Dashboard mostra contador de tarefas atrasadas e tarefas abertas do usuario;
 - integracoes automaticas ficam para uma segunda rodada.
 
 Essa versao entrega valor rapido e prepara base segura para Projetos e Lookahead/PPC.

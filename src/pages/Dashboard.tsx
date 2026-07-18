@@ -84,6 +84,15 @@ const CARDS_MODULOS: CardModulo[] = [
     ],
   },
   {
+    key: 'producao', label: 'Produção', icon: '🏗️', desc: 'Contratos, medições e produção própria',
+    multiKey: ['contratos', 'medicoes'],
+    subs: [
+      { label: 'Contratos', icon: '📝', path: '/contratos', moduloKey: 'contratos' },
+      { label: 'Medições', icon: '📏', path: '/medicoes', moduloKey: 'medicoes' },
+      { label: 'Produção própria', icon: '👷', path: '/producao', moduloKey: 'medicoes' },
+    ],
+  },
+  {
     key: 'qualidade', label: 'Qualidade', icon: '🏷️', desc: 'FVS, checklists e pendências de obra',
     multiKey: ['fvs', 'pendencias'],
     subs: [
@@ -408,7 +417,7 @@ export default function Dashboard() {
       </div>
 
       <div className={styles.futuro}>
-        <b>Em preparação:</b> Financeiro (Fase 3), Medições, Projetos, Planejamento (lookahead/PPC) e Tarefas.
+        <b>Em preparação:</b> Financeiro (Fase 3), Projetos, Planejamento (lookahead/PPC) e Tarefas.
       </div>
 
       <p className={styles.versao}>Fase 0 — Fundação · v0.1 · Dados de {new Date().toLocaleDateString('pt-BR')}</p>

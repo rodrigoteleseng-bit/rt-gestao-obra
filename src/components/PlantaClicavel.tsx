@@ -47,7 +47,8 @@ export default function PlantaClicavel({
   }
 
   function rotuloAtual(parede: ProducaoParede): RotuloAjustado {
-    return rotulosLocais[parede.id] ?? rotuloPadrao(parede)
+    const local = rotulosLocais[parede.id]
+    return local ? { ...local, escala: parede.rotulo_escala } : rotuloPadrao(parede)
   }
 
   function aoPressionar(evento: React.PointerEvent) {

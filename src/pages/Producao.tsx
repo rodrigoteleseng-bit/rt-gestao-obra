@@ -882,7 +882,7 @@ function Plantas() {
               onMoverRotulo={moverRotulo}
               onAjustarEscalaRotulo={ajustarEscalaRotulo}
             />
-            <p className={styles.sub}>Arraste o nome de uma parede pra reposicionar; arraste a bolinha ao lado dele pra girar.</p>
+            <p className={styles.sub}>Arraste o nome de uma parede pra reposicionar; arraste a bolinha ao lado dele pra girar; passe o mouse ou toque no nome para ver A-/A+.</p>
             <div className={styles.lista}>
               {paredesDaPlanta.map((p) => (
                 <div className={styles.linha} key={p.id}>

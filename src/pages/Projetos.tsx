@@ -62,12 +62,14 @@ export default function Projetos() {
     const termo = busca.trim().toLowerCase()
     return documentos.filter(doc => {
       const batePasta = !filtroPasta || doc.pasta_id === filtroPasta
-      const bateBusca = !termo || doc.titulo.toLowerCase().includes(termo)
+      const bateBusca = !termo
+        || doc.titulo.toLowerCase().includes(termo)
+        || (doc.descricao ?? '').toLowerCase().includes(termo)
       return batePasta && bateBusca
     })
   }, [documentos, filtroPasta, busca])
 
-  const selecionado = documentos.find(d => d.id === selecionadoId) ?? documentosFiltrados[0] ?? null
+  const selecionado = documentosFiltrados.find(d => d.id === selecionadoId) ?? documentosFiltrados[0] ?? null
   const pastasEdicao = useMemo(() => {
     if (!selecionado) return pastasAtivas
     return pastas.filter(p => p.ativo || p.id === selecionado.pasta_id)
@@ -75,6 +77,7 @@ export default function Projetos() {
   const revisoesSelecionadas = selecionado ? (revisoes[selecionado.id] ?? []) : []
   const revisaoAtual = revisoesSelecionadas.find(r => r.atual) ?? null
   const revisoesHistoricas = revisoesSelecionadas.filter(r => !r.atual)
+  const mostrarConteudo = !!filtroPasta || busca.trim().length > 0
 
   async function carregar() {
     if (!obraAtiva || semPermissao) {
@@ -340,10 +343,10 @@ export default function Projetos() {
 
       <div className={styles.filtros}>
         <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar por título" />
-        <select value={filtroPasta} onChange={e => setFiltroPasta(e.target.value)}><option value="">Todas as pastas</option>{pastasAtivas.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
+        <select value={filtroPasta} onChange={e => setFiltroPasta(e.target.value)}><option value="">Selecione uma pasta</option>{pastasAtivas.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
       </div>
 
-      {carregando ? <div className={styles.vazio}>Carregando projetos...</div> : documentos.length === 0 ? <div className={styles.vazio}>Nenhum documento cadastrado.</div> : documentosFiltrados.length === 0 ? <div className={styles.vazio}>Nenhum documento encontrado para os filtros.</div> : (
+      {carregando ? <div className={styles.vazio}>Carregando projetos...</div> : documentos.length === 0 ? <div className={styles.vazio}>Nenhum documento cadastrado.</div> : !mostrarConteudo ? <div className={styles.vazio}>Selecione uma pasta para ver os documentos.</div> : documentosFiltrados.length === 0 ? <div className={styles.vazio}>Nenhum documento encontrado para os filtros.</div> : (
         <div className={styles.conteudo}>
           <div className={styles.lista}>{documentosFiltrados.map(doc => {
             const atual = (revisoes[doc.id] ?? []).find(r => r.atual)

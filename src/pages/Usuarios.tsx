@@ -22,6 +22,7 @@ const MODULOS_LABELS: Record<ModuloApp, string> = {
   definicoes: 'Definições de Projeto',
   tarefas: 'Tarefas',
   projetos: 'Projetos',
+  planejamento: 'Planejamento',
 }
 
 const TODOS_MODULOS = Object.keys(MODULOS_LABELS) as ModuloApp[]

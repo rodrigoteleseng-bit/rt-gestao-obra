@@ -63,6 +63,7 @@ const MODULOS: NavItem[] = [
   },
   { type: 'link', key: 'tarefas', label: 'Tarefas', icon: '☑️', path: '/tarefas' },
   { type: 'link', key: 'projetos', label: 'Projetos', icon: '📁', path: '/projetos' },
+  { type: 'link', key: 'planejamento', label: 'Planejamento', icon: '📅', path: '/planejamento' },
   { type: 'link', key: 'financeiro', label: 'Financeiro', icon: '💰', path: '/financeiro' },
   { type: 'link', key: 'alertas', label: 'Alertas', icon: '🔔', path: '/alertas' },
 ]

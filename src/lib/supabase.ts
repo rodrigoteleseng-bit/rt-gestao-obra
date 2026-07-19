@@ -8,7 +8,7 @@ export const supabase = createClient(url, key)
 export type PapelUsuario = 'admin' | 'equipe' | 'cliente'
 export type ModuloApp =
   | 'rdo' | 'avanco' | 'pendencias' | 'almoxarifado' | 'financeiro' | 'compras'
-  | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas' | 'definicoes' | 'tarefas' | 'projetos'
+  | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas' | 'definicoes' | 'tarefas' | 'projetos' | 'planejamento'
 export type StatusObra = 'ativa' | 'pausada' | 'concluida' | 'arquivada'
 export type TipoUnidade = 'sobrado' | 'portaria' | 'area_comum' | 'canteiro' | 'outro'
 
@@ -659,6 +659,57 @@ export interface MedicaoItem {
   contrato_item_id: string
   quantidade_periodo: number
   valor_total_item: number
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export type CategoriaRestricao =
+  | 'material' | 'mao_de_obra' | 'projeto_documentacao' | 'decisao_pendente'
+  | 'equipamento' | 'financeiro' | 'servico_predecessor' | 'clima'
+export type StatusRestricao = 'aberta' | 'resolvida'
+export type StatusSemanaPlanejamento = 'aberta' | 'fechada'
+
+export interface Restricao {
+  id: string
+  obra_id: string
+  tarefa_id: string
+  categoria: CategoriaRestricao
+  responsavel_id: string | null
+  prazo: string
+  status: StatusRestricao
+  observacao: string | null
+  resolvida_por: string | null
+  resolvida_em: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface PlanejamentoSemana {
+  id: string
+  obra_id: string
+  data_inicio: string
+  data_fim: string
+  status: StatusSemanaPlanejamento
+  ppc: number | null
+  fechada_por: string | null
+  fechada_em: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface PlanejamentoCompromisso {
+  id: string
+  semana_id: string
+  tarefa_id: string
+  percentual_inicio: number
+  meta_percentual: number
+  percentual_fim: number | null
+  cumprido: boolean | null
+  motivo_categoria: CategoriaRestricao | null
+  motivo_observacao: string | null
   ativo: boolean
   criado_em: string
   criado_por: string

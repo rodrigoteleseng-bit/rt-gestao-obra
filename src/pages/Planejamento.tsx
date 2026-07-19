@@ -17,6 +17,13 @@ interface TarefaCronograma {
   unidades: { nome: string } | null
 }
 
+interface MarcoEtapa {
+  etapaId: string
+  nome: string
+  dataFim: string | null
+  percentualMedio: number
+}
+
 export const CATEGORIA_LABEL: Record<CategoriaRestricao, string> = {
   material: 'Material',
   mao_de_obra: 'Mão de obra',
@@ -60,6 +67,7 @@ export default function Planejamento() {
   const [semanaSelecionadaId, setSemanaSelecionadaId] = useState<string | null>(null)
   const [compromissos, setCompromissos] = useState<PlanejamentoCompromisso[]>([])
   const [percentuaisAtuais, setPercentuaisAtuais] = useState<Record<string, number>>({})
+  const [marcos, setMarcos] = useState<MarcoEtapa[]>([])
 
   const [novaSemanaInicio, setNovaSemanaInicio] = useState('')
   const [novaSemanaFim, setNovaSemanaFim] = useState('')
@@ -132,6 +140,36 @@ export default function Planejamento() {
       setPercentuaisAtuais(atuais)
     })
   }, [tarefas])
+
+  useEffect(() => {
+    if (!obraAtiva || tarefas.length === 0) { setMarcos([]); return }
+    async function carregarMarcos() {
+      const versaoResp = await supabase.from('cronograma_versoes').select('id').eq('obra_id', obraAtiva!.id).eq('vigente', true).eq('ativo', true).maybeSingle()
+      if (!versaoResp.data) { setMarcos([]); return }
+      const previstoResp = await supabase.from('cronograma_previsto').select('tarefa_id, fim').eq('versao_id', versaoResp.data.id)
+      const fimPorTarefa = new Map((previstoResp.data ?? []).map(p => [p.tarefa_id, p.fim]))
+
+      const porEtapa = new Map<string, { nome: string; tarefaIds: string[] }>()
+      for (const t of tarefas) {
+        if (!t.etapa_id) continue
+        const atual = porEtapa.get(t.etapa_id) ?? { nome: t.etapas?.nome ?? 'Etapa', tarefaIds: [] }
+        atual.tarefaIds.push(t.id)
+        porEtapa.set(t.etapa_id, atual)
+      }
+
+      const lista: MarcoEtapa[] = []
+      for (const [etapaId, info] of porEtapa) {
+        const datasFim = info.tarefaIds.map(id => fimPorTarefa.get(id)).filter((d): d is string => !!d)
+        const dataFim = datasFim.length > 0 ? datasFim.sort()[datasFim.length - 1] : null
+        const percentuais = info.tarefaIds.map(id => percentuaisAtuais[id] ?? 0)
+        const percentualMedio = percentuais.length > 0 ? Math.round(percentuais.reduce((a, b) => a + b, 0) / percentuais.length) : 0
+        lista.push({ etapaId, nome: info.nome, dataFim, percentualMedio })
+      }
+      lista.sort((a, b) => (a.dataFim ?? '9999-99-99').localeCompare(b.dataFim ?? '9999-99-99'))
+      setMarcos(lista)
+    }
+    carregarMarcos()
+  }, [obraAtiva, tarefas, percentuaisAtuais])
 
   const semanaSelecionada = semanas.find(s => s.id === semanaSelecionadaId) ?? null
   const tarefasElegiveis = useMemo(() => {
@@ -380,6 +418,21 @@ export default function Planejamento() {
             </table>
           )}
         </>}
+      </>}
+
+      {!carregando && aba === 'trimestral' && <>
+        {marcos.length === 0 ? <div className={styles.vazio}>Nenhuma versão vigente do cronograma encontrada para esta obra.</div> : (
+          <table className={styles.tabela}>
+            <thead><tr><th>Etapa</th><th>Previsão de término</th><th>Avanço médio</th></tr></thead>
+            <tbody>{marcos.map(m => (
+              <tr key={m.etapaId}>
+                <td data-label="Etapa">{m.nome}</td>
+                <td data-label="Previsão de término">{m.dataFim ? fmtData(m.dataFim) : 'Sem data prevista'}</td>
+                <td data-label="Avanço médio">{m.percentualMedio}%</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
       </>}
     </div>
   )

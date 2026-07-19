@@ -22,10 +22,10 @@
 .btnPerigo { border: 0; background: var(--terracota); color: var(--branco); }
 button:disabled { opacity: .55; cursor: not-allowed; }
 .filtros { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, 280px); gap: 8px; align-items: center; margin-bottom: 16px; }
-.conteudo { display: grid; grid-template-columns: minmax(300px, .9fr) minmax(360px, 1.1fr); align-items: start; background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); box-shadow: var(--sombra-sm); }
-.lista { min-width: 0; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.card { width: 100%; display: block; text-align: left; border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); background: var(--nude); padding: 14px; cursor: pointer; }
+.conteudo { display: flex; flex-direction: column; gap: 10px; padding: 16px; background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); box-shadow: var(--sombra-sm); }
+.card { border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); background: var(--nude); padding: 14px; }
 .cardAtivo { border-color: var(--navy); background: var(--branco); box-shadow: var(--sombra-sm); }
+.cardCabecalho { cursor: pointer; }
 .cardTopo, .detalheTopo, .revisaoLinha { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 .cardTitulo { font-weight: 800; color: var(--navy); overflow-wrap: anywhere; }
 .cardMeta, .cardDescricao { margin-top: 7px; color: var(--cinza-600); font-size: 12.5px; }
@@ -34,7 +34,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .cardDescricao { color: var(--cinza-700); overflow-wrap: anywhere; }
 .btnAbrirCard { border: 0; border-radius: var(--radius-sm); padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; background: var(--navy); color: var(--branco); white-space: nowrap; flex-shrink: 0; }
 .chip { display: inline-flex; border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 800; white-space: nowrap; background: #edf4fa; color: var(--navy); }
-.detalhe { min-width: 0; padding: 16px; border-left: 1px solid var(--cinza-200); position: sticky; top: 12px; align-self: start; }
+.detalhe { border-top: 1px solid var(--cinza-200); margin-top: 12px; padding-top: 12px; }
 .detalhe h2 { margin: 0 0 8px; font-size: 20px; color: var(--navy); overflow-wrap: anywhere; }
 .detalhe h3 { margin: 0 0 10px; font-size: 15px; color: var(--navy); }
 .descricao { color: var(--cinza-700); line-height: 1.45; margin: 12px 0 0; overflow-wrap: anywhere; }
@@ -52,8 +52,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .pastaLinha span { font-weight: 800; color: var(--navy); overflow-wrap: anywhere; min-width: 0; }
 @media (max-width: 860px) {
   .header, .headerAcoes { flex-direction: column; width: 100%; }
-  .filtros, .conteudo, .linha2, .pastaLinha { grid-template-columns: 1fr; }
-  .detalhe { position: static; border-left: 0; border-top: 1px solid var(--cinza-200); }
+  .filtros, .linha2, .pastaLinha { grid-template-columns: 1fr; }
   .cardTopo, .detalheTopo, .revisaoLinha { flex-direction: column; }
   .acoesLinha { justify-content: flex-start; width: 100%; }
   .btnPrimario, .btnSecundario, .btnPerigo { width: 100%; }

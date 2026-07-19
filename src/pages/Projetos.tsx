@@ -69,7 +69,7 @@ export default function Projetos() {
     })
   }, [documentos, filtroPasta, busca])
 
-  const selecionado = documentosFiltrados.find(d => d.id === selecionadoId) ?? documentosFiltrados[0] ?? null
+  const selecionado = documentosFiltrados.find(d => d.id === selecionadoId) ?? null
   const pastasEdicao = useMemo(() => {
     if (!selecionado) return pastasAtivas
     return pastas.filter(p => p.ativo || p.id === selecionado.pasta_id)
@@ -106,7 +106,6 @@ export default function Projetos() {
     }
     const lista = (docsResp.data ?? []) as ProjetoDocumento[]
     setDocumentos(lista)
-    if (!selecionadoId && lista.length > 0) setSelecionadoId(lista[0].id)
     const ids = lista.map(d => d.id)
     if (ids.length === 0) {
       setRevisoes({})
@@ -347,40 +346,44 @@ export default function Projetos() {
       </div>
 
       {carregando ? <div className={styles.vazio}>Carregando projetos...</div> : documentos.length === 0 ? <div className={styles.vazio}>Nenhum documento cadastrado.</div> : !mostrarConteudo ? <div className={styles.vazio}>Selecione uma pasta para ver os documentos.</div> : documentosFiltrados.length === 0 ? <div className={styles.vazio}>Nenhum documento encontrado para os filtros.</div> : (
-        <div className={styles.conteudo}>
-          <div className={styles.lista}>{documentosFiltrados.map(doc => {
-            const atual = (revisoes[doc.id] ?? []).find(r => r.atual)
-            const selecionarCard = () => { setSelecionadoId(doc.id); setEditando(false); setRevisaoAberta(false) }
-            return (
+        <div className={styles.conteudo}>{documentosFiltrados.map(doc => {
+          const atual = (revisoes[doc.id] ?? []).find(r => r.atual)
+          const expandido = selecionadoId === doc.id
+          const alternarExpansao = () => {
+            setSelecionadoId(expandido ? null : doc.id)
+            setEditando(false)
+            setRevisaoAberta(false)
+          }
+          return (
+            <div key={doc.id} className={[styles.card, expandido ? styles.cardAtivo : ''].filter(Boolean).join(' ')}>
               <div
-                key={doc.id}
                 role="button"
                 tabIndex={0}
-                className={[styles.card, selecionado?.id === doc.id ? styles.cardAtivo : ''].filter(Boolean).join(' ')}
-                onClick={selecionarCard}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selecionarCard() } }}
+                className={styles.cardCabecalho}
+                onClick={alternarExpansao}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarExpansao() } }}
               >
                 <div className={styles.cardTopo}><span className={styles.cardTitulo}>{doc.titulo}</span><span className={styles.chip}>{nomePasta(doc.pasta_id)}</span></div>
                 <div className={styles.cardMeta}>
                   <span>{atual ? 'Atual: ' + atual.revisao + ' • ' + fmtDataHora(atual.criado_em) : 'Sem revisão registrada'}</span>
                   {atual && <button type="button" className={styles.btnAbrirCard} onClick={e => { e.stopPropagation(); abrirRevisao(atual) }}>Abrir</button>}
                 </div>
-                {doc.descricao && <div className={styles.cardDescricao}>{doc.descricao}</div>}
+                {!expandido && doc.descricao && <div className={styles.cardDescricao}>{doc.descricao}</div>}
               </div>
-            )
-          })}</div>
-          <section className={styles.detalhe}>
-            {!selecionado ? <p>Selecione um documento.</p> : <>
-              <div className={styles.detalheTopo}><div><h2>{selecionado.titulo}</h2><span className={styles.chip}>{nomePasta(selecionado.pasta_id)}</span></div>{podeEditar && <div className={styles.acoesLinha}><button className={styles.btnSecundario} onClick={() => iniciarEdicao(selecionado)}>Editar</button><button className={styles.btnPerigo} onClick={inativarDocumento}>Inativar</button></div>}</div>
-              {selecionado.descricao && <p className={styles.descricao}>{selecionado.descricao}</p>}
-              {editando && podeEditar && <form className={styles.box} onSubmit={salvarEdicao}><div className={styles.campos}><label className={styles.campo}>Título<input value={editTitulo} onChange={e => setEditTitulo(e.target.value)} /></label><label className={styles.campo}>Pasta<select value={editPastaId} onChange={e => setEditPastaId(e.target.value)}>{pastasEdicao.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></label><label className={styles.campo}>Descrição<textarea value={editDescricao} onChange={e => setEditDescricao(e.target.value)} /></label></div><div className={styles.acoesForm}><button className={styles.btnPrimario} disabled={salvando}>Salvar edição</button><button type="button" className={styles.btnSecundario} onClick={() => setEditando(false)}>Cancelar</button></div></form>}
-              <div className={styles.revisaoAtual}><h3>Revisão atual</h3>{revisaoAtual ? <div className={styles.revisaoLinha}><div><b>{revisaoAtual.revisao}</b><span>{fmtDataHora(revisaoAtual.criado_em)}</span>{revisaoAtual.observacao && <p>{revisaoAtual.observacao}</p>}</div><button className={styles.btnPrimario} onClick={() => abrirRevisao(revisaoAtual)}>Abrir</button></div> : <p>Nenhuma revisão registrada para este documento.</p>}</div>
-              {podeEditar && <button className={styles.btnSecundario} onClick={() => setRevisaoAberta(v => !v)}>{revisaoAberta ? 'Fechar revisão' : 'Nova revisão'}</button>}
-              {revisaoAberta && podeEditar && <form className={styles.box} onSubmit={salvarNovaRevisao}><div className={styles.campos}><label className={styles.campo}>Revisão<input value={revisaoCodigo} onChange={e => setRevisaoCodigo(e.target.value)} placeholder="R01" /></label><label className={styles.campo}>Observação<textarea value={revisaoObservacao} onChange={e => setRevisaoObservacao(e.target.value)} /></label><label className={styles.campo}>Arquivo PDF<input key={revisaoArquivoKey} type="file" accept="application/pdf" onChange={e => setRevisaoArquivo(e.target.files?.[0] ?? null)} /></label></div><div className={styles.acoesForm}><button className={styles.btnPrimario} disabled={salvando}>Salvar revisão</button><button type="button" className={styles.btnSecundario} onClick={() => { limparNovaRevisao(); setRevisaoAberta(false) }}>Cancelar</button></div></form>}
-              <div className={styles.historico}><h3>Histórico de revisões</h3>{revisoesHistoricas.length === 0 ? <p>Nenhuma revisão anterior.</p> : revisoesHistoricas.map(rev => <div key={rev.id} className={styles.revisaoLinha}><div><b>{rev.revisao}</b><span>{fmtDataHora(rev.criado_em)}</span>{rev.observacao && <p>{rev.observacao}</p>}</div><button className={styles.btnSecundario} onClick={() => abrirRevisao(rev)}>Abrir</button></div>)}</div>
-            </>}
-          </section>
-        </div>
+              {expandido && selecionado && (
+                <div className={styles.detalhe}>
+                  <div className={styles.detalheTopo}><div><h2>{selecionado.titulo}</h2><span className={styles.chip}>{nomePasta(selecionado.pasta_id)}</span></div>{podeEditar && <div className={styles.acoesLinha}><button className={styles.btnSecundario} onClick={() => iniciarEdicao(selecionado)}>Editar</button><button className={styles.btnPerigo} onClick={inativarDocumento}>Inativar</button></div>}</div>
+                  {selecionado.descricao && <p className={styles.descricao}>{selecionado.descricao}</p>}
+                  {editando && podeEditar && <form className={styles.box} onSubmit={salvarEdicao}><div className={styles.campos}><label className={styles.campo}>Título<input value={editTitulo} onChange={e => setEditTitulo(e.target.value)} /></label><label className={styles.campo}>Pasta<select value={editPastaId} onChange={e => setEditPastaId(e.target.value)}>{pastasEdicao.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></label><label className={styles.campo}>Descrição<textarea value={editDescricao} onChange={e => setEditDescricao(e.target.value)} /></label></div><div className={styles.acoesForm}><button className={styles.btnPrimario} disabled={salvando}>Salvar edição</button><button type="button" className={styles.btnSecundario} onClick={() => setEditando(false)}>Cancelar</button></div></form>}
+                  <div className={styles.revisaoAtual}><h3>Revisão atual</h3>{revisaoAtual ? <div className={styles.revisaoLinha}><div><b>{revisaoAtual.revisao}</b><span>{fmtDataHora(revisaoAtual.criado_em)}</span>{revisaoAtual.observacao && <p>{revisaoAtual.observacao}</p>}</div><button className={styles.btnPrimario} onClick={() => abrirRevisao(revisaoAtual)}>Abrir</button></div> : <p>Nenhuma revisão registrada para este documento.</p>}</div>
+                  {podeEditar && <button className={styles.btnSecundario} onClick={() => setRevisaoAberta(v => !v)}>{revisaoAberta ? 'Fechar revisão' : 'Nova revisão'}</button>}
+                  {revisaoAberta && podeEditar && <form className={styles.box} onSubmit={salvarNovaRevisao}><div className={styles.campos}><label className={styles.campo}>Revisão<input value={revisaoCodigo} onChange={e => setRevisaoCodigo(e.target.value)} placeholder="R01" /></label><label className={styles.campo}>Observação<textarea value={revisaoObservacao} onChange={e => setRevisaoObservacao(e.target.value)} /></label><label className={styles.campo}>Arquivo PDF<input key={revisaoArquivoKey} type="file" accept="application/pdf" onChange={e => setRevisaoArquivo(e.target.files?.[0] ?? null)} /></label></div><div className={styles.acoesForm}><button className={styles.btnPrimario} disabled={salvando}>Salvar revisão</button><button type="button" className={styles.btnSecundario} onClick={() => { limparNovaRevisao(); setRevisaoAberta(false) }}>Cancelar</button></div></form>}
+                  <div className={styles.historico}><h3>Histórico de revisões</h3>{revisoesHistoricas.length === 0 ? <p>Nenhuma revisão anterior.</p> : revisoesHistoricas.map(rev => <div key={rev.id} className={styles.revisaoLinha}><div><b>{rev.revisao}</b><span>{fmtDataHora(rev.criado_em)}</span>{rev.observacao && <p>{rev.observacao}</p>}</div><button className={styles.btnSecundario} onClick={() => abrirRevisao(rev)}>Abrir</button></div>)}</div>
+                </div>
+              )}
+            </div>
+          )
+        })}</div>
       )}
     </div>
   )

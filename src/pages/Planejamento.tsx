@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
-import { supabase, type CategoriaRestricao, type PerfilUsuario, type Restricao, type StatusRestricao } from '../lib/supabase'
+import { supabase, type CategoriaRestricao, type PerfilUsuario, type PlanejamentoCompromisso, type PlanejamentoSemana, type Restricao, type StatusRestricao } from '../lib/supabase'
 import styles from './Planejamento.module.css'
 
 type Msg = { tipo: 'ok' | 'erro'; texto: string } | null
@@ -56,6 +56,18 @@ export default function Planejamento() {
   const [prazo, setPrazo] = useState('')
   const [observacao, setObservacao] = useState('')
 
+  const [semanas, setSemanas] = useState<PlanejamentoSemana[]>([])
+  const [semanaSelecionadaId, setSemanaSelecionadaId] = useState<string | null>(null)
+  const [compromissos, setCompromissos] = useState<PlanejamentoCompromisso[]>([])
+  const [percentuaisAtuais, setPercentuaisAtuais] = useState<Record<string, number>>({})
+
+  const [novaSemanaInicio, setNovaSemanaInicio] = useState('')
+  const [novaSemanaFim, setNovaSemanaFim] = useState('')
+  const [formCompromissoAberto, setFormCompromissoAberto] = useState(false)
+  const [buscaTarefaCompromisso, setBuscaTarefaCompromisso] = useState('')
+  const [tarefaCompromissoId, setTarefaCompromissoId] = useState('')
+  const [metaPercentual, setMetaPercentual] = useState('')
+
   const tarefaPorId = useMemo(() => new Map(tarefas.map(t => [t.id, t])), [tarefas])
   const usuarioPorId = useMemo(() => new Map(usuarios.map(u => [u.id, u])), [usuarios])
 
@@ -92,10 +104,44 @@ export default function Planejamento() {
     else setUsuarios(usuariosResp.data ?? [])
     if (restricoesResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar restrições: ' + restricoesResp.error.message })
     else setRestricoes(restricoesResp.data ?? [])
+    const semanasResp = await supabase.from('planejamento_semanas').select('*').eq('obra_id', obraAtiva.id).eq('ativo', true).order('data_inicio', { ascending: false })
+    if (semanasResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar semanas: ' + semanasResp.error.message })
+    else {
+      const lista = semanasResp.data ?? []
+      setSemanas(lista)
+      if (!semanaSelecionadaId && lista.length > 0) setSemanaSelecionadaId(lista[0].id)
+    }
     setCarregando(false)
   }
 
   useEffect(() => { carregar() }, [obraAtiva?.id, semPermissao])
+
+  async function carregarCompromissos(semanaId: string) {
+    const compResp = await supabase.from('planejamento_compromissos').select('*').eq('semana_id', semanaId).eq('ativo', true)
+    if (compResp.error) { setMsg({ tipo: 'erro', texto: 'Erro ao carregar compromissos: ' + compResp.error.message }); return }
+    setCompromissos(compResp.data ?? [])
+  }
+
+  useEffect(() => { if (semanaSelecionadaId) carregarCompromissos(semanaSelecionadaId) }, [semanaSelecionadaId])
+
+  useEffect(() => {
+    if (tarefas.length === 0) return
+    supabase.from('avancos_fisicos').select('tarefa_id, percentual, data_referencia').eq('ativo', true).in('tarefa_id', tarefas.map(t => t.id)).order('data_referencia', { ascending: false }).then(({ data }) => {
+      const atuais: Record<string, number> = {}
+      for (const row of data ?? []) if (!(row.tarefa_id in atuais)) atuais[row.tarefa_id] = row.percentual
+      setPercentuaisAtuais(atuais)
+    })
+  }, [tarefas])
+
+  const semanaSelecionada = semanas.find(s => s.id === semanaSelecionadaId) ?? null
+  const tarefasElegiveis = useMemo(() => {
+    const termo = buscaTarefaCompromisso.trim().toLowerCase()
+    const jaComprometidas = new Set(compromissos.map(c => c.tarefa_id))
+    return tarefas
+      .filter(t => !tarefasAbertasPorId.has(t.id) && !jaComprometidas.has(t.id))
+      .filter(t => !termo || t.nome.toLowerCase().includes(termo))
+      .slice(0, 30)
+  }, [tarefas, tarefasAbertasPorId, compromissos, buscaTarefaCompromisso])
 
   function limparForm() {
     setBuscaTarefa('')
@@ -136,6 +182,76 @@ export default function Planejamento() {
     if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao resolver restrição: ' + error.message })
     setMsg({ tipo: 'ok', texto: 'Restrição marcada como resolvida.' })
     await carregar()
+  }
+
+  async function criarSemana() {
+    setMsg(null)
+    if (!obraAtiva) return
+    if (!novaSemanaInicio || !novaSemanaFim) return setMsg({ tipo: 'erro', texto: 'Informe início e fim da semana.' })
+    setSalvando(true)
+    const { data, error } = await supabase.from('planejamento_semanas').insert({ obra_id: obraAtiva.id, data_inicio: novaSemanaInicio, data_fim: novaSemanaFim }).select('*').single()
+    setSalvando(false)
+    if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao criar semana: ' + error.message })
+    setNovaSemanaInicio('')
+    setNovaSemanaFim('')
+    setMsg({ tipo: 'ok', texto: 'Semana criada.' })
+    await carregar()
+    if (data) setSemanaSelecionadaId(data.id)
+  }
+
+  async function adicionarCompromisso() {
+    setMsg(null)
+    if (!semanaSelecionada) return setMsg({ tipo: 'erro', texto: 'Selecione uma semana.' })
+    if (!tarefaCompromissoId) return setMsg({ tipo: 'erro', texto: 'Selecione a tarefa.' })
+    const meta = Number(metaPercentual)
+    const inicio = percentuaisAtuais[tarefaCompromissoId] ?? 0
+    if (!meta || meta <= inicio || meta > 100) return setMsg({ tipo: 'erro', texto: 'Meta precisa ser maior que o % atual (' + inicio + '%) e no máximo 100.' })
+    setSalvando(true)
+    const { error } = await supabase.from('planejamento_compromissos').insert({
+      semana_id: semanaSelecionada.id,
+      tarefa_id: tarefaCompromissoId,
+      percentual_inicio: inicio,
+      meta_percentual: meta,
+    })
+    setSalvando(false)
+    if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao comprometer tarefa: ' + error.message })
+    setBuscaTarefaCompromisso('')
+    setTarefaCompromissoId('')
+    setMetaPercentual('')
+    setFormCompromissoAberto(false)
+    setMsg({ tipo: 'ok', texto: 'Tarefa comprometida na semana.' })
+    await carregarCompromissos(semanaSelecionada.id)
+  }
+
+  async function atualizarMotivo(c: PlanejamentoCompromisso, motivoCategoria: CategoriaRestricao, motivoObservacao: string) {
+    setSalvando(true)
+    const { error } = await supabase.from('planejamento_compromissos').update({ motivo_categoria: motivoCategoria, motivo_observacao: motivoObservacao.trim() || null }).eq('id', c.id)
+    setSalvando(false)
+    if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao salvar motivo: ' + error.message })
+    if (semanaSelecionada) await carregarCompromissos(semanaSelecionada.id)
+  }
+
+  async function calcularFechamento() {
+    if (!semanaSelecionada) return
+    setMsg(null)
+    setSalvando(true)
+    const { error } = await supabase.rpc('calcular_fechamento_semana', { p_semana: semanaSelecionada.id })
+    setSalvando(false)
+    if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao calcular fechamento: ' + error.message })
+    setMsg({ tipo: 'ok', texto: 'Fechamento calculado. Confira os não cumpridos antes de fechar.' })
+    await carregarCompromissos(semanaSelecionada.id)
+  }
+
+  async function fecharSemana() {
+    if (!semanaSelecionada) return
+    setMsg(null)
+    setSalvando(true)
+    const { error } = await supabase.rpc('fechar_semana_planejamento', { p_semana: semanaSelecionada.id })
+    setSalvando(false)
+    if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao fechar semana: ' + error.message })
+    setMsg({ tipo: 'ok', texto: 'Semana fechada.' })
+    await carregar()
+    await carregarCompromissos(semanaSelecionada.id)
   }
 
   if (semPermissao) return <div className={styles.page}><h1>Planejamento</h1><div className={styles.msgErro}>Você não tem permissão para acessar Planejamento.</div></div>
@@ -199,6 +315,71 @@ export default function Planejamento() {
             })}</tbody>
           </table>
         )}
+      </>}
+
+      {!carregando && aba === 'semanal' && <>
+        <div className={styles.filtros}>
+          <select value={semanaSelecionadaId ?? ''} onChange={e => setSemanaSelecionadaId(e.target.value || null)}>
+            <option value="">Selecione uma semana</option>
+            {semanas.map(s => <option key={s.id} value={s.id}>{fmtData(s.data_inicio)} a {fmtData(s.data_fim)} {s.status === 'fechada' ? '(fechada, PPC ' + s.ppc + '%)' : ''}</option>)}
+          </select>
+        </div>
+
+        <div className={styles.formulario}>
+          <div className={styles.formHeader}><h2>Nova semana</h2></div>
+          <div className={styles.linha2}>
+            <label className={styles.campo}>Início<input type="date" value={novaSemanaInicio} onChange={e => setNovaSemanaInicio(e.target.value)} /></label>
+            <label className={styles.campo}>Fim<input type="date" value={novaSemanaFim} onChange={e => setNovaSemanaFim(e.target.value)} /></label>
+          </div>
+          <div className={styles.acoesForm}><button className={styles.btnPrimario} disabled={salvando} onClick={criarSemana}>Criar semana</button></div>
+        </div>
+
+        {!semanaSelecionada ? <div className={styles.vazio}>Selecione ou crie uma semana.</div> : <>
+          {semanaSelecionada.status === 'aberta' && (
+            <div className={styles.acoesForm}>
+              <button className={styles.btnSecundario} onClick={() => setFormCompromissoAberto(v => !v)}>{formCompromissoAberto ? 'Fechar' : 'Comprometer tarefa'}</button>
+              <button className={styles.btnSecundario} disabled={salvando} onClick={calcularFechamento}>Calcular fechamento</button>
+              {perfil?.papel === 'admin' && <button className={styles.btnPrimario} disabled={salvando} onClick={fecharSemana}>Fechar semana</button>}
+            </div>
+          )}
+
+          {formCompromissoAberto && semanaSelecionada.status === 'aberta' && (
+            <div className={styles.formulario}>
+              <div className={styles.formHeader}><h2>Comprometer tarefa</h2></div>
+              <div className={styles.campos}>
+                <label className={styles.campo}>Buscar tarefa sem restrição aberta<input value={buscaTarefaCompromisso} onChange={e => setBuscaTarefaCompromisso(e.target.value)} /></label>
+                <label className={styles.campo}>Tarefa<select value={tarefaCompromissoId} onChange={e => setTarefaCompromissoId(e.target.value)}><option value="">Selecione</option>{tarefasElegiveis.map(t => <option key={t.id} value={t.id}>{t.nome} (atual: {percentuaisAtuais[t.id] ?? 0}%)</option>)}</select></label>
+                <label className={styles.campo}>Meta de % pro fim da semana<input type="number" min={0} max={100} value={metaPercentual} onChange={e => setMetaPercentual(e.target.value)} /></label>
+              </div>
+              <div className={styles.acoesForm}><button className={styles.btnPrimario} disabled={salvando} onClick={adicionarCompromisso}>Comprometer</button></div>
+            </div>
+          )}
+
+          {semanaSelecionada.status === 'fechada' && <div className={styles.msgOk}>Semana fechada. PPC: {semanaSelecionada.ppc}%</div>}
+
+          {compromissos.length === 0 ? <div className={styles.vazio}>Nenhuma tarefa comprometida nesta semana.</div> : (
+            <table className={styles.tabela}>
+              <thead><tr><th>Tarefa</th><th>Início</th><th>Meta</th><th>Real</th><th>Cumprida</th><th>Motivo</th></tr></thead>
+              <tbody>{compromissos.map(c => (
+                <tr key={c.id}>
+                  <td data-label="Tarefa">{tarefaPorId.get(c.tarefa_id)?.nome ?? 'Tarefa não encontrada'}</td>
+                  <td data-label="Início">{c.percentual_inicio}%</td>
+                  <td data-label="Meta">{c.meta_percentual}%</td>
+                  <td data-label="Real">{c.percentual_fim ?? '-'}{c.percentual_fim != null ? '%' : ''}</td>
+                  <td data-label="Cumprida">{c.cumprido == null ? '-' : c.cumprido ? <span className={styles.chipResolvida + ' ' + styles.chip}>Sim</span> : <span className={styles.chipAberta + ' ' + styles.chip}>Não</span>}</td>
+                  <td data-label="Motivo">
+                    {c.cumprido === false && semanaSelecionada.status === 'aberta' ? (
+                      <select value={c.motivo_categoria ?? ''} onChange={e => { if (e.target.value) atualizarMotivo(c, e.target.value as CategoriaRestricao, c.motivo_observacao ?? '') }}>
+                        <option value="">Selecione o motivo</option>
+                        {(Object.keys(CATEGORIA_LABEL) as CategoriaRestricao[]).map(cat => <option key={cat} value={cat}>{CATEGORIA_LABEL[cat]}</option>)}
+                      </select>
+                    ) : c.motivo_categoria ? CATEGORIA_LABEL[c.motivo_categoria] : '-'}
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
+        </>}
       </>}
     </div>
   )

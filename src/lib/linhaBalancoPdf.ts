@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { supabase } from './supabase'
+import { paginado, fatiar, type RespostaPaginada } from './cronograma'
 
 export type GranularidadeLinhaBalanco = 'semanal' | 'mensal'
 
@@ -48,42 +49,59 @@ function inicioDoMes(data: Date): Date {
 }
 
 export async function gerarPdfLinhaBalanco(obraId: string, granularidade: GranularidadeLinhaBalanco) {
-  const [unidadesResp, tarefasResp, versaoResp] = await Promise.all([
+  // cronograma_tarefas/cronograma_previsto/avancos_fisicos passam de 1000
+  // linhas nesta obra — o Supabase corta silenciosamente sem paginar, então
+  // usa o mesmo helper já usado no Cronograma (Fase 2, src/lib/cronograma.ts).
+  type TarefaComEtapaUnidade = TarefaCronograma & { etapas: { nome: string } | null; unidades: { tipo: string } | null }
+  const [unidadesResp, tarefasLista, versaoResp] = await Promise.all([
     supabase.from('unidades').select('id, nome').eq('obra_id', obraId).eq('ativo', true).eq('tipo', 'sobrado').order('nome'),
-    supabase.from('cronograma_tarefas').select('id, etapa_id, unidade_id, etapas(nome), unidades(tipo)').eq('obra_id', obraId).eq('ativo', true).eq('resumo', false),
+    paginado<TarefaComEtapaUnidade>((de, ate, contar) =>
+      supabase.from('cronograma_tarefas')
+        .select('id, etapa_id, unidade_id, etapas(nome), unidades(tipo)', contar ? { count: 'exact' } : undefined)
+        .eq('obra_id', obraId).eq('ativo', true).eq('resumo', false)
+        .range(de, ate) as unknown as PromiseLike<RespostaPaginada<TarefaComEtapaUnidade>>),
     supabase.from('cronograma_versoes').select('id').eq('obra_id', obraId).eq('vigente', true).eq('ativo', true).maybeSingle(),
   ])
   if (unidadesResp.error) throw new Error('Erro ao carregar sobrados: ' + unidadesResp.error.message)
-  if (tarefasResp.error) throw new Error('Erro ao carregar tarefas do cronograma: ' + tarefasResp.error.message)
   if (!versaoResp.data) throw new Error('Nenhuma versão vigente do cronograma encontrada para esta obra.')
 
   const sobrados = unidadesResp.data ?? []
   if (sobrados.length === 0) throw new Error('Nenhum sobrado cadastrado nesta obra.')
   const indicePorSobrado = new Map(sobrados.map((s, i) => [s.id, i + 1]))
 
-  type TarefaComEtapaUnidade = TarefaCronograma & { etapas: { nome: string } | null; unidades: { tipo: string } | null }
-  const tarefasSobrados = ((tarefasResp.data ?? []) as unknown as TarefaComEtapaUnidade[])
-    .filter(t => t.unidades?.tipo === 'sobrado' && t.etapa_id && t.unidade_id && t.etapas?.nome)
+  const tarefasSobrados = tarefasLista.filter(t => t.unidades?.tipo === 'sobrado' && t.etapa_id && t.unidade_id && t.etapas?.nome)
   if (tarefasSobrados.length === 0) throw new Error('Nenhuma tarefa de sobrado encontrada no cronograma.')
 
   const idsTarefas = tarefasSobrados.map(t => t.id)
-  const [previstoResp, avancoResp, compromissosResp] = await Promise.all([
-    supabase.from('cronograma_previsto').select('tarefa_id, inicio, fim').eq('versao_id', versaoResp.data.id).in('tarefa_id', idsTarefas),
-    supabase.from('avancos_fisicos').select('tarefa_id, percentual, data_referencia').eq('ativo', true).in('tarefa_id', idsTarefas).order('data_referencia', { ascending: false }),
-    supabase.from('planejamento_compromissos').select('tarefa_id, meta_percentual, planejamento_semanas(data_fim)').eq('ativo', true).eq('meta_percentual', 100).in('tarefa_id', idsTarefas),
+  const lotesIds = fatiar(idsTarefas, 500)
+  const [previstoLista, avancoLotes, compromissosLotes] = await Promise.all([
+    paginado<{ tarefa_id: string; inicio: string; fim: string }>((de, ate, contar) =>
+      supabase.from('cronograma_previsto')
+        .select('tarefa_id, inicio, fim', contar ? { count: 'exact' } : undefined)
+        .eq('versao_id', versaoResp.data!.id).in('tarefa_id', idsTarefas)
+        .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; inicio: string; fim: string }>>),
+    Promise.all(lotesIds.map(lote =>
+      paginado<{ tarefa_id: string; percentual: number; data_referencia: string }>((de, ate, contar) =>
+        supabase.from('avancos_fisicos')
+          .select('tarefa_id, percentual, data_referencia', contar ? { count: 'exact' } : undefined)
+          .eq('ativo', true).in('tarefa_id', lote).order('data_referencia', { ascending: false })
+          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; percentual: number; data_referencia: string }>>))),
+    Promise.all(lotesIds.map(lote =>
+      paginado<{ tarefa_id: string; planejamento_semanas: { data_fim: string } | null }>((de, ate, contar) =>
+        supabase.from('planejamento_compromissos')
+          .select('tarefa_id, meta_percentual, planejamento_semanas(data_fim)', contar ? { count: 'exact' } : undefined)
+          .eq('ativo', true).eq('meta_percentual', 100).in('tarefa_id', lote)
+          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; planejamento_semanas: { data_fim: string } | null }>>))),
   ])
-  if (previstoResp.error) throw new Error('Erro ao carregar datas previstas: ' + previstoResp.error.message)
-  if (avancoResp.error) throw new Error('Erro ao carregar avanço físico: ' + avancoResp.error.message)
-  if (compromissosResp.error) throw new Error('Erro ao carregar compromissos do Planejamento: ' + compromissosResp.error.message)
 
-  const previstoPorTarefa = new Map((previstoResp.data ?? []).map(p => [p.tarefa_id, { inicio: p.inicio, fim: p.fim }]))
+  const previstoPorTarefa = new Map(previstoLista.map(p => [p.tarefa_id, { inicio: p.inicio, fim: p.fim }]))
   const avancoPorTarefa = new Map<string, { percentual: number; data_referencia: string }>()
-  for (const a of avancoResp.data ?? []) if (!avancoPorTarefa.has(a.tarefa_id)) avancoPorTarefa.set(a.tarefa_id, a)
+  for (const lote of avancoLotes) for (const a of lote) if (!avancoPorTarefa.has(a.tarefa_id)) avancoPorTarefa.set(a.tarefa_id, a)
 
   // Data prometida via compromisso semanal (meta 100%) — pega a mais recente
   // quando a mesma tarefa foi comprometida com meta 100% em mais de uma semana.
   const planejadoPorTarefa = new Map<string, number>()
-  for (const c of (compromissosResp.data ?? []) as unknown as { tarefa_id: string; planejamento_semanas: { data_fim: string } | null }[]) {
+  for (const lote of compromissosLotes) for (const c of lote) {
     if (!c.planejamento_semanas?.data_fim) continue
     const fimMs = new Date(c.planejamento_semanas.data_fim).getTime()
     const atual = planejadoPorTarefa.get(c.tarefa_id)

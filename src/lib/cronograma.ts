@@ -6,9 +6,9 @@ import { supabase } from './supabase'
 import type { CronogramaVersao, CronogramaTarefa, CronogramaPrevisto, AvancoFisico } from './supabase'
 
 // Supabase limita linhas por resposta: busca a primeira página com count e paraleliza o restante.
-type RespostaPaginada<T> = { data: T[] | null; count?: number | null; error?: { message: string } | null }
+export type RespostaPaginada<T> = { data: T[] | null; count?: number | null; error?: { message: string } | null }
 
-async function paginado<T>(monta: (de: number, ate: number, contar: boolean) => PromiseLike<RespostaPaginada<T>>): Promise<T[]> {
+export async function paginado<T>(monta: (de: number, ate: number, contar: boolean) => PromiseLike<RespostaPaginada<T>>): Promise<T[]> {
   const PAGINA = 1000
   const primeira = await monta(0, PAGINA - 1, true)
   if (primeira.error) throw new Error(primeira.error.message)
@@ -27,7 +27,7 @@ async function paginado<T>(monta: (de: number, ate: number, contar: boolean) => 
   return todos
 }
 
-function fatiar<T>(itens: T[], tamanho: number): T[][] {
+export function fatiar<T>(itens: T[], tamanho: number): T[][] {
   const fatias: T[][] = []
   for (let i = 0; i < itens.length; i += tamanho) fatias.push(itens.slice(i, i + tamanho))
   return fatias

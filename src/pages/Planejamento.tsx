@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import { supabase, type CategoriaRestricao, type PerfilUsuario, type PlanejamentoCompromisso, type PlanejamentoSemana, type Restricao, type StatusRestricao } from '../lib/supabase'
 import type { GranularidadeLinhaBalanco } from '../lib/linhaBalancoPdf'
+import { paginado, fatiar, type RespostaPaginada } from '../lib/cronograma'
 import styles from './Planejamento.module.css'
 
 type Msg = { tipo: 'ok' | 'erro'; texto: string } | null
@@ -120,23 +121,38 @@ export default function Planejamento() {
     if (!obraAtiva || semPermissao) { setCarregando(false); return }
     setCarregando(true)
     setMsg(null)
-    const [tarefasResp, usuariosResp, restricoesResp, unidadesResp, todasTarefasResp] = await Promise.all([
-      supabase.from('cronograma_tarefas').select('id, nome, etapa_id, unidade_id, resumo, etapas(nome), unidades(nome)').eq('obra_id', obraAtiva.id).eq('ativo', true).eq('resumo', false).order('nome'),
+    // cronograma_tarefas passa de 1000 linhas nesta obra (2816 no total, 1933
+    // só as folhas) — o Supabase corta silenciosamente em 1000 por resposta
+    // sem paginar, então usa o mesmo helper já usado no Cronograma (Fase 2).
+    try {
+      const [tarefasLista, todasTarefasLista] = await Promise.all([
+        paginado<TarefaCronograma>((de, ate, contar) =>
+          supabase.from('cronograma_tarefas')
+            .select('id, nome, etapa_id, unidade_id, resumo, etapas(nome), unidades(nome)', contar ? { count: 'exact' } : undefined)
+            .eq('obra_id', obraAtiva.id).eq('ativo', true).eq('resumo', false).order('nome')
+            .range(de, ate) as unknown as PromiseLike<RespostaPaginada<TarefaCronograma>>),
+        paginado<TarefaArvoreNo>((de, ate, contar) =>
+          supabase.from('cronograma_tarefas')
+            .select('id, nome, parent_id, unidade_id, resumo', contar ? { count: 'exact' } : undefined)
+            .eq('obra_id', obraAtiva.id).eq('ativo', true).order('ordem')
+            .range(de, ate) as unknown as PromiseLike<RespostaPaginada<TarefaArvoreNo>>),
+      ])
+      setTarefas(tarefasLista)
+      setTodasTarefas(todasTarefasLista)
+    } catch (erro) {
+      setMsg({ tipo: 'erro', texto: 'Erro ao carregar tarefas do cronograma: ' + (erro as Error).message })
+    }
+    const [usuariosResp, restricoesResp, unidadesResp] = await Promise.all([
       supabase.from('perfis_usuario').select('*').eq('ativo', true).neq('papel', 'cliente').order('nome'),
       supabase.from('restricoes').select('*').eq('obra_id', obraAtiva.id).eq('ativo', true).order('prazo'),
       supabase.from('unidades').select('id, nome').eq('obra_id', obraAtiva.id).eq('ativo', true).order('ordem'),
-      supabase.from('cronograma_tarefas').select('id, nome, parent_id, unidade_id, resumo').eq('obra_id', obraAtiva.id).eq('ativo', true).order('ordem'),
     ])
-    if (tarefasResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar tarefas do cronograma: ' + tarefasResp.error.message })
-    else setTarefas((tarefasResp.data ?? []) as unknown as TarefaCronograma[])
     if (usuariosResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar usuários: ' + usuariosResp.error.message })
     else setUsuarios(usuariosResp.data ?? [])
     if (restricoesResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar restrições: ' + restricoesResp.error.message })
     else setRestricoes(restricoesResp.data ?? [])
     if (unidadesResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar unidades: ' + unidadesResp.error.message })
     else setUnidadesObra(unidadesResp.data ?? [])
-    if (todasTarefasResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar a árvore do cronograma: ' + todasTarefasResp.error.message })
-    else setTodasTarefas((todasTarefasResp.data ?? []) as TarefaArvoreNo[])
     const semanasResp = await supabase.from('planejamento_semanas').select('*').eq('obra_id', obraAtiva.id).eq('ativo', true).order('data_inicio', { ascending: false })
     if (semanasResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar semanas: ' + semanasResp.error.message })
     else {
@@ -159,11 +175,22 @@ export default function Planejamento() {
 
   useEffect(() => {
     if (tarefas.length === 0) return
-    supabase.from('avancos_fisicos').select('tarefa_id, percentual, data_referencia').eq('ativo', true).in('tarefa_id', tarefas.map(t => t.id)).order('data_referencia', { ascending: false }).then(({ data }) => {
+    // avancos_fisicos cresce a cada lançamento semanal — pode passar de 1000
+    // linhas com o tempo, mesmo com poucas tarefas. Paginado + em lotes de
+    // 500 ids (mesmo padrão de src/lib/cronograma.ts), pra não montar um
+    // filtro "in" gigante numa unica chamada.
+    const ids = tarefas.map(t => t.id)
+    Promise.all(fatiar(ids, 500).map(lote =>
+      paginado<{ tarefa_id: string; percentual: number; data_referencia: string }>((de, ate, contar) =>
+        supabase.from('avancos_fisicos')
+          .select('tarefa_id, percentual, data_referencia', contar ? { count: 'exact' } : undefined)
+          .eq('ativo', true).in('tarefa_id', lote).order('data_referencia', { ascending: false })
+          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; percentual: number; data_referencia: string }>>),
+    )).then(lotes => {
       const atuais: Record<string, number> = {}
-      for (const row of data ?? []) if (!(row.tarefa_id in atuais)) atuais[row.tarefa_id] = row.percentual
+      for (const lote of lotes) for (const row of lote) if (!(row.tarefa_id in atuais)) atuais[row.tarefa_id] = row.percentual
       setPercentuaisAtuais(atuais)
-    })
+    }).catch(erro => setMsg({ tipo: 'erro', texto: 'Erro ao carregar avanço físico: ' + (erro as Error).message }))
   }, [tarefas])
 
   useEffect(() => {
@@ -171,8 +198,18 @@ export default function Planejamento() {
     async function carregarMarcos() {
       const versaoResp = await supabase.from('cronograma_versoes').select('id').eq('obra_id', obraAtiva!.id).eq('vigente', true).eq('ativo', true).maybeSingle()
       if (!versaoResp.data) { setMarcos([]); return }
-      const previstoResp = await supabase.from('cronograma_previsto').select('tarefa_id, fim').eq('versao_id', versaoResp.data.id)
-      const fimPorTarefa = new Map((previstoResp.data ?? []).map(p => [p.tarefa_id, p.fim]))
+      let previstoLista: { tarefa_id: string; fim: string }[] = []
+      try {
+        previstoLista = await paginado<{ tarefa_id: string; fim: string }>((de, ate, contar) =>
+          supabase.from('cronograma_previsto')
+            .select('tarefa_id, fim', contar ? { count: 'exact' } : undefined)
+            .eq('versao_id', versaoResp.data!.id)
+            .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; fim: string }>>)
+      } catch (erro) {
+        setMsg({ tipo: 'erro', texto: 'Erro ao carregar datas previstas: ' + (erro as Error).message })
+        return
+      }
+      const fimPorTarefa = new Map(previstoLista.map(p => [p.tarefa_id, p.fim]))
 
       const porEtapa = new Map<string, { nome: string; tarefaIds: string[] }>()
       for (const t of tarefas) {

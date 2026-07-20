@@ -15,8 +15,6 @@ interface BarraTarefa {
   unidadeNome: string
   unidadeOrdem: number
   etapaNome: string
-  previstoInicio: number | null
-  previstoFim: number | null
   planejadoInicio: number | null
   planejadoFim: number | null
   realInicio: number | null
@@ -79,17 +77,13 @@ export async function gerarPdfGanttPlanejamento(obraId: string) {
     id: string; nome: string; unidade_id: string | null
     unidades: { nome: string; ordem: number } | null
   }
-  const [tarefasLotes, versaoResp] = await Promise.all([
-    Promise.all(lotesTarefas.map(lote =>
-      paginado<TarefaComUnidade>((de, ate, contar) =>
-        supabase.from('cronograma_tarefas')
-          .select('id, nome, unidade_id, unidades(nome, ordem)', contar ? { count: 'exact' } : undefined)
-          .in('id', lote)
-          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<TarefaComUnidade>>))),
-    supabase.from('cronograma_versoes').select('id').eq('obra_id', obraId).eq('vigente', true).eq('ativo', true).maybeSingle(),
-  ])
+  const tarefasLotes = await Promise.all(lotesTarefas.map(lote =>
+    paginado<TarefaComUnidade>((de, ate, contar) =>
+      supabase.from('cronograma_tarefas')
+        .select('id, nome, unidade_id, unidades(nome, ordem)', contar ? { count: 'exact' } : undefined)
+        .in('id', lote)
+        .range(de, ate) as unknown as PromiseLike<RespostaPaginada<TarefaComUnidade>>)))
   const tarefasInfo = tarefasLotes.flat()
-  if (!versaoResp.data) throw new Error('Nenhuma versão vigente do cronograma encontrada para esta obra.')
 
   // etapa_id de cronograma_tarefas nunca foi preenchido na importação do MS
   // Project — deriva a etapa subindo a árvore até o filho direto da raiz da
@@ -103,23 +97,13 @@ export async function gerarPdfGanttPlanejamento(obraId: string) {
       .range(de, ate) as unknown as PromiseLike<RespostaPaginada<NoParaEtapa>>)
   const etapaPorTarefaId = etapaAncestralPorTarefa(todosNos)
 
-  const [previstoLotes, avancoLotes] = await Promise.all([
-    Promise.all(lotesTarefas.map(lote =>
-      paginado<{ tarefa_id: string; inicio: string; fim: string }>((de, ate, contar) =>
-        supabase.from('cronograma_previsto')
-          .select('tarefa_id, inicio, fim', contar ? { count: 'exact' } : undefined)
-          .eq('versao_id', versaoResp.data!.id).in('tarefa_id', lote)
-          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; inicio: string; fim: string }>>))),
-    Promise.all(lotesTarefas.map(lote =>
-      paginado<{ tarefa_id: string; data_referencia: string }>((de, ate, contar) =>
-        supabase.from('avancos_fisicos')
-          .select('tarefa_id, data_referencia', contar ? { count: 'exact' } : undefined)
-          .eq('ativo', true).in('tarefa_id', lote)
-          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; data_referencia: string }>>))),
-  ])
+  const avancoLotes = await Promise.all(lotesTarefas.map(lote =>
+    paginado<{ tarefa_id: string; data_referencia: string }>((de, ate, contar) =>
+      supabase.from('avancos_fisicos')
+        .select('tarefa_id, data_referencia', contar ? { count: 'exact' } : undefined)
+        .eq('ativo', true).in('tarefa_id', lote)
+        .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; data_referencia: string }>>)))
 
-  const previstoLista = previstoLotes.flat()
-  const previstoPorTarefa = new Map(previstoLista.map(p => [p.tarefa_id, { inicio: p.inicio, fim: p.fim }]))
   const avancoPorTarefa = new Map<string, { min: number; max: number }>()
   for (const lote of avancoLotes) for (const a of lote) {
     const ms = new Date(a.data_referencia).getTime()
@@ -135,31 +119,32 @@ export async function gerarPdfGanttPlanejamento(obraId: string) {
     const etapaNome = etapaPorTarefaId.get(t.id)
     if (!t.unidades || !etapaNome) continue
     const planejado = planejadoPorTarefa.get(t.id) ?? null
-    const previsto = previstoPorTarefa.get(t.id) ?? null
     const avanco = avancoPorTarefa.get(t.id) ?? null
-    const previstoInicio = previsto ? new Date(previsto.inicio).getTime() : null
-    const previstoFim = previsto ? new Date(previsto.fim).getTime() : null
     const barra: BarraTarefa = {
       id: t.id,
       nome: t.nome,
       unidadeNome: t.unidades.nome,
       unidadeOrdem: t.unidades.ordem,
       etapaNome,
-      previstoInicio,
-      previstoFim,
       planejadoInicio: planejado?.inicio ?? null,
       planejadoFim: planejado?.fim ?? null,
       realInicio: avanco?.min ?? null,
       realFim: avanco?.max ?? null,
     }
     barras.push(barra)
-    for (const v of [previstoInicio, previstoFim, barra.planejadoInicio, barra.planejadoFim, barra.realInicio, barra.realFim]) {
+    for (const v of [barra.planejadoInicio, barra.planejadoFim, barra.realInicio, barra.realFim]) {
       if (v != null) { dataMin = Math.min(dataMin, v); dataMax = Math.max(dataMax, v) }
     }
   }
   if (barras.length === 0) throw new Error('Nenhuma tarefa comprometida encontrada para montar o Gantt.')
-  if (!Number.isFinite(dataMin) || !Number.isFinite(dataMax) || dataMin >= dataMax) {
+  if (!Number.isFinite(dataMin) || !Number.isFinite(dataMax)) {
     throw new Error('Não há datas suficientes para desenhar o Gantt.')
+  }
+  // Com pouco histórico, todas as barras podem cair na mesma data — sem isso
+  // o eixo do tempo teria largura zero. Garante uma semana de largura mínima.
+  if (dataMin === dataMax) {
+    dataMin -= 3.5 * 86400000
+    dataMax += 3.5 * 86400000
   }
 
   barras.sort((a, b) =>
@@ -245,7 +230,6 @@ export async function gerarPdfGanttPlanejamento(obraId: string) {
     let lx = ML
     const ly = H - 11
     const itens: [string, string][] = [
-      ['Previsto (Cronograma)', NAVY],
       ['Planejado (comprometido no Planejamento)', TERRACOTA],
       ['Real (Avanço Físico)', AZUL_MEDIO],
     ]
@@ -307,12 +291,6 @@ export async function gerarPdfGanttPlanejamento(obraId: string) {
 
     const espessura = 1.3
     let by = y + 1.2
-    if (b.previstoInicio != null && b.previstoFim != null) {
-      pdf.setFillColor(NAVY)
-      const largura = Math.max(x(b.previstoFim) - x(b.previstoInicio), 0.6)
-      pdf.rect(x(b.previstoInicio), by, largura, espessura, 'F')
-    }
-    by += espessura + 0.5
     if (b.planejadoInicio != null && b.planejadoFim != null) {
       pdf.setFillColor(TERRACOTA)
       const largura = Math.max(x(b.planejadoFim) - x(b.planejadoInicio), 0.6)

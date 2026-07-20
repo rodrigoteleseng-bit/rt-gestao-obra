@@ -92,6 +92,7 @@ export default function Planejamento() {
   const [tarefaCompromissoId, setTarefaCompromissoId] = useState('')
   const [metaPercentual, setMetaPercentual] = useState('')
   const [gerandoLinhaBalanco, setGerandoLinhaBalanco] = useState<GranularidadeLinhaBalanco | null>(null)
+  const [gerandoGantt, setGerandoGantt] = useState(false)
 
   const [unidadesObra, setUnidadesObra] = useState<UnidadeSimples[]>([])
   const [todasTarefas, setTodasTarefas] = useState<TarefaArvoreNo[]>([])
@@ -396,6 +397,19 @@ export default function Planejamento() {
     setGerandoLinhaBalanco(null)
   }
 
+  async function gerarGantt() {
+    if (!obraAtiva) return
+    setGerandoGantt(true)
+    setMsg(null)
+    try {
+      const { gerarPdfGanttPlanejamento } = await import('../lib/ganttPlanejamentoPdf')
+      await gerarPdfGanttPlanejamento(obraAtiva.id)
+    } catch (erro) {
+      setMsg({ tipo: 'erro', texto: `Erro ao gerar Gantt: ${(erro as Error).message}` })
+    }
+    setGerandoGantt(false)
+  }
+
   if (semPermissao) return <div className={styles.page}><h1>Planejamento</h1><div className={styles.msgErro}>Você não tem permissão para acessar Planejamento.</div></div>
 
   return (
@@ -536,6 +550,9 @@ export default function Planejamento() {
               </button>
               <button className={styles.btnSecundario} disabled={!!gerandoLinhaBalanco} onClick={() => gerarLinhaBalanco('mensal')}>
                 {gerandoLinhaBalanco === 'mensal' ? 'Gerando...' : 'Linha de balanço (mensal)'}
+              </button>
+              <button className={styles.btnSecundario} disabled={gerandoGantt} onClick={gerarGantt}>
+                {gerandoGantt ? 'Gerando...' : 'Gantt do planejamento'}
               </button>
             </div>
           )}

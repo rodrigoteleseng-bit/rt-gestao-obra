@@ -128,6 +128,11 @@ function Salarios({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
     [valor, setValor] = useState(""),
     [inicio, setInicio] = useState(hojeISO()),
     [msg, setMsg] = useState<Msg>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null),
+    [editFuncao, setEditFuncao] = useState(""),
+    [editValor, setEditValor] = useState(""),
+    [editInicio, setEditInicio] = useState(""),
+    [editFim, setEditFim] = useState("");
   async function carregar() {
     if (!obraAtiva) return;
     const { data } = await supabase
@@ -158,6 +163,32 @@ function Salarios({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
     if (error) return setMsg({ tipo: "erro", texto: error.message });
     setMsg({ tipo: "ok", texto: "Nova vigência salarial cadastrada." });
     setValor("");
+    await carregar();
+  }
+  function abrirEdicaoSalario(s: ProducaoSalario) {
+    setEditandoId(s.id);
+    setEditFuncao(s.funcao);
+    setEditValor(String(s.salario_mensal).replace(".", ","));
+    setEditInicio(s.vigente_desde);
+    setEditFim(s.vigente_ate ?? "");
+    setMsg(null);
+  }
+  async function salvarEdicaoSalario() {
+    if (!editandoId) return;
+    if (!editFuncao.trim() || numero(editValor) <= 0 || !editInicio)
+      return setMsg({ tipo: "erro", texto: "Informe função, salário e data de início válidos." });
+    const { error } = await supabase
+      .from("producao_salarios")
+      .update({
+        funcao: editFuncao.trim(),
+        salario_mensal: numero(editValor),
+        vigente_desde: editInicio,
+        vigente_ate: editFim || null,
+      })
+      .eq("id", editandoId);
+    if (error) return setMsg({ tipo: "erro", texto: error.message });
+    setMsg({ tipo: "ok", texto: "Vigência salarial atualizada." });
+    setEditandoId(null);
     await carregar();
   }
   return (
@@ -219,6 +250,29 @@ function Salarios({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
         </button>
       </section>
       <Mensagem msg={msg} />
+      {editandoId && (
+        <section className={styles.bloco}>
+          <h2>Editar vigência salarial</h2>
+          <div className={styles.campos}>
+            <Campo label="Função">
+              <input className={styles.input} value={editFuncao} onChange={(e) => setEditFuncao(e.target.value)} />
+            </Campo>
+            <Campo label="Salário mensal">
+              <input className={styles.input} inputMode="decimal" value={editValor} onChange={(e) => setEditValor(e.target.value)} />
+            </Campo>
+            <Campo label="Vigente desde">
+              <input className={styles.input} type="date" value={editInicio} onChange={(e) => setEditInicio(e.target.value)} />
+            </Campo>
+            <Campo label="Vigente até (deixe vazio se ainda vigente)">
+              <input className={styles.input} type="date" value={editFim} onChange={(e) => setEditFim(e.target.value)} />
+            </Campo>
+          </div>
+          <div className={styles.acoes}>
+            <button className={styles.btn} onClick={salvarEdicaoSalario}>Salvar</button>
+            <button className={styles.btnSec} onClick={() => setEditandoId(null)}>Cancelar</button>
+          </div>
+        </section>
+      )}
       <section className={styles.bloco}>
         <h2>Histórico</h2>
         <div className={styles.lista}>
@@ -240,6 +294,7 @@ function Salarios({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
                   R$ {formatarMoeda(s.salario_mensal / 30)}/dia
                 </div>
               </div>
+              <button className={styles.btnSec} onClick={() => abrirEdicaoSalario(s)}>Editar</button>
             </div>
           ))}
         </div>
@@ -521,6 +576,7 @@ function Lancamentos({
 }
 function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
   const { obraAtiva } = useObra();
+  const { confirmar } = useConfirmDialog();
   const [trab, setTrab] = useState(""),
     [inicio, setInicio] = useState(hojeISO()),
     [fim, setFim] = useState(hojeISO()),
@@ -610,6 +666,20 @@ function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
     setMotivo("");
     setMsg({ tipo: "ok", texto: `Período salarial registrado (${linhas.length} dias).` });
   }
+  async function excluirDia(d: ProducaoDiaSalarial) {
+    const nome = trabalhadores.find((t) => t.id === d.trabalhador_id)?.nome ?? "profissional";
+    const ok = await confirmar({
+      titulo: "Excluir dia salarial",
+      mensagem: `Excluir o dia salarial de ${fmt(d.data)} de ${nome}?`,
+      confirmarTexto: "Excluir",
+      perigoso: true,
+    });
+    if (!ok) return;
+    const { error } = await supabase.from("producao_dias_salariais").update({ ativo: false }).eq("id", d.id);
+    if (error) return setMsg({ tipo: "erro", texto: error.message });
+    setDias((p) => p.filter((x) => x.id !== d.id));
+    setMsg({ tipo: "ok", texto: "Dia salarial excluído." });
+  }
   return (
     <>
       <section className={styles.bloco}>
@@ -684,6 +754,11 @@ function Dias({ trabalhadores }: { trabalhadores: Trabalhador[] }) {
                 </div>
               </div>
               <strong>R$ {formatarMoeda(d.valor_dia)}</strong>
+              {d.medicao_id ? (
+                <span className={styles.meta}>Já medido</span>
+              ) : (
+                <button className={styles.btnExcluir} onClick={() => excluirDia(d)}>Excluir</button>
+              )}
             </div>
           ))}
         </div>

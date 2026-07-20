@@ -668,7 +668,7 @@ export type CategoriaRestricao =
   | 'material' | 'mao_de_obra' | 'projeto_documentacao' | 'decisao_pendente'
   | 'equipamento' | 'financeiro' | 'servico_predecessor' | 'clima'
 export type StatusRestricao = 'aberta' | 'resolvida'
-export type StatusSemanaPlanejamento = 'aberta' | 'fechada'
+export type StatusSemanaPlanejamento = 'aberta' | 'planejada' | 'fechada'
 
 export interface Restricao {
   id: string

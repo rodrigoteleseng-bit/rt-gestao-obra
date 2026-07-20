@@ -40,14 +40,14 @@ function truncarTexto(pdf: jsPDF, texto: string, larguraMax: number): string {
 }
 
 export async function gerarPdfGanttPlanejamento(obraId: string) {
-  // Só entram tarefas comprometidas em semanas já fechadas (histórico
-  // imutável do Planejamento) — semana aberta ainda pode mudar.
+  // Só entram tarefas comprometidas em semanas com planejamento já travado
+  // ("planejada" ou "fechada") — semana aberta ainda pode mudar.
   const semanasResp = await supabase.from('planejamento_semanas')
     .select('id, data_inicio, data_fim')
-    .eq('obra_id', obraId).eq('ativo', true).eq('status', 'fechada')
+    .eq('obra_id', obraId).eq('ativo', true).in('status', ['planejada', 'fechada'])
   if (semanasResp.error) throw new Error('Erro ao carregar semanas: ' + semanasResp.error.message)
   const semanas = semanasResp.data ?? []
-  if (semanas.length === 0) throw new Error('Nenhuma semana fechada encontrada para montar o Gantt.')
+  if (semanas.length === 0) throw new Error('Nenhuma semana com planejamento fechado encontrada para montar o Gantt.')
   const semanaPorId = new Map(semanas.map(s => [s.id, s]))
   const idsSemanas = semanas.map(s => s.id)
 

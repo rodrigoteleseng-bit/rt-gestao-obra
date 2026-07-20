@@ -60,7 +60,7 @@ export default function Planejamento() {
   const podeEditar = perfil?.papel === 'admin' || (perfil?.papel === 'equipe' && temModulo('planejamento'))
   const semPermissao = !podeEditar
 
-  const [aba, setAba] = useState<Aba>('mensal')
+  const [aba, setAba] = useState<Aba>('semanal')
   const [carregando, setCarregando] = useState(true)
   const [msg, setMsg] = useState<Msg>(null)
   const [salvando, setSalvando] = useState(false)
@@ -384,6 +384,30 @@ export default function Planejamento() {
     await carregarCompromissos(semanaSelecionada.id)
   }
 
+  async function fecharPlanejamento() {
+    if (!semanaSelecionada) return
+    setMsg(null)
+    setSalvando(true)
+    const { error } = await supabase.rpc('fechar_planejamento_semana', { p_semana: semanaSelecionada.id })
+    setSalvando(false)
+    if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao fechar planejamento: ' + error.message })
+    setMsg({ tipo: 'ok', texto: 'Planejamento fechado. Nenhuma tarefa nova pode ser comprometida nesta semana.' })
+    await carregar()
+    await carregarCompromissos(semanaSelecionada.id)
+  }
+
+  async function reabrirPlanejamento() {
+    if (!semanaSelecionada) return
+    setMsg(null)
+    setSalvando(true)
+    const { error } = await supabase.rpc('reabrir_planejamento_semana', { p_semana: semanaSelecionada.id })
+    setSalvando(false)
+    if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao reabrir planejamento: ' + error.message })
+    setMsg({ tipo: 'ok', texto: 'Planejamento reaberto.' })
+    await carregar()
+    await carregarCompromissos(semanaSelecionada.id)
+  }
+
   async function gerarLinhaBalanco(granularidade: GranularidadeLinhaBalanco) {
     if (!obraAtiva) return
     setGerandoLinhaBalanco(granularidade)
@@ -420,8 +444,8 @@ export default function Planejamento() {
       {msg && <div className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</div>}
 
       <div className={styles.abas}>
-        <button className={[styles.aba, aba === 'mensal' ? styles.abaAtiva : ''].filter(Boolean).join(' ')} onClick={() => setAba('mensal')}>Mensal</button>
         <button className={[styles.aba, aba === 'semanal' ? styles.abaAtiva : ''].filter(Boolean).join(' ')} onClick={() => setAba('semanal')}>Semanal</button>
+        <button className={[styles.aba, aba === 'mensal' ? styles.abaAtiva : ''].filter(Boolean).join(' ')} onClick={() => setAba('mensal')}>Mensal</button>
         <button className={[styles.aba, aba === 'trimestral' ? styles.abaAtiva : ''].filter(Boolean).join(' ')} onClick={() => setAba('trimestral')}>Trimestral</button>
       </div>
 
@@ -477,7 +501,7 @@ export default function Planejamento() {
         <div className={styles.filtros}>
           <select value={semanaSelecionadaId ?? ''} onChange={e => setSemanaSelecionadaId(e.target.value || null)}>
             <option value="">Selecione uma semana</option>
-            {semanas.map(s => <option key={s.id} value={s.id}>{fmtData(s.data_inicio)} a {fmtData(s.data_fim)} {s.status === 'fechada' ? '(fechada, PPC ' + s.ppc + '%)' : ''}</option>)}
+            {semanas.map(s => <option key={s.id} value={s.id}>{fmtData(s.data_inicio)} a {fmtData(s.data_fim)} {s.status === 'fechada' ? '(fechada, PPC ' + s.ppc + '%)' : s.status === 'planejada' ? '(planejamento fechado)' : ''}</option>)}
           </select>
         </div>
 
@@ -494,6 +518,19 @@ export default function Planejamento() {
           {semanaSelecionada.status === 'aberta' && (
             <div className={styles.acoesForm}>
               <button className={styles.btnSecundario} onClick={() => setFormCompromissoAberto(v => !v)}>{formCompromissoAberto ? 'Fechar' : 'Comprometer tarefa'}</button>
+              <button className={styles.btnSecundario} disabled={salvando} onClick={fecharPlanejamento}>Fechar planejamento</button>
+            </div>
+          )}
+
+          {semanaSelecionada.status === 'planejada' && (
+            <div className={styles.acoesForm}>
+              <div className={styles.msgOk}>Planejamento fechado. Nenhuma tarefa nova pode ser comprometida.</div>
+              {perfil?.papel === 'admin' && <button className={styles.btnSecundario} disabled={salvando} onClick={reabrirPlanejamento}>Reabrir planejamento</button>}
+            </div>
+          )}
+
+          {(semanaSelecionada.status === 'aberta' || semanaSelecionada.status === 'planejada') && (
+            <div className={styles.acoesForm}>
               <button className={styles.btnSecundario} disabled={salvando} onClick={calcularFechamento}>Calcular fechamento</button>
               {perfil?.papel === 'admin' && <button className={styles.btnPrimario} disabled={salvando} onClick={fecharSemana}>Fechar semana</button>}
             </div>
@@ -543,7 +580,7 @@ export default function Planejamento() {
 
           {semanaSelecionada.status === 'fechada' && <div className={styles.msgOk}>Semana fechada. PPC: {semanaSelecionada.ppc}%</div>}
 
-          {semanaSelecionada.status === 'fechada' && (
+          {(semanaSelecionada.status === 'planejada' || semanaSelecionada.status === 'fechada') && (
             <div className={styles.filtros}>
               <button className={styles.btnSecundario} disabled={!!gerandoLinhaBalanco} onClick={() => gerarLinhaBalanco('semanal')}>
                 {gerandoLinhaBalanco === 'semanal' ? 'Gerando...' : 'Linha de balanço (semanal)'}
@@ -559,7 +596,7 @@ export default function Planejamento() {
 
           {compromissos.length === 0 ? <div className={styles.vazio}>Nenhuma tarefa comprometida nesta semana.</div> : (
             <table className={styles.tabela}>
-              <thead><tr><th>Tarefa</th><th>Início</th><th>Meta</th><th>Real</th><th>Cumprida</th><th>Motivo</th>{semanaSelecionada.status === 'aberta' && <th>Ações</th>}</tr></thead>
+              <thead><tr><th>Tarefa</th><th>Início</th><th>Meta</th><th>Real</th><th>Cumprida</th><th>Motivo</th>{semanaSelecionada.status !== 'fechada' && <th>Ações</th>}</tr></thead>
               <tbody>{compromissos.map(c => (
                 <tr key={c.id}>
                   <td data-label="Tarefa">{tarefaPorId.get(c.tarefa_id)?.nome ?? 'Tarefa não encontrada'}</td>
@@ -568,14 +605,14 @@ export default function Planejamento() {
                   <td data-label="Real">{c.percentual_fim ?? '-'}{c.percentual_fim != null ? '%' : ''}</td>
                   <td data-label="Cumprida">{c.cumprido == null ? '-' : c.cumprido ? <span className={styles.chipResolvida + ' ' + styles.chip}>Sim</span> : <span className={styles.chipAberta + ' ' + styles.chip}>Não</span>}</td>
                   <td data-label="Motivo">
-                    {c.cumprido === false && semanaSelecionada.status === 'aberta' ? (
+                    {c.cumprido === false && semanaSelecionada.status !== 'fechada' ? (
                       <select value={c.motivo_categoria ?? ''} onChange={e => { if (e.target.value) atualizarMotivo(c, e.target.value as CategoriaRestricao, c.motivo_observacao ?? '') }}>
                         <option value="">Selecione o motivo</option>
                         {(Object.keys(CATEGORIA_LABEL) as CategoriaRestricao[]).map(cat => <option key={cat} value={cat}>{CATEGORIA_LABEL[cat]}</option>)}
                       </select>
                     ) : c.motivo_categoria ? CATEGORIA_LABEL[c.motivo_categoria] : '-'}
                   </td>
-                  {semanaSelecionada.status === 'aberta' && (
+                  {semanaSelecionada.status !== 'fechada' && (
                     <td data-label="Ações">
                       <button className={styles.btnPerigo} disabled={salvando} onClick={() => excluirCompromisso(c)}>Excluir</button>
                     </td>

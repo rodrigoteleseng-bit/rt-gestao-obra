@@ -87,10 +87,14 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
           .eq('ativo', true).in('tarefa_id', lote).order('data_referencia', { ascending: false })
           .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; percentual: number; data_referencia: string }>>))),
     Promise.all(lotesIds.map(lote =>
+      // planejamento_semanas!inner + filtro no status: só conta compromisso
+      // de semana com planejamento já travado (planejada/fechada) — uma
+      // semana ainda aberta pode mudar, não é "prometido" de verdade ainda.
       paginado<{ tarefa_id: string; planejamento_semanas: { data_fim: string } | null }>((de, ate, contar) =>
         supabase.from('planejamento_compromissos')
-          .select('tarefa_id, meta_percentual, planejamento_semanas(data_fim)', contar ? { count: 'exact' } : undefined)
+          .select('tarefa_id, meta_percentual, planejamento_semanas!inner(data_fim, status)', contar ? { count: 'exact' } : undefined)
           .eq('ativo', true).eq('meta_percentual', 100).in('tarefa_id', lote)
+          .in('planejamento_semanas.status', ['planejada', 'fechada'])
           .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; planejamento_semanas: { data_fim: string } | null }>>))),
   ])
 

@@ -787,7 +787,8 @@ function Plantas() {
     }),
     [editandoParede, setEditandoParede] = useState<ProducaoParede | null>(null),
     [formEdicao, setFormEdicao] = useState({ nome: "", metaAlvenaria: "", metaRebocoA: "", metaRebocoB: "" }),
-    [urlImagem, setUrlImagem] = useState<string | null>(null);
+    [urlImagem, setUrlImagem] = useState<string | null>(null),
+    [imprimindoPlanta, setImprimindoPlanta] = useState(false);
 
   const plantaAtual = plantas.find((p) => p.pavimento === pavimentoSel) ?? null;
   const paredesDaPlanta = paredes.filter((p) => p.planta_id === plantaAtual?.id);
@@ -919,6 +920,20 @@ function Plantas() {
     await carregar();
   }
 
+  async function imprimirPlanta() {
+    if (!urlImagem || !plantaAtual) return;
+    setImprimindoPlanta(true);
+    setMsg(null);
+    try {
+      const { gerarPdfPlanta } = await import("../lib/producaoPlantaPdf");
+      const pavimentoLabel = PAVIMENTOS.find((p) => p.valor === pavimentoSel)?.rotulo ?? pavimentoSel;
+      await gerarPdfPlanta({ imagemUrl: urlImagem, paredes: paredesDaPlanta, pavimentoLabel });
+    } catch (erro) {
+      setMsg({ tipo: "erro", texto: `Falha ao gerar o PDF da planta: ${(erro as Error).message}` });
+    }
+    setImprimindoPlanta(false);
+  }
+
   async function ajustarEscalaRotulo(parede: ProducaoParede, delta: number) {
     const atual = parede.rotulo_escala ?? 1;
     const nova = Math.min(2, Math.max(0.5, Math.round((atual + delta) * 10) / 10));
@@ -948,6 +963,11 @@ function Plantas() {
         <Mensagem msg={msg} />
         {urlImagem && (
           <>
+            <div className={styles.acoes}>
+              <button className={styles.btnSec} disabled={imprimindoPlanta} onClick={imprimirPlanta}>
+                {imprimindoPlanta ? "Gerando PDF..." : "Imprimir planta"}
+              </button>
+            </div>
             <p className={styles.sub}>Clique e arraste sobre uma parede para cadastrar a faixa clicável.</p>
             <PlantaClicavel
               imagemUrl={urlImagem}

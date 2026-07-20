@@ -159,6 +159,46 @@ export function montarArvore(
   return raizesPorUnidade
 }
 
+export interface NoParaEtapa {
+  id: string
+  nome: string
+  parent_id: string | null
+  unidade_id: string | null
+}
+
+// A coluna cronograma_tarefas.etapa_id nunca foi preenchida na importação do
+// MS Project (achado em 20/07/2026, ao investigar erro de Linha de
+// Balanço/Gantt) — a única forma confiável de agrupar tarefas por "etapa" é
+// subir a árvore até o nó que é filho direto da raiz da unidade (cada
+// sobrado/portaria/área comum tem uma única raiz com parent_id nulo; o nível
+// logo abaixo dela é o equivalente a "etapa" na árvore importada).
+export function etapaAncestralPorTarefa(nos: NoParaEtapa[]): Map<string, string> {
+  const porId = new Map(nos.map(n => [n.id, n]))
+  const raizPorUnidade = new Map<string, string>()
+  for (const n of nos) if (!n.parent_id && n.unidade_id) raizPorUnidade.set(n.unidade_id, n.id)
+
+  const cache = new Map<string, string | null>()
+  function resolver(id: string): string | null {
+    if (cache.has(id)) return cache.get(id) ?? null
+    const n = porId.get(id)
+    if (!n || !n.unidade_id) { cache.set(id, null); return null }
+    const raizId = raizPorUnidade.get(n.unidade_id)
+    if (!raizId || id === raizId) { cache.set(id, null); return null }
+    if (n.parent_id === raizId) { cache.set(id, n.nome); return n.nome }
+    if (!n.parent_id) { cache.set(id, null); return null }
+    const resultado = resolver(n.parent_id)
+    cache.set(id, resultado)
+    return resultado
+  }
+
+  const resultado = new Map<string, string>()
+  for (const n of nos) {
+    const etapa = resolver(n.id)
+    if (etapa) resultado.set(n.id, etapa)
+  }
+  return resultado
+}
+
 export function hojeISO(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`

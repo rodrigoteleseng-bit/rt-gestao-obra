@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { supabase } from './supabase'
-import { paginado, fatiar, type RespostaPaginada } from './cronograma'
+import { paginado, fatiar, etapaAncestralPorTarefa, type RespostaPaginada, type NoParaEtapa } from './cronograma'
 
 const NAVY = '#1A3248'
 const TERRACOTA = '#C49A7A'
@@ -75,22 +75,33 @@ export async function gerarPdfGanttPlanejamento(obraId: string) {
   const idsTarefas = [...planejadoPorTarefa.keys()]
   const lotesTarefas = fatiar(idsTarefas, 500)
 
-  type TarefaComEtapaUnidade = {
-    id: string; nome: string
-    etapas: { nome: string } | null
+  type TarefaComUnidade = {
+    id: string; nome: string; unidade_id: string | null
     unidades: { nome: string; ordem: number } | null
   }
   const [tarefasLotes, versaoResp] = await Promise.all([
     Promise.all(lotesTarefas.map(lote =>
-      paginado<TarefaComEtapaUnidade>((de, ate, contar) =>
+      paginado<TarefaComUnidade>((de, ate, contar) =>
         supabase.from('cronograma_tarefas')
-          .select('id, nome, etapas(nome), unidades(nome, ordem)', contar ? { count: 'exact' } : undefined)
+          .select('id, nome, unidade_id, unidades(nome, ordem)', contar ? { count: 'exact' } : undefined)
           .in('id', lote)
-          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<TarefaComEtapaUnidade>>))),
+          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<TarefaComUnidade>>))),
     supabase.from('cronograma_versoes').select('id').eq('obra_id', obraId).eq('vigente', true).eq('ativo', true).maybeSingle(),
   ])
   const tarefasInfo = tarefasLotes.flat()
   if (!versaoResp.data) throw new Error('Nenhuma versão vigente do cronograma encontrada para esta obra.')
+
+  // etapa_id de cronograma_tarefas nunca foi preenchido na importação do MS
+  // Project — deriva a etapa subindo a árvore até o filho direto da raiz da
+  // unidade. Precisa da árvore inteira (grupos + folhas) das unidades
+  // envolvidas, não só das tarefas comprometidas.
+  const idsUnidadesEnvolvidas = [...new Set(tarefasInfo.map(t => t.unidade_id).filter((id): id is string => !!id))]
+  const todosNos = idsUnidadesEnvolvidas.length === 0 ? [] : await paginado<NoParaEtapa>((de, ate, contar) =>
+    supabase.from('cronograma_tarefas')
+      .select('id, nome, parent_id, unidade_id', contar ? { count: 'exact' } : undefined)
+      .eq('ativo', true).in('unidade_id', idsUnidadesEnvolvidas)
+      .range(de, ate) as unknown as PromiseLike<RespostaPaginada<NoParaEtapa>>)
+  const etapaPorTarefaId = etapaAncestralPorTarefa(todosNos)
 
   const [previstoLista, avancoLotes] = await Promise.all([
     paginado<{ tarefa_id: string; inicio: string; fim: string }>((de, ate, contar) =>
@@ -119,7 +130,8 @@ export async function gerarPdfGanttPlanejamento(obraId: string) {
   let dataMin = Infinity
   let dataMax = -Infinity
   for (const t of tarefasInfo) {
-    if (!t.unidades || !t.etapas) continue
+    const etapaNome = etapaPorTarefaId.get(t.id)
+    if (!t.unidades || !etapaNome) continue
     const planejado = planejadoPorTarefa.get(t.id) ?? null
     const previsto = previstoPorTarefa.get(t.id) ?? null
     const avanco = avancoPorTarefa.get(t.id) ?? null
@@ -130,7 +142,7 @@ export async function gerarPdfGanttPlanejamento(obraId: string) {
       nome: t.nome,
       unidadeNome: t.unidades.nome,
       unidadeOrdem: t.unidades.ordem,
-      etapaNome: t.etapas.nome,
+      etapaNome,
       previstoInicio,
       previstoFim,
       planejadoInicio: planejado?.inicio ?? null,

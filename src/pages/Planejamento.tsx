@@ -4,7 +4,7 @@ import { useObra } from '../contexts/ObraContext'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import { supabase, type CategoriaRestricao, type PerfilUsuario, type PlanejamentoCompromisso, type PlanejamentoSemana, type Restricao, type StatusRestricao } from '../lib/supabase'
 import type { GranularidadeLinhaBalanco } from '../lib/linhaBalancoPdf'
-import { paginado, fatiar, type RespostaPaginada } from '../lib/cronograma'
+import { paginado, fatiar, etapaAncestralPorTarefa, type RespostaPaginada } from '../lib/cronograma'
 import styles from './Planejamento.module.css'
 
 type Msg = { tipo: 'ok' | 'erro'; texto: string } | null
@@ -13,15 +13,12 @@ type Aba = 'mensal' | 'semanal' | 'trimestral'
 interface TarefaCronograma {
   id: string
   nome: string
-  etapa_id: string | null
   unidade_id: string | null
   resumo: boolean
-  etapas: { nome: string } | null
   unidades: { nome: string } | null
 }
 
 interface MarcoEtapa {
-  etapaId: string
   nome: string
   dataFim: string | null
   percentualMedio: number
@@ -101,6 +98,10 @@ export default function Planejamento() {
 
   const tarefaPorId = useMemo(() => new Map(tarefas.map(t => [t.id, t])), [tarefas])
   const usuarioPorId = useMemo(() => new Map(usuarios.map(u => [u.id, u])), [usuarios])
+  // etapa_id de cronograma_tarefas nunca foi preenchido na importação do MS
+  // Project — deriva a etapa subindo a árvore até o filho direto da raiz da
+  // unidade (achado em 20/07/2026 ao investigar Linha de Balanço/Gantt vazios).
+  const etapaPorTarefaId = useMemo(() => etapaAncestralPorTarefa(todasTarefas), [todasTarefas])
 
   const tarefasAbertasPorId = useMemo(() => {
     const abertas = new Set<string>()
@@ -131,7 +132,7 @@ export default function Planejamento() {
       const [tarefasLista, todasTarefasLista] = await Promise.all([
         paginado<TarefaCronograma>((de, ate, contar) =>
           supabase.from('cronograma_tarefas')
-            .select('id, nome, etapa_id, unidade_id, resumo, etapas(nome), unidades(nome)', contar ? { count: 'exact' } : undefined)
+            .select('id, nome, unidade_id, resumo, unidades(nome)', contar ? { count: 'exact' } : undefined)
             .eq('obra_id', obraAtiva.id).eq('ativo', true).eq('resumo', false).order('nome')
             .range(de, ate) as unknown as PromiseLike<RespostaPaginada<TarefaCronograma>>),
         paginado<TarefaArvoreNo>((de, ate, contar) =>
@@ -214,27 +215,28 @@ export default function Planejamento() {
       }
       const fimPorTarefa = new Map(previstoLista.map(p => [p.tarefa_id, p.fim]))
 
-      const porEtapa = new Map<string, { nome: string; tarefaIds: string[] }>()
+      const porEtapa = new Map<string, string[]>()
       for (const t of tarefas) {
-        if (!t.etapa_id) continue
-        const atual = porEtapa.get(t.etapa_id) ?? { nome: t.etapas?.nome ?? 'Etapa', tarefaIds: [] }
-        atual.tarefaIds.push(t.id)
-        porEtapa.set(t.etapa_id, atual)
+        const nomeEtapa = etapaPorTarefaId.get(t.id)
+        if (!nomeEtapa) continue
+        const atual = porEtapa.get(nomeEtapa) ?? []
+        atual.push(t.id)
+        porEtapa.set(nomeEtapa, atual)
       }
 
       const lista: MarcoEtapa[] = []
-      for (const [etapaId, info] of porEtapa) {
-        const datasFim = info.tarefaIds.map(id => fimPorTarefa.get(id)).filter((d): d is string => !!d)
+      for (const [nome, tarefaIds] of porEtapa) {
+        const datasFim = tarefaIds.map(id => fimPorTarefa.get(id)).filter((d): d is string => !!d)
         const dataFim = datasFim.length > 0 ? datasFim.sort()[datasFim.length - 1] : null
-        const percentuais = info.tarefaIds.map(id => percentuaisAtuais[id] ?? 0)
+        const percentuais = tarefaIds.map(id => percentuaisAtuais[id] ?? 0)
         const percentualMedio = percentuais.length > 0 ? Math.round(percentuais.reduce((a, b) => a + b, 0) / percentuais.length) : 0
-        lista.push({ etapaId, nome: info.nome, dataFim, percentualMedio })
+        lista.push({ nome, dataFim, percentualMedio })
       }
       lista.sort((a, b) => (a.dataFim ?? '9999-99-99').localeCompare(b.dataFim ?? '9999-99-99'))
       setMarcos(lista)
     }
     carregarMarcos()
-  }, [obraAtiva, tarefas, percentuaisAtuais])
+  }, [obraAtiva, tarefas, percentuaisAtuais, etapaPorTarefaId])
 
   const semanaSelecionada = semanas.find(s => s.id === semanaSelecionadaId) ?? null
   const jaComprometidasPorId = useMemo(() => new Set(compromissos.map(c => c.tarefa_id)), [compromissos])
@@ -460,7 +462,7 @@ export default function Planejamento() {
             <div className={styles.formHeader}><h2>Nova restrição</h2></div>
             <div className={styles.campos}>
               <label className={styles.campo}>Buscar tarefa do cronograma<input value={buscaTarefa} onChange={e => setBuscaTarefa(e.target.value)} placeholder="Digite o nome da tarefa" /></label>
-              <label className={styles.campo}>Tarefa<select value={tarefaId} onChange={e => setTarefaId(e.target.value)}><option value="">Selecione</option>{tarefasFiltradas.map(t => <option key={t.id} value={t.id}>{t.nome}{t.etapas ? ' - ' + t.etapas.nome : ''}</option>)}</select></label>
+              <label className={styles.campo}>Tarefa<select value={tarefaId} onChange={e => setTarefaId(e.target.value)}><option value="">Selecione</option>{tarefasFiltradas.map(t => <option key={t.id} value={t.id}>{t.nome}{etapaPorTarefaId.get(t.id) ? ' - ' + etapaPorTarefaId.get(t.id) : ''}</option>)}</select></label>
               <div className={styles.linha3}>
                 <label className={styles.campo}>Categoria<select value={categoria} onChange={e => setCategoria(e.target.value as CategoriaRestricao)}>{(Object.keys(CATEGORIA_LABEL) as CategoriaRestricao[]).map(c => <option key={c} value={c}>{CATEGORIA_LABEL[c]}</option>)}</select></label>
                 <label className={styles.campo}>Responsável<select value={responsavelId} onChange={e => setResponsavelId(e.target.value)}><option value="">Sem responsável definido</option>{usuarios.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}</select></label>
@@ -629,7 +631,7 @@ export default function Planejamento() {
           <table className={styles.tabela}>
             <thead><tr><th>Etapa</th><th>Previsão de término</th><th>Avanço médio</th></tr></thead>
             <tbody>{marcos.map(m => (
-              <tr key={m.etapaId}>
+              <tr key={m.nome}>
                 <td data-label="Etapa">{m.nome}</td>
                 <td data-label="Previsão de término">{m.dataFim ? fmtData(m.dataFim) : 'Sem data prevista'}</td>
                 <td data-label="Avanço médio">{m.percentualMedio}%</td>

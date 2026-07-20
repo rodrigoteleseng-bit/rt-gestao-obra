@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { supabase } from './supabase'
-import { paginado, fatiar, type RespostaPaginada } from './cronograma'
+import { paginado, fatiar, etapaAncestralPorTarefa, type RespostaPaginada } from './cronograma'
 
 export type GranularidadeLinhaBalanco = 'semanal' | 'mensal'
 
@@ -8,18 +8,17 @@ const NAVY = '#1A3248'
 const CINZA_GRADE = '#d8dde3'
 const CINZA_TEXTO = '#444444'
 
-// Paleta com 9 cores distinguíveis — bate com a quantidade real de etapas
-// cadastradas por sobrado nesta obra (COBERTURA, DIVERSOS,
-// IMPERMEABILIZAÇÃO, INSTALAÇÕES, LOUÇAS E METAIS, MURO DE CONTENÇÃO,
-// PAVIMENTO PLATIBANDA, PAVIMENTO SUPERIOR, PAVIMENTO TERREO). Se a obra
-// tiver mais etapas que isso no futuro, a paleta repete (ainda funciona,
-// só fica menos distinguível).
+// Paleta de cores distinguíveis pros grupos da árvore do cronograma (a
+// quantidade real varia por sobrado — normalmente mais de 9 — a paleta
+// repete quando precisa, só fica menos distinguível).
 const PALETA = ['#1A3248', '#C49A7A', '#3A7CA5', '#6B8F71', '#A65E5E', '#8B6BA6', '#C9A227', '#4A7A8C', '#B85C38']
 
-interface TarefaCronograma {
+interface NoCronograma {
   id: string
-  etapa_id: string | null
+  nome: string
+  parent_id: string | null
   unidade_id: string | null
+  resumo: boolean
 }
 
 interface PontoSobrado {
@@ -52,14 +51,8 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
   // cronograma_tarefas/cronograma_previsto/avancos_fisicos passam de 1000
   // linhas nesta obra — o Supabase corta silenciosamente sem paginar, então
   // usa o mesmo helper já usado no Cronograma (Fase 2, src/lib/cronograma.ts).
-  type TarefaComEtapaUnidade = TarefaCronograma & { etapas: { nome: string } | null; unidades: { tipo: string } | null }
-  const [unidadesResp, tarefasLista, versaoResp] = await Promise.all([
+  const [unidadesResp, versaoResp] = await Promise.all([
     supabase.from('unidades').select('id, nome').eq('obra_id', obraId).eq('ativo', true).eq('tipo', 'sobrado').order('nome'),
-    paginado<TarefaComEtapaUnidade>((de, ate, contar) =>
-      supabase.from('cronograma_tarefas')
-        .select('id, etapa_id, unidade_id, etapas(nome), unidades(tipo)', contar ? { count: 'exact' } : undefined)
-        .eq('obra_id', obraId).eq('ativo', true).eq('resumo', false)
-        .range(de, ate) as unknown as PromiseLike<RespostaPaginada<TarefaComEtapaUnidade>>),
     supabase.from('cronograma_versoes').select('id').eq('obra_id', obraId).eq('vigente', true).eq('ativo', true).maybeSingle(),
   ])
   if (unidadesResp.error) throw new Error('Erro ao carregar sobrados: ' + unidadesResp.error.message)
@@ -68,8 +61,18 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
   const sobrados = unidadesResp.data ?? []
   if (sobrados.length === 0) throw new Error('Nenhum sobrado cadastrado nesta obra.')
   const indicePorSobrado = new Map(sobrados.map((s, i) => [s.id, i + 1]))
+  const idsSobrados = sobrados.map(s => s.id)
 
-  const tarefasSobrados = tarefasLista.filter(t => t.unidades?.tipo === 'sobrado' && t.etapa_id && t.unidade_id && t.etapas?.nome)
+  // Busca a árvore inteira (grupos + folhas) dos sobrados, pra derivar a
+  // etapa de cada folha subindo até o nó filho direto da raiz da unidade.
+  const todosNos = await paginado<NoCronograma>((de, ate, contar) =>
+    supabase.from('cronograma_tarefas')
+      .select('id, nome, parent_id, unidade_id, resumo', contar ? { count: 'exact' } : undefined)
+      .eq('obra_id', obraId).eq('ativo', true).in('unidade_id', idsSobrados)
+      .range(de, ate) as unknown as PromiseLike<RespostaPaginada<NoCronograma>>)
+
+  const etapaPorTarefaId = etapaAncestralPorTarefa(todosNos)
+  const tarefasSobrados = todosNos.filter(t => !t.resumo && etapaPorTarefaId.has(t.id))
   if (tarefasSobrados.length === 0) throw new Error('Nenhuma tarefa de sobrado encontrada no cronograma.')
 
   const idsTarefas = tarefasSobrados.map(t => t.id)
@@ -112,13 +115,13 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
     if (atual == null || fimMs > atual) planejadoPorTarefa.set(c.tarefa_id, fimMs)
   }
 
-  // Agrupa por (nome da etapa, sobrado) — cada sobrado tem sua própria linha
-  // de etapas no banco (etapas.unidade_id), então o nome é o único jeito de
-  // juntar "Alvenaria do Sobrado 01" com "Alvenaria do Sobrado 02" na mesma
-  // linha do gráfico.
+  // Agrupa por (nome da etapa, sobrado) — cada sobrado tem sua própria árvore
+  // de grupos no cronograma, então o nome é o único jeito de juntar
+  // "Alvenaria do Sobrado 01" com "Alvenaria do Sobrado 02" na mesma linha
+  // do gráfico.
   const grupos = new Map<string, Map<string, string[]>>() // nomeEtapa -> unidadeId -> tarefaIds
   for (const t of tarefasSobrados) {
-    const nomeEtapa = t.etapas!.nome
+    const nomeEtapa = etapaPorTarefaId.get(t.id)!
     if (!grupos.has(nomeEtapa)) grupos.set(nomeEtapa, new Map())
     const porUnidade = grupos.get(nomeEtapa)!
     if (!porUnidade.has(t.unidade_id!)) porUnidade.set(t.unidade_id!, [])

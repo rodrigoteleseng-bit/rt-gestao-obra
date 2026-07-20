@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
+import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import { supabase, type CategoriaRestricao, type PerfilUsuario, type PlanejamentoCompromisso, type PlanejamentoSemana, type Restricao, type StatusRestricao } from '../lib/supabase'
 import type { GranularidadeLinhaBalanco } from '../lib/linhaBalancoPdf'
 import { paginado, fatiar, type RespostaPaginada } from '../lib/cronograma'
@@ -55,6 +56,7 @@ const fmtData = (iso?: string | null) => iso ? new Date(iso + 'T00:00:00').toLoc
 export default function Planejamento() {
   const { perfil, temModulo } = useAuth()
   const { obraAtiva } = useObra()
+  const { confirmar } = useConfirmDialog()
   const podeEditar = perfil?.papel === 'admin' || (perfil?.papel === 'equipe' && temModulo('planejamento'))
   const semPermissao = !podeEditar
 
@@ -340,6 +342,24 @@ export default function Planejamento() {
     if (semanaSelecionada) await carregarCompromissos(semanaSelecionada.id)
   }
 
+  async function excluirCompromisso(c: PlanejamentoCompromisso) {
+    const nome = tarefaPorId.get(c.tarefa_id)?.nome ?? 'esta tarefa'
+    const ok = await confirmar({
+      titulo: 'Excluir compromisso',
+      mensagem: `Remover o compromisso de "${nome}" desta semana? Essa ação não pode ser desfeita.`,
+      confirmarTexto: 'Excluir',
+      perigoso: true,
+    })
+    if (!ok) return
+    setMsg(null)
+    setSalvando(true)
+    const { error } = await supabase.from('planejamento_compromissos').update({ ativo: false }).eq('id', c.id)
+    setSalvando(false)
+    if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao excluir compromisso: ' + error.message })
+    setMsg({ tipo: 'ok', texto: 'Compromisso excluído.' })
+    if (semanaSelecionada) await carregarCompromissos(semanaSelecionada.id)
+  }
+
   async function calcularFechamento() {
     if (!semanaSelecionada) return
     setMsg(null)
@@ -522,7 +542,7 @@ export default function Planejamento() {
 
           {compromissos.length === 0 ? <div className={styles.vazio}>Nenhuma tarefa comprometida nesta semana.</div> : (
             <table className={styles.tabela}>
-              <thead><tr><th>Tarefa</th><th>Início</th><th>Meta</th><th>Real</th><th>Cumprida</th><th>Motivo</th></tr></thead>
+              <thead><tr><th>Tarefa</th><th>Início</th><th>Meta</th><th>Real</th><th>Cumprida</th><th>Motivo</th>{semanaSelecionada.status === 'aberta' && <th>Ações</th>}</tr></thead>
               <tbody>{compromissos.map(c => (
                 <tr key={c.id}>
                   <td data-label="Tarefa">{tarefaPorId.get(c.tarefa_id)?.nome ?? 'Tarefa não encontrada'}</td>
@@ -538,6 +558,11 @@ export default function Planejamento() {
                       </select>
                     ) : c.motivo_categoria ? CATEGORIA_LABEL[c.motivo_categoria] : '-'}
                   </td>
+                  {semanaSelecionada.status === 'aberta' && (
+                    <td data-label="Ações">
+                      <button className={styles.btnPerigo} disabled={salvando} onClick={() => excluirCompromisso(c)}>Excluir</button>
+                    </td>
+                  )}
                 </tr>
               ))}</tbody>
             </table>

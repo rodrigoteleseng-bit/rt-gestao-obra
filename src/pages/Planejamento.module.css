@@ -32,6 +32,15 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .chipAberta { background: #fdeaea; color: var(--erro); }
 .chipResolvida { background: #e6f4ec; color: var(--sucesso); }
 .vazio { background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); padding: 18px; color: var(--cinza-600); box-shadow: var(--sombra-sm); }
+.arvore { max-height: 320px; overflow-y: auto; border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); padding: 6px 0; }
+.noArvore { padding: 7px 10px; font-size: 13px; font-weight: 700; color: var(--navy); cursor: pointer; }
+.noArvore:hover { background: var(--nude); }
+.noArvoreFolha { padding: 7px 10px; font-size: 13px; color: var(--cinza-900); cursor: pointer; }
+.noArvoreFolha:hover { background: var(--nude); }
+.noArvoreFolhaSelecionada { background: var(--nude); font-weight: 800; color: var(--navy); }
+.noArvoreFolhaBloqueada { color: var(--cinza-600); cursor: not-allowed; text-decoration: line-through; }
+.noArvoreFolhaBloqueada:hover { background: none; }
+.noArvoreMeta { font-size: 11px; font-weight: 400; color: var(--cinza-600); }
 @media (max-width: 860px) {
   .header { flex-direction: column; width: 100%; }
   .linha2, .linha3 { grid-template-columns: 1fr; }

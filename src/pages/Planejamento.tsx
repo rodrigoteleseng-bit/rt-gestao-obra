@@ -25,6 +25,19 @@ interface MarcoEtapa {
   percentualMedio: number
 }
 
+interface TarefaArvoreNo {
+  id: string
+  nome: string
+  parent_id: string | null
+  unidade_id: string | null
+  resumo: boolean
+}
+
+interface UnidadeSimples {
+  id: string
+  nome: string
+}
+
 export const CATEGORIA_LABEL: Record<CategoriaRestricao, string> = {
   material: 'Material',
   mao_de_obra: 'Mão de obra',
@@ -73,10 +86,14 @@ export default function Planejamento() {
   const [novaSemanaInicio, setNovaSemanaInicio] = useState('')
   const [novaSemanaFim, setNovaSemanaFim] = useState('')
   const [formCompromissoAberto, setFormCompromissoAberto] = useState(false)
-  const [buscaTarefaCompromisso, setBuscaTarefaCompromisso] = useState('')
   const [tarefaCompromissoId, setTarefaCompromissoId] = useState('')
   const [metaPercentual, setMetaPercentual] = useState('')
   const [gerandoLinhaBalanco, setGerandoLinhaBalanco] = useState<GranularidadeLinhaBalanco | null>(null)
+
+  const [unidadesObra, setUnidadesObra] = useState<UnidadeSimples[]>([])
+  const [todasTarefas, setTodasTarefas] = useState<TarefaArvoreNo[]>([])
+  const [unidadeArvoreId, setUnidadeArvoreId] = useState('')
+  const [nosAbertos, setNosAbertos] = useState<Set<string>>(new Set())
 
   const tarefaPorId = useMemo(() => new Map(tarefas.map(t => [t.id, t])), [tarefas])
   const usuarioPorId = useMemo(() => new Map(usuarios.map(u => [u.id, u])), [usuarios])
@@ -103,10 +120,12 @@ export default function Planejamento() {
     if (!obraAtiva || semPermissao) { setCarregando(false); return }
     setCarregando(true)
     setMsg(null)
-    const [tarefasResp, usuariosResp, restricoesResp] = await Promise.all([
+    const [tarefasResp, usuariosResp, restricoesResp, unidadesResp, todasTarefasResp] = await Promise.all([
       supabase.from('cronograma_tarefas').select('id, nome, etapa_id, unidade_id, resumo, etapas(nome), unidades(nome)').eq('obra_id', obraAtiva.id).eq('ativo', true).eq('resumo', false).order('nome'),
       supabase.from('perfis_usuario').select('*').eq('ativo', true).neq('papel', 'cliente').order('nome'),
       supabase.from('restricoes').select('*').eq('obra_id', obraAtiva.id).eq('ativo', true).order('prazo'),
+      supabase.from('unidades').select('id, nome').eq('obra_id', obraAtiva.id).eq('ativo', true).order('ordem'),
+      supabase.from('cronograma_tarefas').select('id, nome, parent_id, unidade_id, resumo').eq('obra_id', obraAtiva.id).eq('ativo', true).order('ordem'),
     ])
     if (tarefasResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar tarefas do cronograma: ' + tarefasResp.error.message })
     else setTarefas((tarefasResp.data ?? []) as unknown as TarefaCronograma[])
@@ -114,6 +133,10 @@ export default function Planejamento() {
     else setUsuarios(usuariosResp.data ?? [])
     if (restricoesResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar restrições: ' + restricoesResp.error.message })
     else setRestricoes(restricoesResp.data ?? [])
+    if (unidadesResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar unidades: ' + unidadesResp.error.message })
+    else setUnidadesObra(unidadesResp.data ?? [])
+    if (todasTarefasResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar a árvore do cronograma: ' + todasTarefasResp.error.message })
+    else setTodasTarefas((todasTarefasResp.data ?? []) as TarefaArvoreNo[])
     const semanasResp = await supabase.from('planejamento_semanas').select('*').eq('obra_id', obraAtiva.id).eq('ativo', true).order('data_inicio', { ascending: false })
     if (semanasResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar semanas: ' + semanasResp.error.message })
     else {
@@ -174,14 +197,24 @@ export default function Planejamento() {
   }, [obraAtiva, tarefas, percentuaisAtuais])
 
   const semanaSelecionada = semanas.find(s => s.id === semanaSelecionadaId) ?? null
-  const tarefasElegiveis = useMemo(() => {
-    const termo = buscaTarefaCompromisso.trim().toLowerCase()
-    const jaComprometidas = new Set(compromissos.map(c => c.tarefa_id))
-    return tarefas
-      .filter(t => !tarefasAbertasPorId.has(t.id) && !jaComprometidas.has(t.id))
-      .filter(t => !termo || t.nome.toLowerCase().includes(termo))
-      .slice(0, 30)
-  }, [tarefas, tarefasAbertasPorId, compromissos, buscaTarefaCompromisso])
+  const jaComprometidasPorId = useMemo(() => new Set(compromissos.map(c => c.tarefa_id)), [compromissos])
+
+  const arvoreCronograma = useMemo(() => {
+    const filhosPorPai = new Map<string, TarefaArvoreNo[]>()
+    const raizesPorUnidade = new Map<string, TarefaArvoreNo[]>()
+    for (const t of todasTarefas) {
+      if (t.parent_id) {
+        const lista = filhosPorPai.get(t.parent_id) ?? []
+        lista.push(t)
+        filhosPorPai.set(t.parent_id, lista)
+      } else if (t.unidade_id) {
+        const lista = raizesPorUnidade.get(t.unidade_id) ?? []
+        lista.push(t)
+        raizesPorUnidade.set(t.unidade_id, lista)
+      }
+    }
+    return { filhosPorPai, raizesPorUnidade }
+  }, [todasTarefas])
 
   function limparForm() {
     setBuscaTarefa('')
@@ -255,7 +288,6 @@ export default function Planejamento() {
     })
     setSalvando(false)
     if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao comprometer tarefa: ' + error.message })
-    setBuscaTarefaCompromisso('')
     setTarefaCompromissoId('')
     setMetaPercentual('')
     setFormCompromissoAberto(false)
@@ -400,11 +432,41 @@ export default function Planejamento() {
             <div className={styles.formulario}>
               <div className={styles.formHeader}><h2>Comprometer tarefa</h2></div>
               <div className={styles.campos}>
-                <label className={styles.campo}>Buscar tarefa sem restrição aberta<input value={buscaTarefaCompromisso} onChange={e => setBuscaTarefaCompromisso(e.target.value)} /></label>
-                <label className={styles.campo}>Tarefa<select value={tarefaCompromissoId} onChange={e => setTarefaCompromissoId(e.target.value)}><option value="">Selecione</option>{tarefasElegiveis.map(t => <option key={t.id} value={t.id}>{t.nome} (atual: {percentuaisAtuais[t.id] ?? 0}%)</option>)}</select></label>
+                <label className={styles.campo}>Unidade
+                  <select value={unidadeArvoreId} onChange={e => { setUnidadeArvoreId(e.target.value); setTarefaCompromissoId('') }}>
+                    <option value="">Selecione</option>
+                    {unidadesObra.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                  </select>
+                </label>
+                {unidadeArvoreId && (
+                  <div className={styles.arvore}>
+                    {(arvoreCronograma.raizesPorUnidade.get(unidadeArvoreId) ?? []).map(no => (
+                      <NoArvoreCompromisso
+                        key={no.id}
+                        no={no}
+                        profundidade={0}
+                        filhosPorPai={arvoreCronograma.filhosPorPai}
+                        restritas={tarefasAbertasPorId}
+                        comprometidas={jaComprometidasPorId}
+                        percentuais={percentuaisAtuais}
+                        selecionadoId={tarefaCompromissoId}
+                        onSelecionar={setTarefaCompromissoId}
+                        abertos={nosAbertos}
+                        onToggle={id => setNosAbertos(atual => {
+                          const novo = new Set(atual)
+                          if (novo.has(id)) novo.delete(id); else novo.add(id)
+                          return novo
+                        })}
+                      />
+                    ))}
+                  </div>
+                )}
+                {tarefaCompromissoId && (
+                  <div className={styles.msgOk}>Selecionada: {tarefaPorId.get(tarefaCompromissoId)?.nome ?? 'tarefa'} (atual: {percentuaisAtuais[tarefaCompromissoId] ?? 0}%)</div>
+                )}
                 <label className={styles.campo}>Meta de % pro fim da semana<input type="number" min={0} max={100} value={metaPercentual} onChange={e => setMetaPercentual(e.target.value)} /></label>
               </div>
-              <div className={styles.acoesForm}><button className={styles.btnPrimario} disabled={salvando} onClick={adicionarCompromisso}>Comprometer</button></div>
+              <div className={styles.acoesForm}><button className={styles.btnPrimario} disabled={salvando || !tarefaCompromissoId} onClick={adicionarCompromisso}>Comprometer</button></div>
             </div>
           )}
 
@@ -460,6 +522,61 @@ export default function Planejamento() {
           </table>
         )}
       </>}
+    </div>
+  )
+}
+
+function NoArvoreCompromisso({
+  no, profundidade, filhosPorPai, restritas, comprometidas, percentuais, selecionadoId, onSelecionar, abertos, onToggle,
+}: {
+  no: TarefaArvoreNo
+  profundidade: number
+  filhosPorPai: Map<string, TarefaArvoreNo[]>
+  restritas: Set<string>
+  comprometidas: Set<string>
+  percentuais: Record<string, number>
+  selecionadoId: string
+  onSelecionar: (id: string) => void
+  abertos: Set<string>
+  onToggle: (id: string) => void
+}) {
+  const filhos = filhosPorPai.get(no.id) ?? []
+  const temFilhos = filhos.length > 0
+
+  if (temFilhos) {
+    const aberto = abertos.has(no.id)
+    return (
+      <div>
+        <div className={styles.noArvore} style={{ paddingLeft: 10 + profundidade * 16 }} onClick={() => onToggle(no.id)} role="button" tabIndex={0}>
+          {aberto ? '▾' : '▸'} {no.nome}
+        </div>
+        {aberto && filhos.map(f => (
+          <NoArvoreCompromisso
+            key={f.id} no={f} profundidade={profundidade + 1} filhosPorPai={filhosPorPai}
+            restritas={restritas} comprometidas={comprometidas} percentuais={percentuais}
+            selecionadoId={selecionadoId} onSelecionar={onSelecionar} abertos={abertos} onToggle={onToggle}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  const restrita = restritas.has(no.id)
+  const comprometida = comprometidas.has(no.id)
+  const bloqueada = restrita || comprometida
+  const selecionada = selecionadoId === no.id
+  return (
+    <div
+      className={[styles.noArvoreFolha, selecionada ? styles.noArvoreFolhaSelecionada : '', bloqueada ? styles.noArvoreFolhaBloqueada : ''].filter(Boolean).join(' ')}
+      style={{ paddingLeft: 26 + profundidade * 16 }}
+      onClick={() => !bloqueada && onSelecionar(no.id)}
+      role="button"
+      tabIndex={bloqueada ? undefined : 0}
+    >
+      {no.nome}{' '}
+      {bloqueada
+        ? <span className={styles.noArvoreMeta}>({restrita ? 'restrição aberta' : 'já comprometida'})</span>
+        : <span className={styles.noArvoreMeta}>(atual: {percentuais[no.id] ?? 0}%)</span>}
     </div>
   )
 }

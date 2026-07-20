@@ -23,7 +23,8 @@ interface TarefaCronograma {
 
 interface PontoSobrado {
   sobradoIndex: number
-  previsto: number | null // timestamp (ms)
+  previsto: number | null // timestamp (ms) — data prevista no Cronograma
+  planejado: number | null // timestamp (ms) — data prometida no compromisso semanal do Planejamento (meta 100%)
   real: number | null // timestamp (ms), só quando a etapa bateu 100% no sobrado
 }
 
@@ -66,16 +67,28 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
   if (tarefasSobrados.length === 0) throw new Error('Nenhuma tarefa de sobrado encontrada no cronograma.')
 
   const idsTarefas = tarefasSobrados.map(t => t.id)
-  const [previstoResp, avancoResp] = await Promise.all([
+  const [previstoResp, avancoResp, compromissosResp] = await Promise.all([
     supabase.from('cronograma_previsto').select('tarefa_id, inicio, fim').eq('versao_id', versaoResp.data.id).in('tarefa_id', idsTarefas),
     supabase.from('avancos_fisicos').select('tarefa_id, percentual, data_referencia').eq('ativo', true).in('tarefa_id', idsTarefas).order('data_referencia', { ascending: false }),
+    supabase.from('planejamento_compromissos').select('tarefa_id, meta_percentual, planejamento_semanas(data_fim)').eq('ativo', true).eq('meta_percentual', 100).in('tarefa_id', idsTarefas),
   ])
   if (previstoResp.error) throw new Error('Erro ao carregar datas previstas: ' + previstoResp.error.message)
   if (avancoResp.error) throw new Error('Erro ao carregar avanço físico: ' + avancoResp.error.message)
+  if (compromissosResp.error) throw new Error('Erro ao carregar compromissos do Planejamento: ' + compromissosResp.error.message)
 
   const previstoPorTarefa = new Map((previstoResp.data ?? []).map(p => [p.tarefa_id, { inicio: p.inicio, fim: p.fim }]))
   const avancoPorTarefa = new Map<string, { percentual: number; data_referencia: string }>()
   for (const a of avancoResp.data ?? []) if (!avancoPorTarefa.has(a.tarefa_id)) avancoPorTarefa.set(a.tarefa_id, a)
+
+  // Data prometida via compromisso semanal (meta 100%) — pega a mais recente
+  // quando a mesma tarefa foi comprometida com meta 100% em mais de uma semana.
+  const planejadoPorTarefa = new Map<string, number>()
+  for (const c of (compromissosResp.data ?? []) as unknown as { tarefa_id: string; planejamento_semanas: { data_fim: string } | null }[]) {
+    if (!c.planejamento_semanas?.data_fim) continue
+    const fimMs = new Date(c.planejamento_semanas.data_fim).getTime()
+    const atual = planejadoPorTarefa.get(c.tarefa_id)
+    if (atual == null || fimMs > atual) planejadoPorTarefa.set(c.tarefa_id, fimMs)
+  }
 
   // Agrupa por (nome da etapa, sobrado) — cada sobrado tem sua própria linha
   // de etapas no banco (etapas.unidade_id), então o nome é o único jeito de
@@ -100,6 +113,7 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
       const sobradoIndex = indicePorSobrado.get(unidadeId)
       if (!sobradoIndex) continue
       let previstoFim: number | null = null
+      let planejadoFim: number | null = null
       const percentuais: number[] = []
       let dataUltimaMedicao: number | null = null
       for (const tid of tarefaIds) {
@@ -109,6 +123,11 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
           const fimMs = new Date(prev.fim).getTime()
           dataMax = Math.max(dataMax, fimMs)
           previstoFim = previstoFim == null ? fimMs : Math.max(previstoFim, fimMs)
+        }
+        const planejadoTarefa = planejadoPorTarefa.get(tid)
+        if (planejadoTarefa != null) {
+          dataMax = Math.max(dataMax, planejadoTarefa)
+          planejadoFim = planejadoFim == null ? planejadoTarefa : Math.max(planejadoFim, planejadoTarefa)
         }
         const av = avancoPorTarefa.get(tid)
         percentuais.push(av?.percentual ?? 0)
@@ -120,7 +139,7 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
       const percentualMedio = percentuais.length > 0 ? percentuais.reduce((a, b) => a + b, 0) / percentuais.length : 0
       const real = percentualMedio >= 100 && dataUltimaMedicao != null ? dataUltimaMedicao : null
       if (real != null) dataMax = Math.max(dataMax, real)
-      pontos.push({ sobradoIndex, previsto: previstoFim, real })
+      pontos.push({ sobradoIndex, previsto: previstoFim, planejado: planejadoFim, real })
     }
     pontos.sort((a, b) => a.sobradoIndex - b.sobradoIndex)
     linhas.push({ nome: nomeEtapa, cor: PALETA[corIndex % PALETA.length], pontos })
@@ -199,7 +218,8 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
   pdf.setDrawColor(NAVY)
   pdf.rect(areaX, areaY, areaW, areaH)
 
-  // linhas por etapa: previsto (sólida) e real (tracejada, só onde já bateu 100%)
+  // linhas por etapa: previsto (sólida), planejado (pontilhada) e real
+  // (tracejada, só onde já bateu 100%)
   for (const linha of linhas) {
     pdf.setDrawColor(linha.cor)
     pdf.setLineWidth(0.5)
@@ -208,6 +228,11 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
       if (a.previsto != null && b.previsto != null) {
         pdf.setLineDashPattern([], 0)
         pdf.line(x(a.previsto), y(a.sobradoIndex), x(b.previsto), y(b.sobradoIndex))
+      }
+      if (a.planejado != null && b.planejado != null) {
+        pdf.setLineDashPattern([0.3, 1.1], 0)
+        pdf.line(x(a.planejado), y(a.sobradoIndex), x(b.planejado), y(b.sobradoIndex))
+        pdf.setLineDashPattern([], 0)
       }
       if (a.real != null && b.real != null) {
         pdf.setLineDashPattern([1.2, 1], 0)
@@ -235,7 +260,7 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
   legendaY += 6
   pdf.setFont('helvetica', 'italic')
   pdf.setFontSize(7)
-  pdf.text('Linha sólida = previsto · linha tracejada = real (só aparece quando o sobrado atingiu 100% de avanço na etapa)', ML, legendaY)
+  pdf.text('Linha sólida = previsto (Cronograma) · pontilhada = prometido (compromisso semanal do Planejamento) · tracejada = real (só quando o sobrado atingiu 100% de avanço na etapa)', ML, legendaY)
 
   const paginas = pdf.getNumberOfPages()
   for (let i = 1; i <= paginas; i++) {

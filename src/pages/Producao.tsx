@@ -788,7 +788,8 @@ function Plantas() {
     [editandoParede, setEditandoParede] = useState<ProducaoParede | null>(null),
     [formEdicao, setFormEdicao] = useState({ nome: "", metaAlvenaria: "", metaRebocoA: "", metaRebocoB: "" }),
     [urlImagem, setUrlImagem] = useState<string | null>(null),
-    [imprimindoPlanta, setImprimindoPlanta] = useState(false);
+    [imprimindoPlanta, setImprimindoPlanta] = useState(false),
+    [escalaFontePdf, setEscalaFontePdf] = useState(1);
 
   const plantaAtual = plantas.find((p) => p.pavimento === pavimentoSel) ?? null;
   const paredesDaPlanta = paredes.filter((p) => p.planta_id === plantaAtual?.id);
@@ -927,7 +928,7 @@ function Plantas() {
     try {
       const { gerarPdfPlanta } = await import("../lib/producaoPlantaPdf");
       const pavimentoLabel = PAVIMENTOS.find((p) => p.valor === pavimentoSel)?.rotulo ?? pavimentoSel;
-      await gerarPdfPlanta({ imagemUrl: urlImagem, paredes: paredesDaPlanta, pavimentoLabel });
+      await gerarPdfPlanta({ imagemUrl: urlImagem, paredes: paredesDaPlanta, pavimentoLabel, escalaFonte: escalaFontePdf });
     } catch (erro) {
       setMsg({ tipo: "erro", texto: `Falha ao gerar o PDF da planta: ${(erro as Error).message}` });
     }
@@ -964,6 +965,14 @@ function Plantas() {
         {urlImagem && (
           <>
             <div className={styles.acoes}>
+              <Campo label="Tamanho da fonte na impressão">
+                <select className={styles.select} value={escalaFontePdf} onChange={(e) => setEscalaFontePdf(Number(e.target.value))}>
+                  <option value={0.8}>Pequena</option>
+                  <option value={1}>Normal (igual à tela)</option>
+                  <option value={1.3}>Grande</option>
+                  <option value={1.6}>Muito grande</option>
+                </select>
+              </Campo>
               <button className={styles.btnSec} disabled={imprimindoPlanta} onClick={imprimirPlanta}>
                 {imprimindoPlanta ? "Gerando PDF..." : "Imprimir planta"}
               </button>

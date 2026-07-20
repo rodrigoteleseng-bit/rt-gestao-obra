@@ -5,6 +5,7 @@ export interface DadosPlantaPdf {
   imagemUrl: string
   paredes: ProducaoParede[]
   pavimentoLabel: string
+  escalaFonte: number
 }
 
 function rotuloDaParede(p: ProducaoParede) {
@@ -41,16 +42,16 @@ export async function gerarPdfPlanta(d: DadosPlantaPdf) {
       const rotulo = rotuloDaParede(parede)
       const x = (rotulo.pos_x / 100) * canvas.width
       const y = (rotulo.pos_y / 100) * canvas.height
-      const fonte = 11 * rotulo.escala * escala
+      const fonte = 11 * rotulo.escala * escala * d.escalaFonte
       ctx.save()
       ctx.translate(x, y)
       ctx.rotate((rotulo.rotacao * Math.PI) / 180)
       ctx.font = `bold ${fonte}px Arial, sans-serif`
       ctx.textBaseline = 'middle'
       const largura = ctx.measureText(parede.nome).width
-      const padX = 5 * rotulo.escala * escala
+      const padX = 5 * rotulo.escala * escala * d.escalaFonte
       const altura = fonte * 1.6
-      const raio = 4 * rotulo.escala * escala
+      const raio = 4 * rotulo.escala * escala * d.escalaFonte
       ctx.fillStyle = '#ffffff'
       ctx.beginPath()
       if (typeof ctx.roundRect === 'function') ctx.roundRect(-padX / 2, -altura / 2, largura + padX, altura, raio)

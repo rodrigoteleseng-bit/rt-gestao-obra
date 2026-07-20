@@ -3,7 +3,6 @@ import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import { supabase, type CategoriaRestricao, type PerfilUsuario, type PlanejamentoCompromisso, type PlanejamentoSemana, type Restricao, type StatusRestricao } from '../lib/supabase'
-import type { GranularidadeLinhaBalanco } from '../lib/linhaBalancoPdf'
 import { paginado, fatiar, etapaAncestralPorTarefa, type RespostaPaginada } from '../lib/cronograma'
 import styles from './Planejamento.module.css'
 
@@ -88,7 +87,6 @@ export default function Planejamento() {
   const [formCompromissoAberto, setFormCompromissoAberto] = useState(false)
   const [tarefaCompromissoId, setTarefaCompromissoId] = useState('')
   const [metaPercentual, setMetaPercentual] = useState('')
-  const [gerandoLinhaBalanco, setGerandoLinhaBalanco] = useState<GranularidadeLinhaBalanco | null>(null)
   const [gerandoGantt, setGerandoGantt] = useState(false)
 
   const [unidadesObra, setUnidadesObra] = useState<UnidadeSimples[]>([])
@@ -410,30 +408,49 @@ export default function Planejamento() {
     await carregarCompromissos(semanaSelecionada.id)
   }
 
-  async function gerarLinhaBalanco(granularidade: GranularidadeLinhaBalanco) {
-    if (!obraAtiva) return
-    setGerandoLinhaBalanco(granularidade)
-    setMsg(null)
-    try {
-      const { gerarPdfLinhaBalanco } = await import('../lib/linhaBalancoPdf')
-      await gerarPdfLinhaBalanco(obraAtiva.id, granularidade)
-    } catch (erro) {
-      setMsg({ tipo: 'erro', texto: `Erro ao gerar linha de balanço: ${(erro as Error).message}` })
-    }
-    setGerandoLinhaBalanco(null)
-  }
-
   async function gerarGantt() {
-    if (!obraAtiva) return
+    if (!obraAtiva || !semanaSelecionada) return
     setGerandoGantt(true)
     setMsg(null)
     try {
       const { gerarPdfGanttPlanejamento } = await import('../lib/ganttPlanejamentoPdf')
-      await gerarPdfGanttPlanejamento(obraAtiva.id)
+      await gerarPdfGanttPlanejamento(obraAtiva.id, semanaSelecionada.id)
     } catch (erro) {
       setMsg({ tipo: 'erro', texto: `Erro ao gerar Gantt: ${(erro as Error).message}` })
     }
     setGerandoGantt(false)
+  }
+
+  async function levarParaProximaSemana(c: PlanejamentoCompromisso) {
+    if (!semanaSelecionada) return
+    setMsg(null)
+    setSalvando(true)
+    const proxima = semanas
+      .filter(s => s.data_inicio > semanaSelecionada.data_fim)
+      .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))[0]
+    if (!proxima) {
+      setSalvando(false)
+      return setMsg({ tipo: 'erro', texto: 'Crie a semana seguinte antes de levar essa tarefa pra frente.' })
+    }
+    const jaExisteResp = await supabase.from('planejamento_compromissos').select('id').eq('semana_id', proxima.id).eq('tarefa_id', c.tarefa_id).eq('ativo', true).maybeSingle()
+    if (jaExisteResp.data) {
+      setSalvando(false)
+      return setMsg({ tipo: 'erro', texto: 'Essa tarefa já está comprometida na semana seguinte.' })
+    }
+    const inicio = percentuaisAtuais[c.tarefa_id] ?? c.percentual_fim ?? 0
+    if (c.meta_percentual <= inicio) {
+      setSalvando(false)
+      return setMsg({ tipo: 'erro', texto: 'A tarefa já atingiu a meta anterior — comprometa manualmente com uma meta nova na semana seguinte.' })
+    }
+    const { error } = await supabase.from('planejamento_compromissos').insert({
+      semana_id: proxima.id,
+      tarefa_id: c.tarefa_id,
+      percentual_inicio: inicio,
+      meta_percentual: c.meta_percentual,
+    })
+    setSalvando(false)
+    if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao levar tarefa pra próxima semana: ' + error.message })
+    setMsg({ tipo: 'ok', texto: 'Tarefa levada pra semana de ' + fmtData(proxima.data_inicio) + ' a ' + fmtData(proxima.data_fim) + '.' })
   }
 
   if (semPermissao) return <div className={styles.page}><h1>Planejamento</h1><div className={styles.msgErro}>Você não tem permissão para acessar Planejamento.</div></div>
@@ -584,21 +601,15 @@ export default function Planejamento() {
 
           {(semanaSelecionada.status === 'planejada' || semanaSelecionada.status === 'fechada') && (
             <div className={styles.filtros}>
-              <button className={styles.btnSecundario} disabled={!!gerandoLinhaBalanco} onClick={() => gerarLinhaBalanco('semanal')}>
-                {gerandoLinhaBalanco === 'semanal' ? 'Gerando...' : 'Linha de balanço (semanal)'}
-              </button>
-              <button className={styles.btnSecundario} disabled={!!gerandoLinhaBalanco} onClick={() => gerarLinhaBalanco('mensal')}>
-                {gerandoLinhaBalanco === 'mensal' ? 'Gerando...' : 'Linha de balanço (mensal)'}
-              </button>
               <button className={styles.btnSecundario} disabled={gerandoGantt} onClick={gerarGantt}>
-                {gerandoGantt ? 'Gerando...' : 'Gantt do planejamento'}
+                {gerandoGantt ? 'Gerando...' : 'Gantt do planejamento (semana atual + seguinte)'}
               </button>
             </div>
           )}
 
           {compromissos.length === 0 ? <div className={styles.vazio}>Nenhuma tarefa comprometida nesta semana.</div> : (
             <table className={styles.tabela}>
-              <thead><tr><th>Tarefa</th><th>Início</th><th>Meta</th><th>Real</th><th>Cumprida</th><th>Motivo</th>{semanaSelecionada.status !== 'fechada' && <th>Ações</th>}</tr></thead>
+              <thead><tr><th>Tarefa</th><th>Início</th><th>Meta</th><th>Real</th><th>Cumprida</th><th>Motivo</th><th>Ações</th></tr></thead>
               <tbody>{compromissos.map(c => (
                 <tr key={c.id}>
                   <td data-label="Tarefa">{tarefaPorId.get(c.tarefa_id)?.nome ?? 'Tarefa não encontrada'}</td>
@@ -614,11 +625,13 @@ export default function Planejamento() {
                       </select>
                     ) : c.motivo_categoria ? CATEGORIA_LABEL[c.motivo_categoria] : '-'}
                   </td>
-                  {semanaSelecionada.status !== 'fechada' && (
-                    <td data-label="Ações">
+                  <td data-label="Ações">
+                    {semanaSelecionada.status !== 'fechada' ? (
                       <button className={styles.btnPerigo} disabled={salvando} onClick={() => excluirCompromisso(c)}>Excluir</button>
-                    </td>
-                  )}
+                    ) : c.cumprido === false ? (
+                      <button className={styles.btnSecundario} disabled={salvando} onClick={() => levarParaProximaSemana(c)}>Levar pra próxima semana</button>
+                    ) : null}
+                  </td>
                 </tr>
               ))}</tbody>
             </table>

@@ -103,12 +103,13 @@ export async function gerarPdfGanttPlanejamento(obraId: string) {
       .range(de, ate) as unknown as PromiseLike<RespostaPaginada<NoParaEtapa>>)
   const etapaPorTarefaId = etapaAncestralPorTarefa(todosNos)
 
-  const [previstoLista, avancoLotes] = await Promise.all([
-    paginado<{ tarefa_id: string; inicio: string; fim: string }>((de, ate, contar) =>
-      supabase.from('cronograma_previsto')
-        .select('tarefa_id, inicio, fim', contar ? { count: 'exact' } : undefined)
-        .eq('versao_id', versaoResp.data!.id).in('tarefa_id', idsTarefas)
-        .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; inicio: string; fim: string }>>),
+  const [previstoLotes, avancoLotes] = await Promise.all([
+    Promise.all(lotesTarefas.map(lote =>
+      paginado<{ tarefa_id: string; inicio: string; fim: string }>((de, ate, contar) =>
+        supabase.from('cronograma_previsto')
+          .select('tarefa_id, inicio, fim', contar ? { count: 'exact' } : undefined)
+          .eq('versao_id', versaoResp.data!.id).in('tarefa_id', lote)
+          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; inicio: string; fim: string }>>))),
     Promise.all(lotesTarefas.map(lote =>
       paginado<{ tarefa_id: string; data_referencia: string }>((de, ate, contar) =>
         supabase.from('avancos_fisicos')
@@ -117,6 +118,7 @@ export async function gerarPdfGanttPlanejamento(obraId: string) {
           .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; data_referencia: string }>>))),
   ])
 
+  const previstoLista = previstoLotes.flat()
   const previstoPorTarefa = new Map(previstoLista.map(p => [p.tarefa_id, { inicio: p.inicio, fim: p.fim }]))
   const avancoPorTarefa = new Map<string, { min: number; max: number }>()
   for (const lote of avancoLotes) for (const a of lote) {

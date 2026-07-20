@@ -77,12 +77,13 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
 
   const idsTarefas = tarefasSobrados.map(t => t.id)
   const lotesIds = fatiar(idsTarefas, 500)
-  const [previstoLista, avancoLotes, compromissosLotes] = await Promise.all([
-    paginado<{ tarefa_id: string; inicio: string; fim: string }>((de, ate, contar) =>
-      supabase.from('cronograma_previsto')
-        .select('tarefa_id, inicio, fim', contar ? { count: 'exact' } : undefined)
-        .eq('versao_id', versaoResp.data!.id).in('tarefa_id', idsTarefas)
-        .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; inicio: string; fim: string }>>),
+  const [previstoLotes, avancoLotes, compromissosLotes] = await Promise.all([
+    Promise.all(lotesIds.map(lote =>
+      paginado<{ tarefa_id: string; inicio: string; fim: string }>((de, ate, contar) =>
+        supabase.from('cronograma_previsto')
+          .select('tarefa_id, inicio, fim', contar ? { count: 'exact' } : undefined)
+          .eq('versao_id', versaoResp.data!.id).in('tarefa_id', lote)
+          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; inicio: string; fim: string }>>))),
     Promise.all(lotesIds.map(lote =>
       paginado<{ tarefa_id: string; percentual: number; data_referencia: string }>((de, ate, contar) =>
         supabase.from('avancos_fisicos')
@@ -101,6 +102,7 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
           .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; planejamento_semanas: { data_fim: string } | null }>>))),
   ])
 
+  const previstoLista = previstoLotes.flat()
   const previstoPorTarefa = new Map(previstoLista.map(p => [p.tarefa_id, { inicio: p.inicio, fim: p.fim }]))
   const avancoPorTarefa = new Map<string, { percentual: number; data_referencia: string }>()
   for (const lote of avancoLotes) for (const a of lote) if (!avancoPorTarefa.has(a.tarefa_id)) avancoPorTarefa.set(a.tarefa_id, a)

@@ -1,0 +1,248 @@
+import { jsPDF } from 'jspdf'
+import { supabase } from './supabase'
+
+export type GranularidadeLinhaBalanco = 'semanal' | 'mensal'
+
+const NAVY = '#1A3248'
+const CINZA_GRADE = '#d8dde3'
+const CINZA_TEXTO = '#444444'
+
+// Paleta com 9 cores distinguíveis — bate com a quantidade real de etapas
+// cadastradas por sobrado nesta obra (COBERTURA, DIVERSOS,
+// IMPERMEABILIZAÇÃO, INSTALAÇÕES, LOUÇAS E METAIS, MURO DE CONTENÇÃO,
+// PAVIMENTO PLATIBANDA, PAVIMENTO SUPERIOR, PAVIMENTO TERREO). Se a obra
+// tiver mais etapas que isso no futuro, a paleta repete (ainda funciona,
+// só fica menos distinguível).
+const PALETA = ['#1A3248', '#C49A7A', '#3A7CA5', '#6B8F71', '#A65E5E', '#8B6BA6', '#C9A227', '#4A7A8C', '#B85C38']
+
+interface TarefaCronograma {
+  id: string
+  etapa_id: string | null
+  unidade_id: string | null
+}
+
+interface PontoSobrado {
+  sobradoIndex: number
+  previsto: number | null // timestamp (ms)
+  real: number | null // timestamp (ms), só quando a etapa bateu 100% no sobrado
+}
+
+interface LinhaEtapa {
+  nome: string
+  cor: string
+  pontos: PontoSobrado[]
+}
+
+function inicioDaSemana(data: Date): Date {
+  const d = new Date(data)
+  const dia = d.getDay()
+  const deslocamento = dia === 0 ? -6 : 1 - dia // volta pra segunda-feira
+  d.setDate(d.getDate() + deslocamento)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function inicioDoMes(data: Date): Date {
+  return new Date(data.getFullYear(), data.getMonth(), 1)
+}
+
+export async function gerarPdfLinhaBalanco(obraId: string, granularidade: GranularidadeLinhaBalanco) {
+  const [unidadesResp, tarefasResp, versaoResp] = await Promise.all([
+    supabase.from('unidades').select('id, nome').eq('obra_id', obraId).eq('ativo', true).eq('tipo', 'sobrado').order('nome'),
+    supabase.from('cronograma_tarefas').select('id, etapa_id, unidade_id, etapas(nome), unidades(tipo)').eq('obra_id', obraId).eq('ativo', true).eq('resumo', false),
+    supabase.from('cronograma_versoes').select('id').eq('obra_id', obraId).eq('vigente', true).eq('ativo', true).maybeSingle(),
+  ])
+  if (unidadesResp.error) throw new Error('Erro ao carregar sobrados: ' + unidadesResp.error.message)
+  if (tarefasResp.error) throw new Error('Erro ao carregar tarefas do cronograma: ' + tarefasResp.error.message)
+  if (!versaoResp.data) throw new Error('Nenhuma versão vigente do cronograma encontrada para esta obra.')
+
+  const sobrados = unidadesResp.data ?? []
+  if (sobrados.length === 0) throw new Error('Nenhum sobrado cadastrado nesta obra.')
+  const indicePorSobrado = new Map(sobrados.map((s, i) => [s.id, i + 1]))
+
+  type TarefaComEtapaUnidade = TarefaCronograma & { etapas: { nome: string } | null; unidades: { tipo: string } | null }
+  const tarefasSobrados = ((tarefasResp.data ?? []) as unknown as TarefaComEtapaUnidade[])
+    .filter(t => t.unidades?.tipo === 'sobrado' && t.etapa_id && t.unidade_id && t.etapas?.nome)
+  if (tarefasSobrados.length === 0) throw new Error('Nenhuma tarefa de sobrado encontrada no cronograma.')
+
+  const idsTarefas = tarefasSobrados.map(t => t.id)
+  const [previstoResp, avancoResp] = await Promise.all([
+    supabase.from('cronograma_previsto').select('tarefa_id, inicio, fim').eq('versao_id', versaoResp.data.id).in('tarefa_id', idsTarefas),
+    supabase.from('avancos_fisicos').select('tarefa_id, percentual, data_referencia').eq('ativo', true).in('tarefa_id', idsTarefas).order('data_referencia', { ascending: false }),
+  ])
+  if (previstoResp.error) throw new Error('Erro ao carregar datas previstas: ' + previstoResp.error.message)
+  if (avancoResp.error) throw new Error('Erro ao carregar avanço físico: ' + avancoResp.error.message)
+
+  const previstoPorTarefa = new Map((previstoResp.data ?? []).map(p => [p.tarefa_id, { inicio: p.inicio, fim: p.fim }]))
+  const avancoPorTarefa = new Map<string, { percentual: number; data_referencia: string }>()
+  for (const a of avancoResp.data ?? []) if (!avancoPorTarefa.has(a.tarefa_id)) avancoPorTarefa.set(a.tarefa_id, a)
+
+  // Agrupa por (nome da etapa, sobrado) — cada sobrado tem sua própria linha
+  // de etapas no banco (etapas.unidade_id), então o nome é o único jeito de
+  // juntar "Alvenaria do Sobrado 01" com "Alvenaria do Sobrado 02" na mesma
+  // linha do gráfico.
+  const grupos = new Map<string, Map<string, string[]>>() // nomeEtapa -> unidadeId -> tarefaIds
+  for (const t of tarefasSobrados) {
+    const nomeEtapa = t.etapas!.nome
+    if (!grupos.has(nomeEtapa)) grupos.set(nomeEtapa, new Map())
+    const porUnidade = grupos.get(nomeEtapa)!
+    if (!porUnidade.has(t.unidade_id!)) porUnidade.set(t.unidade_id!, [])
+    porUnidade.get(t.unidade_id!)!.push(t.id)
+  }
+
+  let dataMin = Infinity
+  let dataMax = -Infinity
+  const linhas: LinhaEtapa[] = []
+  let corIndex = 0
+  for (const [nomeEtapa, porUnidade] of grupos) {
+    const pontos: PontoSobrado[] = []
+    for (const [unidadeId, tarefaIds] of porUnidade) {
+      const sobradoIndex = indicePorSobrado.get(unidadeId)
+      if (!sobradoIndex) continue
+      let previstoFim: number | null = null
+      const percentuais: number[] = []
+      let dataUltimaMedicao: number | null = null
+      for (const tid of tarefaIds) {
+        const prev = previstoPorTarefa.get(tid)
+        if (prev?.inicio) dataMin = Math.min(dataMin, new Date(prev.inicio).getTime())
+        if (prev?.fim) {
+          const fimMs = new Date(prev.fim).getTime()
+          dataMax = Math.max(dataMax, fimMs)
+          previstoFim = previstoFim == null ? fimMs : Math.max(previstoFim, fimMs)
+        }
+        const av = avancoPorTarefa.get(tid)
+        percentuais.push(av?.percentual ?? 0)
+        if (av?.data_referencia) {
+          const dataMs = new Date(av.data_referencia).getTime()
+          dataUltimaMedicao = dataUltimaMedicao == null ? dataMs : Math.max(dataUltimaMedicao, dataMs)
+        }
+      }
+      const percentualMedio = percentuais.length > 0 ? percentuais.reduce((a, b) => a + b, 0) / percentuais.length : 0
+      const real = percentualMedio >= 100 && dataUltimaMedicao != null ? dataUltimaMedicao : null
+      if (real != null) dataMax = Math.max(dataMax, real)
+      pontos.push({ sobradoIndex, previsto: previstoFim, real })
+    }
+    pontos.sort((a, b) => a.sobradoIndex - b.sobradoIndex)
+    linhas.push({ nome: nomeEtapa, cor: PALETA[corIndex % PALETA.length], pontos })
+    corIndex++
+  }
+  if (!Number.isFinite(dataMin) || !Number.isFinite(dataMax) || dataMin >= dataMax) {
+    throw new Error('Não há datas previstas suficientes no cronograma para desenhar a linha de balanço.')
+  }
+
+  // ---- desenho do PDF ----
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' })
+  const W = pdf.internal.pageSize.getWidth()
+  const H = pdf.internal.pageSize.getHeight()
+  const ML = 16, MR = 10, MT = 22, MB = 26
+  const areaX = ML, areaY = MT
+  const areaW = W - ML - MR
+  const areaH = H - MT - MB
+  const totalSobrados = sobrados.length
+
+  const x = (t: number) => areaX + ((t - dataMin) / (dataMax - dataMin)) * areaW
+  const y = (sobradoIndex: number) => areaY + areaH - ((sobradoIndex - 0.5) / totalSobrados) * areaH
+
+  pdf.setFillColor(NAVY)
+  pdf.rect(0, 0, W, 14, 'F')
+  pdf.setTextColor('#ffffff')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(13)
+  pdf.text('RT ENGENHARIA — LINHA DE BALANÇO', ML, 9)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(8.5)
+  pdf.text(granularidade === 'semanal' ? 'Marcações semanais' : 'Marcações mensais', W - MR, 9, { align: 'right' })
+
+  // eixo Y — sobrados
+  pdf.setDrawColor(CINZA_GRADE)
+  pdf.setTextColor(NAVY)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(8)
+  sobrados.forEach((s, i) => {
+    const linhaY = y(i + 1)
+    pdf.setDrawColor(CINZA_GRADE)
+    pdf.line(areaX, linhaY, areaX + areaW, linhaY)
+    pdf.setTextColor(NAVY)
+    pdf.text(s.nome, areaX - 2, linhaY + 1.2, { align: 'right' })
+  })
+
+  // eixo X — semanas ou meses
+  pdf.setFontSize(6.5)
+  pdf.setFont('helvetica', 'normal')
+  const marcas: number[] = []
+  if (granularidade === 'semanal') {
+    let cursor = inicioDaSemana(new Date(dataMin))
+    while (cursor.getTime() <= dataMax) { marcas.push(cursor.getTime()); cursor = new Date(cursor.getTime() + 7 * 86400000) }
+  } else {
+    let cursor = inicioDoMes(new Date(dataMin))
+    while (cursor.getTime() <= dataMax) { marcas.push(cursor.getTime()); cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1) }
+  }
+  // evita rótulo colado — pula marcas se ficariam a menos de 9mm uma da outra
+  const passoMinimoMm = 9
+  let ultimaXDesenhada = -Infinity
+  for (const marca of marcas) {
+    const px = x(marca)
+    pdf.setDrawColor(CINZA_GRADE)
+    pdf.line(px, areaY, px, areaY + areaH)
+    if (px - ultimaXDesenhada >= passoMinimoMm) {
+      const d = new Date(marca)
+      const rotulo = granularidade === 'semanal'
+        ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+        : `${['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][d.getMonth()]}/${String(d.getFullYear()).slice(2)}`
+      pdf.setTextColor(CINZA_TEXTO)
+      pdf.text(rotulo, px, areaY + areaH + 5, { align: 'center' })
+      ultimaXDesenhada = px
+    }
+  }
+
+  // moldura da área de plotagem
+  pdf.setDrawColor(NAVY)
+  pdf.rect(areaX, areaY, areaW, areaH)
+
+  // linhas por etapa: previsto (sólida) e real (tracejada, só onde já bateu 100%)
+  for (const linha of linhas) {
+    pdf.setDrawColor(linha.cor)
+    pdf.setLineWidth(0.5)
+    for (let i = 0; i < linha.pontos.length - 1; i++) {
+      const a = linha.pontos[i], b = linha.pontos[i + 1]
+      if (a.previsto != null && b.previsto != null) {
+        pdf.setLineDashPattern([], 0)
+        pdf.line(x(a.previsto), y(a.sobradoIndex), x(b.previsto), y(b.sobradoIndex))
+      }
+      if (a.real != null && b.real != null) {
+        pdf.setLineDashPattern([1.2, 1], 0)
+        pdf.line(x(a.real), y(a.sobradoIndex), x(b.real), y(b.sobradoIndex))
+        pdf.setLineDashPattern([], 0)
+      }
+    }
+  }
+  pdf.setLineWidth(0.2)
+
+  // legenda
+  let legendaY = areaY + areaH + 13
+  pdf.setFontSize(7.5)
+  let legendaX = ML
+  for (const linha of linhas) {
+    pdf.setFillColor(linha.cor)
+    pdf.rect(legendaX, legendaY - 2.5, 3, 3, 'F')
+    pdf.setTextColor(CINZA_TEXTO)
+    pdf.setFont('helvetica', 'normal')
+    const largura = pdf.getTextWidth(linha.nome)
+    pdf.text(linha.nome, legendaX + 4, legendaY)
+    legendaX += largura + 12
+    if (legendaX > W - MR - 30) { legendaX = ML; legendaY += 5 }
+  }
+  legendaY += 6
+  pdf.setFont('helvetica', 'italic')
+  pdf.setFontSize(7)
+  pdf.text('Linha sólida = previsto · linha tracejada = real (só aparece quando o sobrado atingiu 100% de avanço na etapa)', ML, legendaY)
+
+  const paginas = pdf.getNumberOfPages()
+  for (let i = 1; i <= paginas; i++) {
+    pdf.setPage(i)
+    pdf.setFontSize(7.5)
+    pdf.setTextColor(CINZA_TEXTO)
+    pdf.text('RT Engenharia · Rodrigo Teles Silva · CREA 1018712895 D/GO · Inteligência Aplicada', ML, H - 6)
+  }
+  pdf.save(`Linha de Balanco - ${granularidade}.pdf`)
+}

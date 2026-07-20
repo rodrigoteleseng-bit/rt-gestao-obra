@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import { supabase, type CategoriaRestricao, type PerfilUsuario, type PlanejamentoCompromisso, type PlanejamentoSemana, type Restricao, type StatusRestricao } from '../lib/supabase'
+import type { GranularidadeLinhaBalanco } from '../lib/linhaBalancoPdf'
 import styles from './Planejamento.module.css'
 
 type Msg = { tipo: 'ok' | 'erro'; texto: string } | null
@@ -75,6 +76,7 @@ export default function Planejamento() {
   const [buscaTarefaCompromisso, setBuscaTarefaCompromisso] = useState('')
   const [tarefaCompromissoId, setTarefaCompromissoId] = useState('')
   const [metaPercentual, setMetaPercentual] = useState('')
+  const [gerandoLinhaBalanco, setGerandoLinhaBalanco] = useState<GranularidadeLinhaBalanco | null>(null)
 
   const tarefaPorId = useMemo(() => new Map(tarefas.map(t => [t.id, t])), [tarefas])
   const usuarioPorId = useMemo(() => new Map(usuarios.map(u => [u.id, u])), [usuarios])
@@ -292,6 +294,19 @@ export default function Planejamento() {
     await carregarCompromissos(semanaSelecionada.id)
   }
 
+  async function gerarLinhaBalanco(granularidade: GranularidadeLinhaBalanco) {
+    if (!obraAtiva) return
+    setGerandoLinhaBalanco(granularidade)
+    setMsg(null)
+    try {
+      const { gerarPdfLinhaBalanco } = await import('../lib/linhaBalancoPdf')
+      await gerarPdfLinhaBalanco(obraAtiva.id, granularidade)
+    } catch (erro) {
+      setMsg({ tipo: 'erro', texto: `Erro ao gerar linha de balanço: ${(erro as Error).message}` })
+    }
+    setGerandoLinhaBalanco(null)
+  }
+
   if (semPermissao) return <div className={styles.page}><h1>Planejamento</h1><div className={styles.msgErro}>Você não tem permissão para acessar Planejamento.</div></div>
 
   return (
@@ -394,6 +409,17 @@ export default function Planejamento() {
           )}
 
           {semanaSelecionada.status === 'fechada' && <div className={styles.msgOk}>Semana fechada. PPC: {semanaSelecionada.ppc}%</div>}
+
+          {semanaSelecionada.status === 'fechada' && (
+            <div className={styles.filtros}>
+              <button className={styles.btnSecundario} disabled={!!gerandoLinhaBalanco} onClick={() => gerarLinhaBalanco('semanal')}>
+                {gerandoLinhaBalanco === 'semanal' ? 'Gerando...' : 'Linha de balanço (semanal)'}
+              </button>
+              <button className={styles.btnSecundario} disabled={!!gerandoLinhaBalanco} onClick={() => gerarLinhaBalanco('mensal')}>
+                {gerandoLinhaBalanco === 'mensal' ? 'Gerando...' : 'Linha de balanço (mensal)'}
+              </button>
+            </div>
+          )}
 
           {compromissos.length === 0 ? <div className={styles.vazio}>Nenhuma tarefa comprometida nesta semana.</div> : (
             <table className={styles.tabela}>

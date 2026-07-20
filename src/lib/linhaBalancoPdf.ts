@@ -58,10 +58,9 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
   if (unidadesResp.error) throw new Error('Erro ao carregar sobrados: ' + unidadesResp.error.message)
   if (!versaoResp.data) throw new Error('Nenhuma versão vigente do cronograma encontrada para esta obra.')
 
-  const sobrados = unidadesResp.data ?? []
-  if (sobrados.length === 0) throw new Error('Nenhum sobrado cadastrado nesta obra.')
-  const indicePorSobrado = new Map(sobrados.map((s, i) => [s.id, i + 1]))
-  const idsSobrados = sobrados.map(s => s.id)
+  const todosSobrados = unidadesResp.data ?? []
+  if (todosSobrados.length === 0) throw new Error('Nenhum sobrado cadastrado nesta obra.')
+  const idsSobrados = todosSobrados.map(s => s.id)
 
   // Busca a árvore inteira (grupos + folhas) dos sobrados, pra derivar a
   // etapa de cada folha subindo até o nó filho direto da raiz da unidade.
@@ -94,12 +93,15 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
       // planejamento_semanas!inner + filtro no status: só conta compromisso
       // de semana com planejamento já travado (planejada/fechada) — uma
       // semana ainda aberta pode mudar, não é "prometido" de verdade ainda.
-      paginado<{ tarefa_id: string; planejamento_semanas: { data_fim: string } | null }>((de, ate, contar) =>
+      // Sem filtro de meta_percentual aqui: precisa de QUALQUER compromisso
+      // pra saber quais sobrados entram no gráfico (a linha "planejado" em si
+      // só usa os de meta 100%, filtrado depois).
+      paginado<{ tarefa_id: string; meta_percentual: number; planejamento_semanas: { data_fim: string } | null }>((de, ate, contar) =>
         supabase.from('planejamento_compromissos')
           .select('tarefa_id, meta_percentual, planejamento_semanas!inner(data_fim, status)', contar ? { count: 'exact' } : undefined)
-          .eq('ativo', true).eq('meta_percentual', 100).in('tarefa_id', lote)
+          .eq('ativo', true).in('tarefa_id', lote)
           .in('planejamento_semanas.status', ['planejada', 'fechada'])
-          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; planejamento_semanas: { data_fim: string } | null }>>))),
+          .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; meta_percentual: number; planejamento_semanas: { data_fim: string } | null }>>))),
   ])
 
   const previstoLista = previstoLotes.flat()
@@ -107,15 +109,30 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
   const avancoPorTarefa = new Map<string, { percentual: number; data_referencia: string }>()
   for (const lote of avancoLotes) for (const a of lote) if (!avancoPorTarefa.has(a.tarefa_id)) avancoPorTarefa.set(a.tarefa_id, a)
 
+  const compromissos = compromissosLotes.flat()
+
   // Data prometida via compromisso semanal (meta 100%) — pega a mais recente
   // quando a mesma tarefa foi comprometida com meta 100% em mais de uma semana.
   const planejadoPorTarefa = new Map<string, number>()
-  for (const lote of compromissosLotes) for (const c of lote) {
-    if (!c.planejamento_semanas?.data_fim) continue
+  for (const c of compromissos) {
+    if (c.meta_percentual !== 100 || !c.planejamento_semanas?.data_fim) continue
     const fimMs = new Date(c.planejamento_semanas.data_fim).getTime()
     const atual = planejadoPorTarefa.get(c.tarefa_id)
     if (atual == null || fimMs > atual) planejadoPorTarefa.set(c.tarefa_id, fimMs)
   }
+
+  // Só entram no gráfico os sobrados que já têm pelo menos um compromisso
+  // (qualquer meta) no Planejamento — Rodrigo pediu pra não poluir com os
+  // 13 sobrados sempre, já que a maioria ainda não está sendo planejada.
+  const tarefaPorId = new Map(tarefasSobrados.map(t => [t.id, t]))
+  const idsUnidadesComCompromisso = new Set<string>()
+  for (const c of compromissos) {
+    const unidadeId = tarefaPorId.get(c.tarefa_id)?.unidade_id
+    if (unidadeId) idsUnidadesComCompromisso.add(unidadeId)
+  }
+  const sobrados = todosSobrados.filter(s => idsUnidadesComCompromisso.has(s.id))
+  if (sobrados.length === 0) throw new Error('Nenhum sobrado com compromisso no Planejamento ainda.')
+  const indicePorSobrado = new Map(sobrados.map((s, i) => [s.id, i + 1]))
 
   // Agrupa por (nome da etapa, sobrado) — cada sobrado tem sua própria árvore
   // de grupos no cronograma, então o nome é o único jeito de juntar
@@ -123,6 +140,7 @@ export async function gerarPdfLinhaBalanco(obraId: string, granularidade: Granul
   // do gráfico.
   const grupos = new Map<string, Map<string, string[]>>() // nomeEtapa -> unidadeId -> tarefaIds
   for (const t of tarefasSobrados) {
+    if (!indicePorSobrado.has(t.unidade_id!)) continue
     const nomeEtapa = etapaPorTarefaId.get(t.id)!
     if (!grupos.has(nomeEtapa)) grupos.set(nomeEtapa, new Map())
     const porUnidade = grupos.get(nomeEtapa)!

@@ -116,8 +116,11 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 @media print {
   @page { size: A4 landscape; margin: 8mm; }
 
+  html,
   body {
     background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -130,12 +133,15 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   }
 
   .calendarioPrint {
-    position: absolute;
-    inset: 0;
+    position: fixed;
+    left: 0;
+    top: 0;
     width: 100%;
     max-width: none;
+    height: auto;
     padding: 0;
     color: #1A3248;
+    overflow: visible;
   }
 
   .calendarioTopo { display: none; }
@@ -143,11 +149,11 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   .calendarioCabecalhoPrint {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2mm 8mm;
+    gap: 1mm 6mm;
     align-items: end;
-    margin-bottom: 4mm;
+    margin-bottom: 2mm;
     border-bottom: 1px solid #1A3248;
-    padding-bottom: 2mm;
+    padding-bottom: 1.5mm;
   }
 
   .calendarioCabecalhoPrint span,
@@ -161,7 +167,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   .calendarioCabecalhoPrint strong {
     grid-column: 1;
     color: #1A3248;
-    font: 900 14pt var(--font-titulo);
+    font: 900 12pt var(--font-titulo);
   }
 
   .calendarioCabecalhoPrint em {
@@ -171,24 +177,31 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   }
 
   .calendario {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-rows: 6mm;
+    grid-auto-rows: 21mm;
     box-shadow: none;
     border-radius: 0;
     border-color: #9aa8b5;
-    break-inside: avoid;
+    overflow: hidden;
+    page-break-before: avoid;
   }
 
   .diaSemana {
-    padding: 2mm;
+    height: 6mm;
+    padding: 1.2mm 1mm;
     background: #F0EBE3 !important;
     border-color: #9aa8b5;
-    font-size: 8pt;
+    font-size: 7.5pt;
   }
 
   .diaCalendario {
-    min-height: 25mm;
-    padding: 1.5mm;
+    min-height: 0;
+    height: 21mm;
+    padding: 1mm;
     border-color: #c9d1d8;
-    page-break-inside: avoid;
+    overflow: hidden;
   }
 
   .diaTopo {
@@ -196,8 +209,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
     gap: 1mm;
   }
 
-  .diaTopo strong { font-size: 8pt; }
-  .diaTopo span { font-size: 6.5pt; padding: .5mm 1.2mm; }
+  .diaTopo strong { font-size: 7.2pt; }
+  .diaTopo span { font-size: 6pt; padding: .4mm 1mm; }
 
   .diaConteudo { gap: .8mm; }
 
@@ -207,7 +220,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   .eventoMais {
     border-radius: 2px;
     padding: .8mm 1mm;
-    font-size: 6.6pt;
+    font-size: 6pt;
     line-height: 1.12;
   }
 

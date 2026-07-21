@@ -97,39 +97,6 @@
 .itemGrid .campo { margin-bottom: 0; min-width: 0; }
 .itemGrid .campo input { width: 100%; min-width: 0; box-sizing: border-box; }
 
-.autocompleteWrap { position: relative; }
-
-.sugestoes {
-  position: absolute;
-  z-index: 5;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: var(--branco);
-  border: 1.5px solid var(--navy);
-  border-radius: var(--radius-sm);
-  max-height: 220px;
-  overflow-y: auto;
-  box-shadow: var(--sombra-sm);
-}
-
-.sugestao {
-  width: 100%;
-  text-align: left;
-  padding: 8px 10px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.sugestao:hover { background: var(--cinza-100); }
-
-.sugestaoCodigo { color: var(--cinza-600); font-size: 11px; margin-right: 6px; }
-
-.vinculoOk { color: #1e6b2e; font-size: 11px; margin-top: 4px; }
-.vinculoAusente { color: #a35c00; font-size: 11px; margin-top: 4px; }
-
 .checkUrgente { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--cinza-800); margin-top: 4px; }
 
 .btnRemoverItem {

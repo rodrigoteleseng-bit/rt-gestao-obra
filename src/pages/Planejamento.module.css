@@ -16,15 +16,16 @@
 .campo input, .campo select, .campo textarea { width: 100%; min-width: 0; border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); padding: 10px 11px; font: inherit; background: var(--branco); color: var(--cinza-900); }
 .linha2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .linha3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.acoesForm { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.acoesForm { display: flex; flex-wrap: wrap; gap: 12px 14px; margin-top: 16px; margin-bottom: 14px; align-items: center; }
+.acoesForm .msgOk, .acoesForm .msgErro { margin-bottom: 0; }
 .btnPrimario, .btnSecundario, .btnPerigo { border-radius: var(--radius-sm); padding: 10px 13px; font: inherit; font-weight: 800; cursor: pointer; }
 .btnPrimario { border: 0; background: var(--navy); color: var(--branco); }
 .btnSecundario { background: var(--nude); color: var(--navy); border: 1px solid var(--cinza-200); }
 .btnPerigo { border: 0; background: var(--terracota); color: var(--branco); }
 button:disabled { opacity: .55; cursor: not-allowed; }
-.filtros { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
+.filtros { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; align-items: center; }
 .filtros select, .filtros input { border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); padding: 9px 11px; font: inherit; background: var(--branco); }
-.seletorPeriodo { display: grid; grid-template-columns: minmax(110px, .5fr) minmax(150px, .7fr) minmax(260px, 1.5fr) auto; gap: 10px; align-items: end; margin-bottom: 16px; }
+.seletorPeriodo { display: grid; grid-template-columns: minmax(120px, .5fr) minmax(170px, .7fr) minmax(320px, 1.5fr) auto; gap: 14px; align-items: end; margin-bottom: 18px; }
 .tabela { width: 100%; border-collapse: collapse; background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--sombra-sm); }
 .tabela th, .tabela td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--cinza-200); }
 .tabela th { background: var(--nude); color: var(--navy); font-weight: 800; }
@@ -42,13 +43,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .noArvoreFolhaBloqueada { color: var(--cinza-600); cursor: not-allowed; text-decoration: line-through; }
 .noArvoreFolhaBloqueada:hover { background: none; }
 .noArvoreMeta { font-size: 11px; font-weight: 400; color: var(--cinza-600); }
-.resumoSemana { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(0, 2fr); gap: 12px; margin-bottom: 14px; }
+.resumoSemana { display: grid; grid-template-columns: minmax(250px, .8fr) minmax(0, 2fr); gap: 16px; margin-bottom: 18px; }
 .resumoPrincipal { background: var(--navy); color: var(--branco); border-radius: var(--radius-md); padding: 14px 16px; display: flex; flex-direction: column; gap: 5px; box-shadow: var(--sombra-sm); }
 .resumoPrincipal strong { font-size: 18px; }
 .resumoLabel { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .75; font-weight: 800; }
 .resumoStatus { font-size: 12px; font-weight: 800; color: var(--azul-gelo); }
-.resumoCards { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
-.resumoCards div { background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); padding: 11px 12px; box-shadow: var(--sombra-sm); min-width: 0; }
+.resumoCards { display: grid; grid-template-columns: repeat(6, minmax(96px, 1fr)); gap: 12px; }
+.resumoCards div { background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); padding: 13px 14px; box-shadow: var(--sombra-sm); min-width: 0; min-height: 74px; }
 .resumoCards span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--cinza-600); font-weight: 800; }
 .resumoCards strong { display: block; margin-top: 4px; font-size: 20px; color: var(--navy); font-family: var(--font-titulo); }
 .alertaCard { border-color: var(--terracota) !important; }

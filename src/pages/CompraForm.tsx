@@ -2,22 +2,20 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useObra } from '../contexts/ObraContext'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase, type Servico, type PedidoCompra, type PedidoCompraItem, type Cotacao, type CotacaoItem, type Fornecedor, type RecebimentoNf } from '../lib/supabase'
+import { supabase, type Servico, type Unidade, type Etapa, type PedidoCompra, type PedidoCompraItem, type Cotacao, type CotacaoItem, type Fornecedor, type RecebimentoNf } from '../lib/supabase'
 import { STATUS_LABEL } from './Compras'
 import { formatarMoeda } from '../lib/formato'
 import styles from './CompraForm.module.css'
+import AplicacaoCascata from '../components/AplicacaoCascata'
 
 interface ItemNovo {
   chave: string
   descricao_item: string
   servico_id: string | null
-  servicoCodigo: string
-  buscaAplicacao: string
   quantidade_pedida: string
   und: string
   data_necessaria: string
   urgente: boolean
-  buscaAberta: boolean
 }
 
 function itemVazio(): ItemNovo {
@@ -25,13 +23,10 @@ function itemVazio(): ItemNovo {
     chave: crypto.randomUUID(),
     descricao_item: '',
     servico_id: null,
-    servicoCodigo: '',
-    buscaAplicacao: '',
     quantidade_pedida: '',
     und: '',
     data_necessaria: '',
     urgente: false,
-    buscaAberta: false,
   }
 }
 
@@ -63,6 +58,15 @@ async function carregarTodosServicos(): Promise<Servico[]> {
   return todos
 }
 
+async function carregarUnidadesEEtapas(obraId: string): Promise<{ unidades: Unidade[]; etapas: Etapa[] }> {
+  const { data: unis } = await supabase.from('unidades').select('*').eq('obra_id', obraId).order('ordem')
+  const listaUnidades = unis ?? []
+  const uniIds = listaUnidades.map(u => u.id)
+  if (uniIds.length === 0) return { unidades: listaUnidades, etapas: [] }
+  const { data: etps } = await supabase.from('etapas').select('*').in('unidade_id', uniIds).eq('placeholder', false).order('ordem')
+  return { unidades: listaUnidades, etapas: etps ?? [] }
+}
+
 function itemEditVazio(): ItemEditavel {
   return {
     id: null,
@@ -87,6 +91,8 @@ export default function CompraForm() {
   const { perfil } = useAuth()
 
   const [servicos, setServicos] = useState<Servico[]>([])
+  const [unidades, setUnidades] = useState<Unidade[]>([])
+  const [etapas, setEtapas] = useState<Etapa[]>([])
   const [descricao, setDescricao] = useState('')
   const [itens, setItens] = useState<ItemNovo[]>([itemVazio()])
   const [salvando, setSalvando] = useState(false)
@@ -148,25 +154,16 @@ export default function CompraForm() {
     carregarTodosServicos().then(setServicos)
   }, [])
 
-  function sugestoesPara(texto: string): Servico[] {
-    const t = texto.trim().toLowerCase()
-    if (!t) return servicos
-    return servicos.filter(s => s.nome.toLowerCase().includes(t) || (s.codigo ?? '').toLowerCase().includes(t))
-  }
+  useEffect(() => {
+    if (!obraAtiva) return
+    carregarUnidadesEEtapas(obraAtiva.id).then(({ unidades, etapas }) => {
+      setUnidades(unidades)
+      setEtapas(etapas)
+    })
+  }, [obraAtiva])
 
   function atualizarItem(chave: string, patch: Partial<ItemNovo>) {
     setItens(prev => prev.map(it => it.chave === chave ? { ...it, ...patch } : it))
-  }
-
-  function escolherServico(chave: string, s: Servico) {
-    setItens(prev => prev.map(it => it.chave === chave ? {
-      ...it,
-      servico_id: s.id,
-      servicoCodigo: s.codigo || s.nome,
-      buscaAplicacao: `${s.codigo ?? ''} ${s.nome}`.trim(),
-      und: it.und.trim() || s.und || '',
-      buscaAberta: false,
-    } : it))
   }
 
   function removerItem(chave: string) {
@@ -232,7 +229,6 @@ export default function CompraForm() {
       <div className={styles.bloco}>
         <h2>Itens</h2>
         {itens.map(it => {
-          const sugestoes = it.buscaAberta ? sugestoesPara(it.buscaAplicacao) : []
           return (
             <div key={it.chave} className={styles.itemLinha}>
               {itens.length > 1 && (
@@ -247,33 +243,13 @@ export default function CompraForm() {
                     placeholder="Ex.: areia"
                   />
                 </label>
-                <div className={styles.campo}>
-                  Aplicação
-                  <div className={styles.autocompleteWrap}>
-                    <input
-                      value={it.buscaAplicacao}
-                      onChange={e => atualizarItem(it.chave, {
-                        buscaAplicacao: e.target.value, servico_id: null, servicoCodigo: '', buscaAberta: true,
-                      })}
-                      onFocus={() => atualizarItem(it.chave, { buscaAberta: true })}
-                      onBlur={() => setTimeout(() => atualizarItem(it.chave, { buscaAberta: false }), 150)}
-                      placeholder="Ex.: chapisco"
-                    />
-                    {sugestoes.length > 0 && (
-                      <div className={styles.sugestoes}>
-                        {sugestoes.map(s => (
-                          <button key={s.id} className={styles.sugestao}
-                            onMouseDown={() => escolherServico(it.chave, s)}>
-                            <span className={styles.sugestaoCodigo}>{s.codigo}</span>{s.nome}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {it.servico_id
-                    ? <span className={styles.vinculoOk}>✓ {it.servicoCodigo}</span>
-                    : <span className={styles.vinculoAusente}>⚠ sem vínculo — vai para "a classificar"</span>}
-                </div>
+                <AplicacaoCascata
+                  unidades={unidades}
+                  etapas={etapas}
+                  servicos={servicos}
+                  servicoId={it.servico_id}
+                  onSelecionar={sid => atualizarItem(it.chave, { servico_id: sid })}
+                />
                 <label className={styles.campo}>
                   Quantidade *
                   <input type="number" min="0" step="0.01" value={it.quantidade_pedida}

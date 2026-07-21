@@ -225,8 +225,8 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  background: #fff7e6;
-  border: 1.5px solid #f1d39c;
+  background: var(--nude);
+  border: 1.5px solid var(--cinza-200);
   border-radius: var(--radius-md);
   padding: 10px 12px;
   margin-bottom: 12px;
@@ -234,7 +234,7 @@
 
 .alertaLocacoes span {
   background: var(--branco);
-  border: 1px solid #f1d39c;
+  border: 1px solid var(--cinza-200);
   border-radius: 999px;
   color: var(--alerta);
   font-size: 12px;

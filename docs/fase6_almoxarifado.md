@@ -103,9 +103,13 @@
 - **Alertas visuais:** a lista destaca locações vencidas, vencendo hoje e vencendo amanhã
   (alerta com 1 dia de antecedência). A ação "Registrar entrega" baixa a locação sem apagar o
   histórico.
+- **Correção antes da entrega:** locações abertas podem ser editadas para corrigir ferramenta,
+  locadora, modalidade e datas digitadas errado. Depois de registrar a entrega, a linha fica
+  imutável por RLS, no mesmo padrão de empréstimo de ferramenta já devolvido.
 - **Banco:** migração `20260721_ferramenta_locacoes.sql`, com tabela própria
   `ferramenta_locacoes`, enum `modalidade_locacao_ferramenta`, RLS por módulo `almoxarifado`
-  e isolamento por obra.
+  e isolamento por obra. Ajuste pós-revisão em `20260721_ferramenta_locacoes_revisao.sql`
+  simplifica a policy de leitura e trava UPDATE quando `data_entregue` já está preenchida.
 
 ## Fora de escopo (registrado na spec, não entregue nesta fase)
 

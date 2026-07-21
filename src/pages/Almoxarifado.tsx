@@ -34,14 +34,15 @@ const fmtDataHora = (iso: string) => {
 const fmtData = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR')
 
 export default function Almoxarifado() {
-  const { perfil } = useAuth()
+  const { perfil, temModulo } = useAuth()
   const [aba, setAba] = useState<Aba>('estoque')
+  const podeAcessar = perfil?.papel === 'admin' || (perfil?.papel === 'equipe' && temModulo('almoxarifado'))
 
-  if (perfil?.papel === 'cliente') {
+  if (!podeAcessar) {
     return (
       <div className={styles.page}>
         <h1>Almoxarifado</h1>
-        <p className={styles.vazio}>Este módulo é de uso interno da equipe de obra.</p>
+        <p className={styles.vazio}>Este módulo é de uso interno da equipe de obra com permissão de almoxarifado.</p>
       </div>
     )
   }
@@ -114,6 +115,7 @@ function AbaLocacoes() {
   const [busca, setBusca] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstadoLocacao>('')
   const [mostrarNova, setMostrarNova] = useState(false)
+  const [locacaoEditando, setLocacaoEditando] = useState<FerramentaLocacao | null>(null)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
   async function carregar() {
@@ -183,12 +185,24 @@ function AbaLocacoes() {
       </div>
 
       {mostrarNova && (
-        <PainelNovaLocacao
+        <PainelLocacao
           onFechar={() => setMostrarNova(false)}
           onSucesso={async () => {
             setMostrarNova(false)
             await carregar()
             setMsg({ tipo: 'ok', texto: 'Locação cadastrada.' })
+          }}
+        />
+      )}
+
+      {locacaoEditando && (
+        <PainelLocacao
+          locacao={locacaoEditando}
+          onFechar={() => setLocacaoEditando(null)}
+          onSucesso={async () => {
+            setLocacaoEditando(null)
+            await carregar()
+            setMsg({ tipo: 'ok', texto: 'Locação corrigida.' })
           }}
         />
       )}
@@ -242,9 +256,14 @@ function AbaLocacoes() {
               </div>
               <div className={styles.linhaMeta}>
                 {!locacao.data_entregue && (
-                  <button className={styles.btnSecundario} onClick={() => registrarEntrega(locacao)}>
-                    Registrar entrega
-                  </button>
+                  <>
+                    <button className={styles.btnSecundario} onClick={() => setLocacaoEditando(locacao)}>
+                      Editar
+                    </button>
+                    <button className={styles.btnSecundario} onClick={() => registrarEntrega(locacao)}>
+                      Registrar entrega
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -255,20 +274,22 @@ function AbaLocacoes() {
   )
 }
 
-interface PainelNovaLocacaoProps {
+interface PainelLocacaoProps {
+  locacao?: FerramentaLocacao
   onFechar: () => void
   onSucesso: () => void
 }
 
-function PainelNovaLocacao({ onFechar, onSucesso }: PainelNovaLocacaoProps) {
+function PainelLocacao({ locacao, onFechar, onSucesso }: PainelLocacaoProps) {
   const { obraAtiva } = useObra()
 
-  const [nomeFerramenta, setNomeFerramenta] = useState('')
-  const [locadora, setLocadora] = useState('')
-  const [modalidade, setModalidade] = useState<ModalidadeLocacaoFerramenta>('diaria')
-  const [dataChegada, setDataChegada] = useState(dataHoje())
-  const [dataEntregaPrevista, setDataEntregaPrevista] = useState('')
-  const [observacao, setObservacao] = useState('')
+  const editando = !!locacao
+  const [nomeFerramenta, setNomeFerramenta] = useState(locacao?.nome_ferramenta ?? '')
+  const [locadora, setLocadora] = useState(locacao?.locadora ?? '')
+  const [modalidade, setModalidade] = useState<ModalidadeLocacaoFerramenta>(locacao?.modalidade ?? 'diaria')
+  const [dataChegada, setDataChegada] = useState(locacao?.data_chegada ?? dataHoje())
+  const [dataEntregaPrevista, setDataEntregaPrevista] = useState(locacao?.data_entrega_prevista ?? '')
+  const [observacao, setObservacao] = useState(locacao?.observacao ?? '')
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
@@ -296,18 +317,20 @@ function PainelNovaLocacao({ onFechar, onSucesso }: PainelNovaLocacaoProps) {
     }
     setSalvando(true)
     setMsg(null)
-    const { error } = await supabase.from('ferramenta_locacoes').insert({
-      obra_id: obraAtiva.id,
+    const payload = {
       nome_ferramenta: nomeFerramenta.trim(),
       locadora: locadora.trim(),
       modalidade,
       data_chegada: dataChegada,
       data_entrega_prevista: dataEntregaPrevista,
       observacao: observacao.trim() || null,
-    })
+    }
+    const { data, error } = editando
+      ? await supabase.from('ferramenta_locacoes').update(payload).eq('id', locacao.id).is('data_entregue', null).select()
+      : await supabase.from('ferramenta_locacoes').insert({ ...payload, obra_id: obraAtiva.id }).select()
     setSalvando(false)
-    if (error) {
-      setMsg({ tipo: 'erro', texto: `Falha ao cadastrar locação: ${error.message}` })
+    if (error || !data || data.length === 0) {
+      setMsg({ tipo: 'erro', texto: error?.message ?? 'Esta locação já foi entregue por outra pessoa.' })
       return
     }
     onSucesso()
@@ -316,7 +339,7 @@ function PainelNovaLocacao({ onFechar, onSucesso }: PainelNovaLocacaoProps) {
   return (
     <div className={styles.painelForm}>
       <div className={styles.painelHeader}>
-        <h2>Nova locação de ferramenta</h2>
+        <h2>{editando ? 'Editar locação de ferramenta' : 'Nova locação de ferramenta'}</h2>
         <button className={styles.btnFechar} onClick={onFechar}>✕</button>
       </div>
       <div className={styles.linha2}>
@@ -353,7 +376,7 @@ function PainelNovaLocacao({ onFechar, onSucesso }: PainelNovaLocacaoProps) {
       </div>
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
       <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
-        {salvando ? 'Salvando…' : 'Cadastrar locação'}
+        {salvando ? 'Salvando…' : editando ? 'Salvar correção' : 'Cadastrar locação'}
       </button>
     </div>
   )

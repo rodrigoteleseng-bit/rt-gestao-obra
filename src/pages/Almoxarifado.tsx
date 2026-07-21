@@ -36,13 +36,13 @@ const fmtData = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(
 export default function Almoxarifado() {
   const { perfil, temModulo } = useAuth()
   const [aba, setAba] = useState<Aba>('estoque')
-  const podeAcessar = perfil?.papel === 'admin' || (perfil?.papel === 'equipe' && temModulo('almoxarifado'))
+  const podeGerirAlmoxarifado = perfil?.papel === 'admin' || (perfil?.papel === 'equipe' && temModulo('almoxarifado'))
 
-  if (!podeAcessar) {
+  if (perfil?.papel === 'cliente') {
     return (
       <div className={styles.page}>
         <h1>Almoxarifado</h1>
-        <p className={styles.vazio}>Este módulo é de uso interno da equipe de obra com permissão de almoxarifado.</p>
+        <p className={styles.vazio}>Este módulo é de uso interno da equipe de obra.</p>
       </div>
     )
   }
@@ -63,9 +63,11 @@ export default function Almoxarifado() {
         <button className={`${styles.aba} ${aba === 'ferramentas' ? styles.abaAtiva : ''}`} onClick={() => setAba('ferramentas')}>
           Ferramentas
         </button>
-        <button className={`${styles.aba} ${aba === 'locacoes' ? styles.abaAtiva : ''}`} onClick={() => setAba('locacoes')}>
-          Aluguéis
-        </button>
+        {podeGerirAlmoxarifado && (
+          <button className={`${styles.aba} ${aba === 'locacoes' ? styles.abaAtiva : ''}`} onClick={() => setAba('locacoes')}>
+            Aluguéis
+          </button>
+        )}
         <button className={`${styles.aba} ${aba === 'requisicoes' ? styles.abaAtiva : ''}`} onClick={() => setAba('requisicoes')}>
           Requisições
         </button>
@@ -73,7 +75,7 @@ export default function Almoxarifado() {
 
       {aba === 'estoque' && <AbaEstoque />}
       {aba === 'ferramentas' && <AbaFerramentas />}
-      {aba === 'locacoes' && <AbaLocacoes />}
+      {aba === 'locacoes' && podeGerirAlmoxarifado && <AbaLocacoes />}
       {aba === 'requisicoes' && <AbaRequisicoes />}
     </div>
   )
@@ -282,6 +284,7 @@ interface PainelLocacaoProps {
 
 function PainelLocacao({ locacao, onFechar, onSucesso }: PainelLocacaoProps) {
   const { obraAtiva } = useObra()
+  const { perfil } = useAuth()
 
   const editando = !!locacao
   const [nomeFerramenta, setNomeFerramenta] = useState(locacao?.nome_ferramenta ?? '')
@@ -326,7 +329,11 @@ function PainelLocacao({ locacao, onFechar, onSucesso }: PainelLocacaoProps) {
       observacao: observacao.trim() || null,
     }
     const { data, error } = editando
-      ? await supabase.from('ferramenta_locacoes').update(payload).eq('id', locacao.id).is('data_entregue', null).select()
+      ? await supabase.from('ferramenta_locacoes').update({
+          ...payload,
+          editado_por: perfil?.id ?? null,
+          editado_em: new Date().toISOString(),
+        }).eq('id', locacao.id).is('data_entregue', null).select()
       : await supabase.from('ferramenta_locacoes').insert({ ...payload, obra_id: obraAtiva.id }).select()
     setSalvando(false)
     if (error || !data || data.length === 0) {

@@ -574,6 +574,8 @@ export interface FerramentaLocacao {
   criado_em: string
   entregue_por: string | null
   entregue_em: string | null
+  editado_por: string | null
+  editado_em: string | null
 }
 export interface RequisicaoBloco {
   id: string; obra_id: string; numero_inicial: number; numero_final: number

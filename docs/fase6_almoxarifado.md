@@ -103,9 +103,13 @@
 - **Alertas visuais:** a lista destaca locações vencidas, vencendo hoje e vencendo amanhã
   (alerta com 1 dia de antecedência). A ação "Registrar entrega" baixa a locação sem apagar o
   histórico.
+- **Permissão:** as abas antigas do Almoxarifado preservam o comportamento original de leitura
+  para equipe; a nova aba **Aluguéis** fica visível apenas para admin/equipe com o módulo
+  `almoxarifado`, alinhada à RLS própria da nova tabela.
 - **Correção antes da entrega:** locações abertas podem ser editadas para corrigir ferramenta,
-  locadora, modalidade e datas digitadas errado. Depois de registrar a entrega, a linha fica
-  imutável por RLS, no mesmo padrão de empréstimo de ferramenta já devolvido.
+  locadora, modalidade e datas digitadas errado, gravando `editado_por`/`editado_em`. Depois
+  de registrar a entrega, a linha fica imutável por RLS, no mesmo padrão de empréstimo de
+  ferramenta já devolvido.
 - **Banco:** migração `20260721_ferramenta_locacoes.sql`, com tabela própria
   `ferramenta_locacoes`, enum `modalidade_locacao_ferramenta`, RLS por módulo `almoxarifado`
   e isolamento por obra. Ajuste pós-revisão em `20260721_ferramenta_locacoes_revisao.sql`

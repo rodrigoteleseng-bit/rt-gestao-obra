@@ -35,12 +35,10 @@ interface ItemEditavel {
   chave: string
   descricao_item: string
   servico_id: string | null
-  buscaAplicacao: string
   quantidade_pedida: string
   und: string
   data_necessaria: string
   urgente: boolean
-  buscaAberta: boolean
   removido: boolean
 }
 
@@ -73,12 +71,10 @@ function itemEditVazio(): ItemEditavel {
     chave: crypto.randomUUID(),
     descricao_item: '',
     servico_id: null,
-    buscaAplicacao: '',
     quantidade_pedida: '',
     und: '',
     data_necessaria: '',
     urgente: false,
-    buscaAberta: false,
     removido: false,
   }
 }
@@ -207,6 +203,7 @@ export default function CompraForm() {
       <DetalhePedido
         pedido={pedido} itens={itensPedido} cotacoes={cotacoes} cotacoesItens={cotacoesItens}
         fornecedores={fornecedores} recebimentos={recebimentos} servicos={servicos}
+        unidades={unidades} etapas={etapas}
         somaAlmoxarifado={somaAlmoxarifado}
         obraNome={obraAtiva?.nome ?? '—'} onRecarregar={() => carregarPedido(pedido.id)}
       />
@@ -294,12 +291,14 @@ interface DetalhePedidoProps {
   fornecedores: Fornecedor[]
   recebimentos: RecebimentoNf[]
   servicos: Servico[]
+  unidades: Unidade[]
+  etapas: Etapa[]
   somaAlmoxarifado: Map<string, number>
   obraNome: string
   onRecarregar: () => void
 }
 
-function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, recebimentos, servicos, somaAlmoxarifado, obraNome, onRecarregar }: DetalhePedidoProps) {
+function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, recebimentos, servicos, unidades, etapas, somaAlmoxarifado, obraNome, onRecarregar }: DetalhePedidoProps) {
   const navigate = useNavigate()
   const { perfil, temModulo } = useAuth()
   const podeEditar = perfil?.papel === 'admin' || temModulo('compras')
@@ -326,35 +325,17 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       chave: it.id,
       descricao_item: it.descricao_item,
       servico_id: it.servico_id,
-      buscaAplicacao: it.servico_id ? codigoAplicacao(it.servico_id) : '',
       quantidade_pedida: String(it.quantidade_pedida),
       und: it.und ?? '',
       data_necessaria: it.data_necessaria ?? '',
       urgente: it.urgente,
-      buscaAberta: false,
       removido: false,
     })))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itens, podeEditarItens])
 
-  function sugestoesParaEdit(texto: string): Servico[] {
-    const t = texto.trim().toLowerCase()
-    if (!t) return servicos
-    return servicos.filter(s => s.nome.toLowerCase().includes(t) || (s.codigo ?? '').toLowerCase().includes(t))
-  }
-
   function atualizarItemEdit(chave: string, patch: Partial<ItemEditavel>) {
     setItensEdit(prev => prev.map(it => it.chave === chave ? { ...it, ...patch } : it))
-  }
-
-  function escolherServicoEdit(chave: string, s: Servico) {
-    setItensEdit(prev => prev.map(it => it.chave === chave ? {
-      ...it,
-      servico_id: s.id,
-      buscaAplicacao: `${s.codigo ?? ''} ${s.nome}`.trim(),
-      und: it.und.trim() || s.und || '',
-      buscaAberta: false,
-    } : it))
   }
 
   function removerItemEdit(chave: string) {
@@ -373,7 +354,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
   async function salvarItensEditados() {
     const itensParaSalvar = itensEdit.filter(it => it.id !== null || (
       !it.removido && (
-        it.descricao_item.trim() || it.servico_id || it.buscaAplicacao.trim() ||
+        it.descricao_item.trim() || it.servico_id ||
         it.quantidade_pedida !== '' || it.und.trim() || it.data_necessaria || it.urgente
       )
     ))
@@ -719,7 +700,6 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
         <div className={styles.bloco}>
           <h2>Itens do pedido (rascunho — editável)</h2>
           {itensEdit.filter(it => !it.removido).map(it => {
-            const sugestoes = it.buscaAberta ? sugestoesParaEdit(it.buscaAplicacao) : []
             return (
               <div key={it.chave} className={styles.itemLinha}>
                 <button className={styles.btnRemoverItem} onClick={() => removerItemEdit(it.chave)}>✕</button>
@@ -730,33 +710,13 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
                       onChange={e => atualizarItemEdit(it.chave, { descricao_item: e.target.value })}
                       placeholder="Ex.: areia" />
                   </label>
-                  <div className={styles.campo}>
-                    Aplicação
-                    <div className={styles.autocompleteWrap}>
-                      <input
-                        value={it.buscaAplicacao}
-                        onChange={e => atualizarItemEdit(it.chave, {
-                          buscaAplicacao: e.target.value, servico_id: null, buscaAberta: true,
-                        })}
-                        onFocus={() => atualizarItemEdit(it.chave, { buscaAberta: true })}
-                        onBlur={() => setTimeout(() => atualizarItemEdit(it.chave, { buscaAberta: false }), 150)}
-                        placeholder="Ex.: chapisco"
-                      />
-                      {sugestoes.length > 0 && (
-                        <div className={styles.sugestoes}>
-                          {sugestoes.map(s => (
-                            <button key={s.id} className={styles.sugestao}
-                              onMouseDown={() => escolherServicoEdit(it.chave, s)}>
-                              <span className={styles.sugestaoCodigo}>{s.codigo}</span>{s.nome}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {it.servico_id
-                      ? <span className={styles.vinculoOk}>✓ {codigoAplicacao(it.servico_id)}</span>
-                      : <span className={styles.vinculoAusente}>⚠ sem vínculo — vai para "a classificar"</span>}
-                  </div>
+                  <AplicacaoCascata
+                    unidades={unidades}
+                    etapas={etapas}
+                    servicos={servicos}
+                    servicoId={it.servico_id}
+                    onSelecionar={sid => atualizarItemEdit(it.chave, { servico_id: sid })}
+                  />
                   <label className={styles.campo}>
                     Quantidade *
                     <input type="number" min="0" step="0.01" value={it.quantidade_pedida}

@@ -34,22 +34,27 @@ export default function AplicacaoCascata({ unidades, etapas, servicos, servicoId
   // depois que ele já começou a navegar na cascata).
   useEffect(() => {
     if (inicializado.current) return
-    if (servicoId) {
-      const s = servicos.find(sv => sv.id === servicoId)
-      if (!s) return
-      const e = etapas.find(et => et.id === s.etapa_id)
-      if (!e) return
-      const u = unidades.find(un => un.id === e.unidade_id)
-      if (!u) return
+    if (!servicoId) {
       inicializado.current = true
-      setUnidadeId(u.id)
-      setEtapaId(e.id)
-      setTextoUnidade(u.nome)
-      setTextoEtapa(rotuloEtapa(e))
-      setTextoServico(rotuloServico(s))
-    } else {
-      inicializado.current = true
+      return
     }
+    const s = servicos.find(sv => sv.id === servicoId)
+    if (!s) {
+      if (servicos.length === 0) return // ainda carregando servicos
+      inicializado.current = true // servico nao encontrado (inativo, por ex.) — mantem campos vazios
+      return
+    }
+    const e = etapas.find(et => et.id === s.etapa_id)
+    if (!e && etapas.length === 0) return // ainda carregando etapas
+    const u = e ? unidades.find(un => un.id === e.unidade_id) : undefined
+    if (e && !u && unidades.length === 0) return // ainda carregando unidades
+
+    inicializado.current = true
+    setUnidadeId(u?.id ?? null)
+    setEtapaId(e?.id ?? null)
+    setTextoUnidade(u?.nome ?? '')
+    setTextoEtapa(e ? rotuloEtapa(e) : '')
+    setTextoServico(rotuloServico(s))
   }, [servicoId, servicos, etapas, unidades])
 
   function unidadesFiltradas(): Unidade[] {

@@ -245,7 +245,13 @@ export default function CompraForm() {
                   etapas={etapas}
                   servicos={servicos}
                   servicoId={it.servico_id}
-                  onSelecionar={sid => atualizarItem(it.chave, { servico_id: sid })}
+                  onSelecionar={sid => {
+                    const s = sid ? servicos.find(sv => sv.id === sid) : undefined
+                    atualizarItem(it.chave, {
+                      servico_id: sid,
+                      ...(s?.und && !it.und.trim() ? { und: s.und } : {}),
+                    })
+                  }}
                 />
                 <label className={styles.campo}>
                   Quantidade *
@@ -715,7 +721,13 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
                     etapas={etapas}
                     servicos={servicos}
                     servicoId={it.servico_id}
-                    onSelecionar={sid => atualizarItemEdit(it.chave, { servico_id: sid })}
+                    onSelecionar={sid => {
+                      const s = sid ? servicos.find(sv => sv.id === sid) : undefined
+                      atualizarItemEdit(it.chave, {
+                        servico_id: sid,
+                        ...(s?.und && !it.und.trim() ? { und: s.und } : {}),
+                      })
+                    }}
                   />
                   <label className={styles.campo}>
                     Quantidade *

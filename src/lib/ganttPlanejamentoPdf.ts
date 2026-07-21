@@ -20,6 +20,8 @@ interface Segmento {
 interface BarraTarefa {
   id: string
   nome: string
+  percentualInicio: number
+  metaPercentual: number
   unidadeNome: string
   unidadeOrdem: number
   etapaNome: string
@@ -98,7 +100,9 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
     if (!c) continue
     barras.push({
       id: t.id,
-      nome: `${t.nome} (${c.percentual_inicio}% -> ${c.meta_percentual}%)`,
+      nome: t.nome,
+      percentualInicio: c.percentual_inicio,
+      metaPercentual: c.meta_percentual,
       unidadeNome: t.unidades.nome,
       unidadeOrdem: t.unidades.ordem,
       etapaNome,
@@ -141,7 +145,9 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' })
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
-  const ML = 74, MR = 10, MT = 39, MB = 22
+  const ML = 108, MR = 10, MT = 39, MB = 22
+  const PCT_COL_W = 20
+  const TEXTO_COL_W = ML - PCT_COL_W - 8
   const areaX = ML
   const areaW = W - ML - MR
   const topoLinhas = MT
@@ -151,7 +157,7 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
 
   const ALT_UNIDADE = 6.5
   const ALT_ETAPA = 5.5
-  const ALT_TAREFA = 8
+  const ALT_TAREFA = 7.2
 
   function desenharTopo() {
     pdf.setFillColor(NAVY)
@@ -192,6 +198,7 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(8)
     pdf.text('Unidade / etapa / tarefa', 4, MT - 3)
+    pdf.text('Meta', ML - PCT_COL_W + 2, MT - 3)
 
     pdf.setFillColor(NUDE_BANDA)
     pdf.rect(areaX, MT - 10, areaW, 4.5, 'F')
@@ -223,7 +230,10 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
     }
 
     pdf.setDrawColor(NAVY)
+    pdf.setDrawColor(NAVY)
     pdf.rect(areaX, topoLinhas, areaW, fundoLinhas - topoLinhas)
+    pdf.setDrawColor(CINZA_GRADE)
+    pdf.line(ML - PCT_COL_W, topoLinhas, ML - PCT_COL_W, fundoLinhas)
   }
 
   function desenharRodape() {
@@ -262,38 +272,46 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
 
     if (linha.tipo === 'unidade') {
       pdf.setFillColor(NUDE_BANDA)
-      pdf.rect(areaX, y, areaW, altura, 'F')
+      pdf.rect(0, y, W - MR, altura, 'F')
       pdf.setTextColor(NAVY)
       pdf.setFont('helvetica', 'bold')
       pdf.setFontSize(9.5)
-      pdf.text(linha.texto, areaX + 2, y + altura - 2)
+      pdf.text(linha.texto, 4, y + altura - 2)
       y += altura
       continue
     }
     if (linha.tipo === 'etapa') {
+      pdf.setFillColor(BRANCO)
+      pdf.rect(0, y, W - MR, altura, 'F')
       pdf.setTextColor(NAVY)
       pdf.setFont('helvetica', 'bolditalic')
       pdf.setFontSize(8)
-      pdf.text(linha.texto, areaX + 4, y + altura - 1.5)
+      pdf.text(linha.texto, 8, y + altura - 1.5)
       y += altura
       continue
     }
 
     // linha.tipo === 'tarefa'
     const b = linha.barra
+    pdf.setFillColor(BRANCO)
+    pdf.rect(0, y, W - MR, altura, 'F')
     pdf.setDrawColor(CINZA_GRADE)
-    pdf.line(areaX, y + altura, areaX + areaW, y + altura)
+    pdf.line(0, y + altura, W - MR, y + altura)
     pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(7.5)
+    pdf.setFontSize(7.1)
     pdf.setTextColor(CINZA_TEXTO)
-    const nomeExibido = truncarTexto(pdf, b.nome, ML - 6)
+    const nomeExibido = truncarTexto(pdf, b.nome, TEXTO_COL_W)
     pdf.text(nomeExibido, 3, y + altura / 2 + 1.2)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(6.8)
+    pdf.setTextColor(NAVY)
+    pdf.text(`${b.percentualInicio}% -> ${b.metaPercentual}%`, ML - 2, y + altura / 2 + 1.1, { align: 'right' })
 
-    const alturaBarra = 4.2
+    const alturaBarra = 2.8
     const byBase = y + (altura - alturaBarra) / 2
     pdf.setFillColor(b.planejado.cor)
     const largura = Math.max(x(b.planejado.fim) - x(b.planejado.inicio), 0.8)
-    pdf.rect(x(b.planejado.inicio), byBase, largura, alturaBarra, 'F')
+    pdf.roundedRect(x(b.planejado.inicio), byBase, largura, alturaBarra, 0.8, 0.8, 'F')
     y += altura
   }
 

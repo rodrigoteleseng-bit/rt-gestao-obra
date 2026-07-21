@@ -558,6 +558,23 @@ export interface FerramentaEmprestimo {
   observacao: string | null; retirada_em: string; devolvida_em: string | null
   devolvida_recebida_por: string | null; criado_por: string; criado_em: string
 }
+export type ModalidadeLocacaoFerramenta = 'diaria' | 'semanal' | 'mensal'
+export interface FerramentaLocacao {
+  id: string
+  obra_id: string
+  nome_ferramenta: string
+  locadora: string
+  modalidade: ModalidadeLocacaoFerramenta
+  data_chegada: string
+  data_entrega_prevista: string
+  data_entregue: string | null
+  observacao: string | null
+  ativo: boolean
+  criado_por: string
+  criado_em: string
+  entregue_por: string | null
+  entregue_em: string | null
+}
 export interface RequisicaoBloco {
   id: string; obra_id: string; numero_inicial: number; numero_final: number
   criado_por: string; criado_em: string

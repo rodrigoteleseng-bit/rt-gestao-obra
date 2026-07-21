@@ -215,6 +215,32 @@
 .chip_atraso { background: #fdeaea; color: var(--erro); font-weight: 800; }
 .chip_devolvida { background: #e3f4e3; color: var(--sucesso); }
 .chip_aberto { background: #fdf3d7; color: var(--alerta); }
+.chip_em_dia { background: #edf4fa; color: var(--navy); }
+.chip_vence_amanha { background: #fdf3d7; color: var(--alerta); font-weight: 800; }
+.chip_vence_hoje { background: #fdeaea; color: var(--erro); font-weight: 800; }
+.chip_vencida { background: #fdeaea; color: var(--erro); font-weight: 900; }
+.chip_entregue { background: #e3f4e3; color: var(--sucesso); }
+
+.alertaLocacoes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: #fff7e6;
+  border: 1.5px solid #f1d39c;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.alertaLocacoes span {
+  background: var(--branco);
+  border: 1px solid #f1d39c;
+  border-radius: 999px;
+  color: var(--alerta);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 5px 9px;
+}
 
 /* ── painel de extrato ── */
 .painelExtrato {

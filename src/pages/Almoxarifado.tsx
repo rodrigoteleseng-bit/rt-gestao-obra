@@ -4,7 +4,8 @@ import { useObra } from '../contexts/ObraContext'
 import {
   supabase, type Material, type CategoriaMaterial, type EstoqueMovimento, type Unidade,
   type PedidoCompra, type PedidoCompraItem, type CronogramaTarefa, type RequisicaoBloco,
-  type Ferramenta, type FerramentaEmprestimo, type Fornecedor,
+  type Ferramenta, type FerramentaEmprestimo, type FerramentaLocacao,
+  type ModalidadeLocacaoFerramenta, type Fornecedor,
 } from '../lib/supabase'
 import { gerarPdfBlocoRequisicoes } from '../lib/requisicoesPdf'
 import { gerarPdfEstoque } from '../lib/estoquePdf'
@@ -12,7 +13,7 @@ import { dataLocalISO, dataHoje, diasEntre } from '../lib/almoxarifado'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Almoxarifado.module.css'
 
-type Aba = 'estoque' | 'ferramentas' | 'requisicoes'
+type Aba = 'estoque' | 'ferramentas' | 'locacoes' | 'requisicoes'
 
 const CATEGORIA_LABEL: Record<CategoriaMaterial, string> = {
   material: 'Material',
@@ -20,10 +21,17 @@ const CATEGORIA_LABEL: Record<CategoriaMaterial, string> = {
   escritorio: 'Escritório',
 }
 
+const MODALIDADE_LOCACAO_LABEL: Record<ModalidadeLocacaoFerramenta, string> = {
+  diaria: 'Diária',
+  semanal: 'Semanal',
+  mensal: 'Mensal',
+}
+
 const fmtDataHora = (iso: string) => {
   const d = new Date(iso)
   return `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR').slice(0, 5)}`
 }
+const fmtData = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR')
 
 export default function Almoxarifado() {
   const { perfil } = useAuth()
@@ -54,6 +62,9 @@ export default function Almoxarifado() {
         <button className={`${styles.aba} ${aba === 'ferramentas' ? styles.abaAtiva : ''}`} onClick={() => setAba('ferramentas')}>
           Ferramentas
         </button>
+        <button className={`${styles.aba} ${aba === 'locacoes' ? styles.abaAtiva : ''}`} onClick={() => setAba('locacoes')}>
+          Aluguéis
+        </button>
         <button className={`${styles.aba} ${aba === 'requisicoes' ? styles.abaAtiva : ''}`} onClick={() => setAba('requisicoes')}>
           Requisições
         </button>
@@ -61,6 +72,7 @@ export default function Almoxarifado() {
 
       {aba === 'estoque' && <AbaEstoque />}
       {aba === 'ferramentas' && <AbaFerramentas />}
+      {aba === 'locacoes' && <AbaLocacoes />}
       {aba === 'requisicoes' && <AbaRequisicoes />}
     </div>
   )
@@ -68,6 +80,283 @@ export default function Almoxarifado() {
 
 function EmBreve({ texto }: { texto: string }) {
   return <p className={styles.vazio}>{texto}</p>
+}
+
+// ---------- Aluguel de ferramentas ----------
+
+type EstadoLocacao = 'em_dia' | 'vence_amanha' | 'vence_hoje' | 'vencida' | 'entregue'
+type FiltroEstadoLocacao = '' | EstadoLocacao
+
+const ESTADO_LOCACAO_LABEL: Record<EstadoLocacao, string> = {
+  em_dia: 'Em dia',
+  vence_amanha: 'Vence amanhã',
+  vence_hoje: 'Vence hoje',
+  vencida: 'Vencida',
+  entregue: 'Entregue',
+}
+
+function estadoDaLocacao(locacao: FerramentaLocacao): { estado: EstadoLocacao; dias: number } {
+  if (locacao.data_entregue) return { estado: 'entregue', dias: 0 }
+  const dias = diasEntre(dataHoje(), locacao.data_entrega_prevista)
+  if (dias < 0) return { estado: 'vencida', dias: Math.abs(dias) }
+  if (dias === 0) return { estado: 'vence_hoje', dias: 0 }
+  if (dias === 1) return { estado: 'vence_amanha', dias: 1 }
+  return { estado: 'em_dia', dias }
+}
+
+function AbaLocacoes() {
+  const { confirmar } = useConfirmDialog()
+  const { perfil } = useAuth()
+  const { obraAtiva } = useObra()
+
+  const [locacoes, setLocacoes] = useState<FerramentaLocacao[]>([])
+  const [carregando, setCarregando] = useState(true)
+  const [busca, setBusca] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstadoLocacao>('')
+  const [mostrarNova, setMostrarNova] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function carregar() {
+    if (!obraAtiva) return
+    setCarregando(true)
+    const { data, error } = await supabase.from('ferramenta_locacoes').select('*')
+      .eq('obra_id', obraAtiva.id).eq('ativo', true).order('data_entrega_prevista')
+    setCarregando(false)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Erro ao carregar aluguéis: ${error.message}` })
+      return
+    }
+    setLocacoes(data ?? [])
+  }
+
+  useEffect(() => { carregar() }, [obraAtiva])
+
+  const linhas = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+    const peso: Record<EstadoLocacao, number> = { vencida: 0, vence_hoje: 1, vence_amanha: 2, em_dia: 3, entregue: 4 }
+    return locacoes
+      .map(locacao => ({ locacao, ...estadoDaLocacao(locacao) }))
+      .filter(l =>
+        (!termo || l.locacao.nome_ferramenta.toLowerCase().includes(termo) || l.locacao.locadora.toLowerCase().includes(termo)) &&
+        (!filtroEstado || l.estado === filtroEstado)
+      )
+      .sort((a, b) => {
+        if (peso[a.estado] !== peso[b.estado]) return peso[a.estado] - peso[b.estado]
+        return a.locacao.data_entrega_prevista.localeCompare(b.locacao.data_entrega_prevista)
+      })
+  }, [locacoes, busca, filtroEstado])
+
+  const resumoAlertas = useMemo(() => {
+    const abertas = locacoes.map(locacao => ({ locacao, ...estadoDaLocacao(locacao) }))
+      .filter(l => l.estado === 'vencida' || l.estado === 'vence_hoje' || l.estado === 'vence_amanha')
+    return {
+      vencidas: abertas.filter(l => l.estado === 'vencida').length,
+      hoje: abertas.filter(l => l.estado === 'vence_hoje').length,
+      amanha: abertas.filter(l => l.estado === 'vence_amanha').length,
+    }
+  }, [locacoes])
+
+  async function registrarEntrega(locacao: FerramentaLocacao) {
+    if (!perfil) return
+    if (!await confirmar({
+      titulo: 'Registrar entrega',
+      mensagem: `Confirma que "${locacao.nome_ferramenta}" foi entregue para a locadora?`,
+      confirmarTexto: 'Registrar entrega',
+    })) return
+    setMsg(null)
+    const { data, error } = await supabase.from('ferramenta_locacoes')
+      .update({ data_entregue: dataHoje(), entregue_por: perfil.id, entregue_em: new Date().toISOString() })
+      .eq('id', locacao.id).is('data_entregue', null).select()
+    if (error || !data || data.length === 0) {
+      setMsg({ tipo: 'erro', texto: error?.message ?? 'Esta locação já foi entregue por outra pessoa.' })
+      await carregar()
+      return
+    }
+    await carregar()
+    setMsg({ tipo: 'ok', texto: 'Entrega registrada.' })
+  }
+
+  return (
+    <div>
+      <div className={styles.topoAcoes}>
+        <button className={styles.btnPrincipal} onClick={() => setMostrarNova(true)}>+ Nova locação</button>
+      </div>
+
+      {mostrarNova && (
+        <PainelNovaLocacao
+          onFechar={() => setMostrarNova(false)}
+          onSucesso={async () => {
+            setMostrarNova(false)
+            await carregar()
+            setMsg({ tipo: 'ok', texto: 'Locação cadastrada.' })
+          }}
+        />
+      )}
+
+      {(resumoAlertas.vencidas > 0 || resumoAlertas.hoje > 0 || resumoAlertas.amanha > 0) && (
+        <div className={styles.alertaLocacoes}>
+          {resumoAlertas.vencidas > 0 && <span>{resumoAlertas.vencidas} vencida(s)</span>}
+          {resumoAlertas.hoje > 0 && <span>{resumoAlertas.hoje} vence(m) hoje</span>}
+          {resumoAlertas.amanha > 0 && <span>{resumoAlertas.amanha} vence(m) amanhã</span>}
+        </div>
+      )}
+
+      <div className={styles.filtros}>
+        <input className={styles.busca} value={busca} onChange={e => setBusca(e.target.value)}
+          placeholder="Buscar por ferramenta ou locadora…" />
+        <select className={styles.selectFiltro} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value as FiltroEstadoLocacao)}>
+          <option value="">Todos os estados</option>
+          <option value="vencida">Vencida</option>
+          <option value="vence_hoje">Vence hoje</option>
+          <option value="vence_amanha">Vence amanhã</option>
+          <option value="em_dia">Em dia</option>
+          <option value="entregue">Entregue</option>
+        </select>
+      </div>
+
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+      {carregando && <p className={styles.vazio}>Carregando…</p>}
+      {!carregando && linhas.length === 0 && (
+        <p className={styles.vazio}>
+          {locacoes.length === 0 ? 'Nenhuma locação de ferramenta cadastrada.' : 'Nenhuma locação com esses filtros.'}
+        </p>
+      )}
+
+      {!carregando && linhas.length > 0 && (
+        <div className={styles.lista}>
+          {linhas.map(({ locacao, estado, dias }) => (
+            <div key={locacao.id} className={styles.linha}>
+              <div className={styles.linhaInfo}>
+                <div className={styles.linhaTopo}>
+                  <span className={styles.linhaNome}>{locacao.nome_ferramenta}</span>
+                  <span className={`${styles.chip} ${styles[`chip_${estado}`]}`}>{ESTADO_LOCACAO_LABEL[estado]}</span>
+                </div>
+                <div className={styles.linhaDesc}>
+                  {locacao.locadora} · {MODALIDADE_LOCACAO_LABEL[locacao.modalidade]} · chegada {fmtData(locacao.data_chegada)} · entrega {fmtData(locacao.data_entrega_prevista)}
+                </div>
+                {estado === 'vencida' && <div className={styles.linhaDesc}>Vencida há {dias} dia{dias === 1 ? '' : 's'}.</div>}
+                {estado === 'vence_amanha' && <div className={styles.linhaDesc}>Alerta: vence amanhã.</div>}
+                {estado === 'vence_hoje' && <div className={styles.linhaDesc}>Alerta: vence hoje.</div>}
+                {locacao.data_entregue && <div className={styles.linhaDesc}>Entregue em {fmtData(locacao.data_entregue)}.</div>}
+                {locacao.observacao && <div className={styles.linhaDesc}>Obs.: {locacao.observacao}</div>}
+              </div>
+              <div className={styles.linhaMeta}>
+                {!locacao.data_entregue && (
+                  <button className={styles.btnSecundario} onClick={() => registrarEntrega(locacao)}>
+                    Registrar entrega
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface PainelNovaLocacaoProps {
+  onFechar: () => void
+  onSucesso: () => void
+}
+
+function PainelNovaLocacao({ onFechar, onSucesso }: PainelNovaLocacaoProps) {
+  const { obraAtiva } = useObra()
+
+  const [nomeFerramenta, setNomeFerramenta] = useState('')
+  const [locadora, setLocadora] = useState('')
+  const [modalidade, setModalidade] = useState<ModalidadeLocacaoFerramenta>('diaria')
+  const [dataChegada, setDataChegada] = useState(dataHoje())
+  const [dataEntregaPrevista, setDataEntregaPrevista] = useState('')
+  const [observacao, setObservacao] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function salvar() {
+    if (!obraAtiva) return
+    if (!nomeFerramenta.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe a ferramenta alugada.' })
+      return
+    }
+    if (!locadora.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe a locadora.' })
+      return
+    }
+    if (!dataChegada) {
+      setMsg({ tipo: 'erro', texto: 'Informe o dia de chegada na obra.' })
+      return
+    }
+    if (!dataEntregaPrevista) {
+      setMsg({ tipo: 'erro', texto: 'Informe o dia de entrega previsto.' })
+      return
+    }
+    if (dataEntregaPrevista < dataChegada) {
+      setMsg({ tipo: 'erro', texto: 'A entrega prevista não pode ser anterior à chegada na obra.' })
+      return
+    }
+    setSalvando(true)
+    setMsg(null)
+    const { error } = await supabase.from('ferramenta_locacoes').insert({
+      obra_id: obraAtiva.id,
+      nome_ferramenta: nomeFerramenta.trim(),
+      locadora: locadora.trim(),
+      modalidade,
+      data_chegada: dataChegada,
+      data_entrega_prevista: dataEntregaPrevista,
+      observacao: observacao.trim() || null,
+    })
+    setSalvando(false)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Falha ao cadastrar locação: ${error.message}` })
+      return
+    }
+    onSucesso()
+  }
+
+  return (
+    <div className={styles.painelForm}>
+      <div className={styles.painelHeader}>
+        <h2>Nova locação de ferramenta</h2>
+        <button className={styles.btnFechar} onClick={onFechar}>✕</button>
+      </div>
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Ferramenta *
+          <input value={nomeFerramenta} onChange={e => setNomeFerramenta(e.target.value)} placeholder="Ex.: Compactador de solo" />
+        </label>
+        <label className={styles.campo}>
+          Locadora *
+          <input value={locadora} onChange={e => setLocadora(e.target.value)} placeholder="Nome da locadora" />
+        </label>
+        <label className={styles.campo}>
+          Modalidade *
+          <select value={modalidade} onChange={e => setModalidade(e.target.value as ModalidadeLocacaoFerramenta)}>
+            <option value="diaria">Diária</option>
+            <option value="semanal">Semanal</option>
+            <option value="mensal">Mensal</option>
+          </select>
+        </label>
+      </div>
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Chegada na obra *
+          <input type="date" value={dataChegada} onChange={e => setDataChegada(e.target.value)} />
+        </label>
+        <label className={styles.campo}>
+          Entrega prevista *
+          <input type="date" value={dataEntregaPrevista} onChange={e => setDataEntregaPrevista(e.target.value)} />
+        </label>
+        <label className={styles.campo}>
+          Observação
+          <input value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Opcional" />
+        </label>
+      </div>
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+      <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
+        {salvando ? 'Salvando…' : 'Cadastrar locação'}
+      </button>
+    </div>
+  )
 }
 
 // ---------- Requisições: blocos de PDF pré-numerados ----------

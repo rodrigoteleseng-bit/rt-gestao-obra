@@ -93,6 +93,20 @@
   efeito antigo e aplicando o novo — sem isso, editar a quantidade de uma entrada vinculada a
   pedido deixaria `quantidade_recebida` desatualizado.
 
+## Ajuste de 21/07/2026 — aluguel de ferramentas
+
+- **Nova aba "Aluguéis" no Almoxarifado:** controla ferramentas locadas por obra, separadas das
+  ferramentas próprias emprestadas aos funcionários.
+- **Campos registrados:** ferramenta/equipamento alugado, locadora, modalidade (`diária`,
+  `semanal` ou `mensal`), data de chegada na obra, data de entrega prevista, observação,
+  autor/data de cadastro e entrega real quando baixada.
+- **Alertas visuais:** a lista destaca locações vencidas, vencendo hoje e vencendo amanhã
+  (alerta com 1 dia de antecedência). A ação "Registrar entrega" baixa a locação sem apagar o
+  histórico.
+- **Banco:** migração `20260721_ferramenta_locacoes.sql`, com tabela própria
+  `ferramenta_locacoes`, enum `modalidade_locacao_ferramenta`, RLS por módulo `almoxarifado`
+  e isolamento por obra.
+
 ## Fora de escopo (registrado na spec, não entregue nesta fase)
 
 - Assinatura digital na requisição.

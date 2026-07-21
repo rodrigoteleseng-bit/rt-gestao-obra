@@ -513,6 +513,8 @@ export interface Cotacao {
   anexo_url: string
   criado_em: string
   criado_por: string
+  editado_em: string | null
+  editado_por: string | null
 }
 
 export interface CotacaoItem {
@@ -522,6 +524,8 @@ export interface CotacaoItem {
   preco_unitario: number
   criado_em: string
   criado_por: string
+  editado_em: string | null
+  editado_por: string | null
 }
 
 export interface RecebimentoNf {

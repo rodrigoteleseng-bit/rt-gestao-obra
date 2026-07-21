@@ -434,6 +434,12 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
   const [msgCotacao, setMsgCotacao] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [msgImportacao, setMsgImportacao] = useState<string | null>(null)
   const [urlsAnexos, setUrlsAnexos] = useState<Map<string, string>>(new Map())
+  const [cotacaoEditandoId, setCotacaoEditandoId] = useState<string | null>(null)
+  const [editCondicaoPagamento, setEditCondicaoPagamento] = useState('')
+  const [editPrazoEntrega, setEditPrazoEntrega] = useState('')
+  const [editPrecos, setEditPrecos] = useState<Record<string, string>>({})
+  const [salvandoEdicaoCotacao, setSalvandoEdicaoCotacao] = useState(false)
+  const [msgEdicaoCotacao, setMsgEdicaoCotacao] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
   function parseCsv(texto: string): string[][] {
     return texto.split(/\r?\n/).filter(l => l.trim().length > 0).map(linha => {
@@ -533,6 +539,70 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
 
   function idDoItemCotacao(cotacaoId: string, itemId: string): string | null {
     return cotacoesItens.find(c => c.cotacao_id === cotacaoId && c.pedido_item_id === itemId)?.id ?? null
+  }
+
+  function abrirEdicaoCotacao(cotacao: Cotacao) {
+    const precosAtuais: Record<string, string> = {}
+    for (const item of itens) {
+      const preco = precoDe(cotacao.id, item.id)
+      if (preco !== null) precosAtuais[item.id] = String(preco)
+    }
+    setCotacaoEditandoId(cotacao.id)
+    setEditCondicaoPagamento(cotacao.condicao_pagamento ?? '')
+    setEditPrazoEntrega(cotacao.prazo_entrega_dias != null ? String(cotacao.prazo_entrega_dias) : '')
+    setEditPrecos(precosAtuais)
+    setMsgEdicaoCotacao(null)
+  }
+
+  function cancelarEdicaoCotacao() {
+    setCotacaoEditandoId(null)
+    setEditCondicaoPagamento('')
+    setEditPrazoEntrega('')
+    setEditPrecos({})
+    setMsgEdicaoCotacao(null)
+  }
+
+  async function salvarEdicaoCotacao() {
+    const cotacao = cotacoes.find(c => c.id === cotacaoEditandoId)
+    if (!cotacao) return
+    if (!['rascunho', 'em_cotacao'].includes(pedido.status)) {
+      setMsgEdicaoCotacao({ tipo: 'erro', texto: 'Cotação só pode ser editada antes da aprovação do pedido.' })
+      return
+    }
+    const itensComPreco = itens
+      .map(item => ({ item, preco: Number(editPrecos[item.id]) }))
+      .filter(linha => linha.preco > 0)
+    if (itensComPreco.length === 0) {
+      setMsgEdicaoCotacao({ tipo: 'erro', texto: 'Informe o preço de ao menos um item.' })
+      return
+    }
+    setSalvandoEdicaoCotacao(true)
+    setMsgEdicaoCotacao(null)
+    const { error: erroCotacao } = await supabase.from('cotacoes').update({
+      condicao_pagamento: editCondicaoPagamento.trim() || null,
+      prazo_entrega_dias: editPrazoEntrega ? Number(editPrazoEntrega) : null,
+    }).eq('id', cotacao.id)
+    if (erroCotacao) {
+      setSalvandoEdicaoCotacao(false)
+      setMsgEdicaoCotacao({ tipo: 'erro', texto: `Falha ao atualizar a cotação: ${erroCotacao.message}` })
+      return
+    }
+    for (const linha of itensComPreco) {
+      const cotacaoItemId = idDoItemCotacao(cotacao.id, linha.item.id)
+      const operacao = cotacaoItemId
+        ? supabase.from('cotacoes_itens').update({ preco_unitario: linha.preco }).eq('id', cotacaoItemId)
+        : supabase.from('cotacoes_itens').insert({ cotacao_id: cotacao.id, pedido_item_id: linha.item.id, preco_unitario: linha.preco })
+      const { error } = await operacao
+      if (error) {
+        setSalvandoEdicaoCotacao(false)
+        setMsgEdicaoCotacao({ tipo: 'erro', texto: `Falha ao salvar preço de "${linha.item.descricao_item}": ${error.message}` })
+        return
+      }
+    }
+    setSalvandoEdicaoCotacao(false)
+    setMsgEdicaoCotacao({ tipo: 'ok', texto: 'Cotação atualizada.' })
+    setCotacaoEditandoId(null)
+    onRecarregar()
   }
 
   async function registrarCotacao() {
@@ -787,6 +857,11 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
                 {cotacoes.map(c => (
                   <th key={c.id}>
                     {nomeFornecedor(c.fornecedor_id)}
+                    {podeEditar && ['rascunho', 'em_cotacao'].includes(pedido.status) && (
+                      <button type="button" className={styles.btnEditarCotacao} onClick={() => abrirEdicaoCotacao(c)}>
+                        Editar cotação
+                      </button>
+                    )}
                     {c.anexo_url && urlsAnexos.get(c.anexo_url) && (
                       <div>
                         <a className={styles.anexoLink} href={urlsAnexos.get(c.anexo_url)} target="_blank" rel="noreferrer">
@@ -833,6 +908,40 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
               ))}
             </tbody>
           </table>
+          </div>
+        </div>
+      )}
+
+      {podeEditar && cotacaoEditandoId && ['rascunho', 'em_cotacao'].includes(pedido.status) && (
+        <div className={styles.bloco}>
+          <h2>Editar cotação — {nomeFornecedor(cotacoes.find(c => c.id === cotacaoEditandoId)?.fornecedor_id ?? '')}</h2>
+          <div className={styles.linha2}>
+            <label className={styles.campo}>
+              Condição de pagamento
+              <input value={editCondicaoPagamento} onChange={e => setEditCondicaoPagamento(e.target.value)} placeholder="Ex.: 30 dias" />
+            </label>
+            <label className={styles.campo}>
+              Prazo de entrega (dias)
+              <input type="number" min="0" value={editPrazoEntrega} onChange={e => setEditPrazoEntrega(e.target.value)} />
+            </label>
+          </div>
+          <div className={styles.fornecedorForm}>
+            {itens.map(it => (
+              <label key={it.id} className={styles.campo}>
+                Preço unitário — {it.descricao_item} ({it.und})
+                <input type="number" min="0" step="0.01" value={editPrecos[it.id] ?? ''}
+                  onChange={e => setEditPrecos(prev => ({ ...prev, [it.id]: e.target.value }))} />
+              </label>
+            ))}
+          </div>
+          {msgEdicaoCotacao && <p className={msgEdicaoCotacao.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgEdicaoCotacao.texto}</p>}
+          <div className={styles.acoesLinha}>
+            <button className={styles.btnPrincipal} onClick={salvarEdicaoCotacao} disabled={salvandoEdicaoCotacao}>
+              {salvandoEdicaoCotacao ? 'Salvando…' : 'Salvar cotação'}
+            </button>
+            <button className={styles.btnSecundario} onClick={cancelarEdicaoCotacao} disabled={salvandoEdicaoCotacao}>
+              Cancelar
+            </button>
           </div>
         </div>
       )}

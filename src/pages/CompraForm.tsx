@@ -18,6 +18,24 @@ interface ItemNovo {
   urgente: boolean
 }
 
+function nomeArquivoStorage(nome: string): string {
+  const partes = nome.split('.')
+  const extensao = partes.length > 1 ? `.${partes.pop()}` : ''
+  const base = (partes.join('.') || 'arquivo')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '')
+    .slice(0, 80) || 'arquivo'
+  const extLimpa = extensao
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9.]/g, '')
+    .slice(0, 16)
+  return `${base}${extLimpa}`.toLowerCase()
+}
+
 function itemVazio(): ItemNovo {
   return {
     chave: crypto.randomUUID(),
@@ -529,7 +547,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
     }
     setSalvandoCotacao(true)
     setMsgCotacao(null)
-    const path = `${pedido.id}/${crypto.randomUUID()}-${arquivo.name}`
+    const path = `${pedido.id}/${crypto.randomUUID()}-${nomeArquivoStorage(arquivo.name)}`
     const { error: eUp } = await supabase.storage.from('cotacoes-nf').upload(path, arquivo)
     if (eUp) {
       setSalvandoCotacao(false)
@@ -623,7 +641,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
     }
     setSalvandoRecebimento(true)
     setMsgRecebimento(null)
-    const path = `${pedido.id}/nf-${crypto.randomUUID()}-${arquivoNf.name}`
+    const path = `${pedido.id}/nf-${crypto.randomUUID()}-${nomeArquivoStorage(arquivoNf.name)}`
     const { error: eUp } = await supabase.storage.from('cotacoes-nf').upload(path, arquivoNf)
     if (eUp) {
       setSalvandoRecebimento(false)

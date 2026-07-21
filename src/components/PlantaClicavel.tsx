@@ -3,7 +3,7 @@ import type { ProducaoParede } from '../lib/supabase'
 import styles from './PlantaClicavel.module.css'
 
 export type ZonaDesenhada = { pos_x: number; pos_y: number; largura: number; altura_px: number }
-export type SaldoParede = { alvenaria: number | null; rebocoA: number | null; rebocoB: number | null }
+export type StatusParedeProducao = 'sem_lancamento' | 'parcial' | 'completa'
 export type RotuloAjustado = { pos_x: number; pos_y: number; rotacao: number; escala: number }
 
 type Props = {
@@ -14,7 +14,7 @@ type Props = {
   onSelecionar?: (parede: ProducaoParede) => void
   onMoverRotulo?: (paredeId: string, dados: RotuloAjustado) => void
   onAjustarEscalaRotulo?: (parede: ProducaoParede, delta: number) => void
-  saldoPorParede?: Map<string, SaldoParede>
+  statusPorParede?: Map<string, StatusParedeProducao>
 }
 
 const LEVANTA_ROTULO_PADRAO = 3
@@ -29,7 +29,7 @@ function rotuloPadrao(parede: ProducaoParede): RotuloAjustado {
 }
 
 export default function PlantaClicavel({
-  imagemUrl, paredes, modo, onDesenhar, onSelecionar, onMoverRotulo, onAjustarEscalaRotulo, saldoPorParede,
+  imagemUrl, paredes, modo, onDesenhar, onSelecionar, onMoverRotulo, onAjustarEscalaRotulo, statusPorParede,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [inicio, setInicio] = useState<{ x: number; y: number } | null>(null)
@@ -148,15 +148,16 @@ export default function PlantaClicavel({
     >
       <img src={imagemUrl} alt="Planta" className={styles.imagem} draggable={false} />
       {paredes.map((parede) => {
-        const saldo = saldoPorParede?.get(parede.id)
-        const concluida = saldo != null
-          && (parede.meta_alvenaria_m2 == null || (saldo.alvenaria !== null && saldo.alvenaria <= 0))
-          && (parede.meta_reboco_a_m2 == null || (saldo.rebocoA !== null && saldo.rebocoA <= 0))
-          && (parede.meta_reboco_b_m2 == null || (saldo.rebocoB !== null && saldo.rebocoB <= 0))
+        const status = statusPorParede?.get(parede.id) ?? 'sem_lancamento'
+        const statusClasse = status === 'completa'
+          ? styles.faixaCompleta
+          : status === 'parcial'
+          ? styles.faixaParcial
+          : styles.faixaSemLancamento
         return (
           <div
             key={parede.id}
-            className={`${styles.faixa} ${concluida ? styles.faixaConcluida : ''}`}
+            className={`${styles.faixa} ${statusClasse}`}
             style={{
               left: `${parede.pos_x}%`, top: `${parede.pos_y}%`,
               width: `${parede.largura}%`, height: `${parede.altura_px}%`,

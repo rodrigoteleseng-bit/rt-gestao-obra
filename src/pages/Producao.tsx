@@ -18,7 +18,7 @@ import {
 import { hojeISO } from "../lib/cronograma";
 import { formatarMoeda } from "../lib/formato";
 import { converterPdfParaImagem } from "../lib/pdfParaImagem";
-import PlantaClicavel, { type ZonaDesenhada, type RotuloAjustado } from "../components/PlantaClicavel";
+import PlantaClicavel, { type ZonaDesenhada, type RotuloAjustado, type StatusParedeProducao } from "../components/PlantaClicavel";
 import { useConfirmDialog } from "../components/ConfirmDialogContext";
 import styles from "./Producao.module.css";
 
@@ -362,14 +362,36 @@ function Lancamentos({
     return () => { cancelado = true; };
   }, [plantaAtual]);
 
+  function produzidoDaParede(paredeId: string, servico: TipoServicoProducao, face: FaceParede | null) {
+    return progresso.find((p) => p.parede_id === paredeId && p.servico === servico && p.face === face)?.produzido_m2 ?? 0;
+  }
+
   function saldoDaParede(parede: ProducaoParede) {
-    const buscar = (servico: TipoServicoProducao, face: FaceParede | null) =>
-      progresso.find((p) => p.parede_id === parede.id && p.servico === servico && p.face === face)?.produzido_m2 ?? 0;
     return {
-      alvenaria: parede.meta_alvenaria_m2 != null ? parede.meta_alvenaria_m2 - buscar("alvenaria", null) : null,
-      rebocoA: parede.meta_reboco_a_m2 != null ? parede.meta_reboco_a_m2 - buscar("reboco", "a") : null,
-      rebocoB: parede.meta_reboco_b_m2 != null ? parede.meta_reboco_b_m2 - buscar("reboco", "b") : null,
+      alvenaria: parede.meta_alvenaria_m2 != null ? parede.meta_alvenaria_m2 - produzidoDaParede(parede.id, "alvenaria", null) : null,
+      rebocoA: parede.meta_reboco_a_m2 != null ? parede.meta_reboco_a_m2 - produzidoDaParede(parede.id, "reboco", "a") : null,
+      rebocoB: parede.meta_reboco_b_m2 != null ? parede.meta_reboco_b_m2 - produzidoDaParede(parede.id, "reboco", "b") : null,
     };
+  }
+
+  function statusDaMeta(meta: number | null, produzido: number): StatusParedeProducao {
+    const tolerancia = 0.0001;
+    if (meta == null || meta <= 0 || produzido <= tolerancia) return "sem_lancamento";
+    return produzido >= meta - tolerancia ? "completa" : "parcial";
+  }
+
+  function statusDaParede(parede: ProducaoParede): StatusParedeProducao {
+    if (form.servico === "alvenaria") {
+      return statusDaMeta(parede.meta_alvenaria_m2, produzidoDaParede(parede.id, "alvenaria", null));
+    }
+    const metasReboco = [
+      { meta: parede.meta_reboco_a_m2, produzido: produzidoDaParede(parede.id, "reboco", "a") },
+      { meta: parede.meta_reboco_b_m2, produzido: produzidoDaParede(parede.id, "reboco", "b") },
+    ].filter((item) => item.meta != null && item.meta > 0);
+    if (metasReboco.length === 0) return "sem_lancamento";
+    const metaTotal = metasReboco.reduce((soma, item) => soma + (item.meta ?? 0), 0);
+    const produzidoTotal = metasReboco.reduce((soma, item) => soma + item.produzido, 0);
+    return statusDaMeta(metaTotal, produzidoTotal);
   }
 
   function aoSelecionarParede(parede: ProducaoParede) {
@@ -377,7 +399,7 @@ function Lancamentos({
     setFaceEscolha(null);
   }
 
-  const saldoPorParede = new Map(paredesDaPlanta.map((p) => [p.id, saldoDaParede(p)]));
+  const statusPorParede = new Map(paredesDaPlanta.map((p) => [p.id, statusDaParede(p)]));
 
   const saldoRestante = paredeSelecionada
     ? form.servico === "alvenaria"
@@ -390,6 +412,11 @@ function Lancamentos({
   const participantes = selecionados.filter(Boolean);
   const areaNum = numero(form.area) || 0;
   const total = areaNum * (numero(form.preco) || 0);
+
+  function preencherAreaTotal() {
+    if (saldoRestante == null || saldoRestante <= 0) return;
+    setForm((atual) => ({ ...atual, area: saldoRestante.toFixed(2).replace(".", ",") }));
+  }
 
   async function salvar() {
     if (!obraAtiva || !form.unidade || !paredeSelecionada || (form.servico === "reboco" && !faceEscolha)
@@ -464,7 +491,7 @@ function Lancamentos({
         ) : !urlImagem ? (
           <p className={styles.sub}>Nenhuma planta deste pavimento cadastrada ainda — cadastre na aba "Plantas".</p>
         ) : (
-          <PlantaClicavel imagemUrl={urlImagem} paredes={paredesDaPlanta} modo="selecionar" onSelecionar={aoSelecionarParede} saldoPorParede={saldoPorParede} />
+          <PlantaClicavel imagemUrl={urlImagem} paredes={paredesDaPlanta} modo="selecionar" onSelecionar={aoSelecionarParede} statusPorParede={statusPorParede} />
         )}
         {paredeSelecionada && form.servico === "reboco" && !faceEscolha && (
           <div className={styles.modalFundo} onClick={() => setParedeSelecionada(null)}>
@@ -487,6 +514,14 @@ function Lancamentos({
           <Campo label="Área produzida hoje (m²)">
             <input className={styles.input} inputMode="decimal" value={form.area}
               onChange={(e) => setForm({ ...form, area: e.target.value })} />
+            <button
+              type="button"
+              className={styles.btnCampo}
+              disabled={!paredeSelecionada || (form.servico === "reboco" && !faceEscolha) || saldoRestante == null || saldoRestante <= 0}
+              onClick={preencherAreaTotal}
+            >
+              100% da parede
+            </button>
           </Campo>
           <Campo label="Preço do dia (R$/m²)">
             <input className={styles.input} inputMode="decimal" value={form.preco}

@@ -10,9 +10,20 @@ const VERDE = '#2E7D32'
 const VERMELHO = '#C62828'
 const AMARELO = '#E3A00C'
 const PRETO = '#222222'
+const BRANCO = '#ffffff'
 
 const DIA_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+const CATEGORIA_LABEL: Record<string, string> = {
+  material: 'Material',
+  mao_de_obra: 'Mão de obra',
+  projeto_documentacao: 'Projeto/documentação',
+  decisao_pendente: 'Decisão pendente',
+  equipamento: 'Equipamento',
+  financeiro: 'Financeiro',
+  servico_predecessor: 'Serviço predecessor',
+  clima: 'Clima',
+}
 
 interface Segmento {
   inicio: number
@@ -45,6 +56,9 @@ function truncarTexto(pdf: jsPDF, texto: string, larguraMax: number): string {
 }
 
 export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: string) {
+  const obraResp = await supabase.from('obras').select('nome').eq('id', obraId).maybeSingle()
+  const obraNome = obraResp.data?.nome ?? 'Obra'
+
   const semanaAtualResp = await supabase.from('planejamento_semanas')
     .select('id, data_inicio, data_fim, status, ppc')
     .eq('id', semanaAtualId).eq('ativo', true).maybeSingle()
@@ -64,7 +78,7 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
 
   const semanaIds = [semanaAtual.id, proxima.id]
   const compromissosResp = await supabase.from('planejamento_compromissos')
-    .select('tarefa_id, semana_id, cumprido')
+    .select('tarefa_id, semana_id, cumprido, motivo_categoria')
     .eq('ativo', true).in('semana_id', semanaIds)
   if (compromissosResp.error) throw new Error('Erro ao carregar compromissos: ' + compromissosResp.error.message)
   const compromissos = compromissosResp.data ?? []
@@ -72,10 +86,24 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
 
   const compromissoAtualPorTarefa = new Map<string, { cumprido: boolean | null }>()
   const compromissoProximaPorTarefa = new Map<string, { cumprido: boolean | null }>()
+  let totalAtual = 0
+  let cumpridasAtual = 0
+  let naoCumpridasAtual = 0
+  const motivos = new Map<string, number>()
   for (const c of compromissos) {
-    if (c.semana_id === semanaAtual.id) compromissoAtualPorTarefa.set(c.tarefa_id, { cumprido: c.cumprido })
-    else compromissoProximaPorTarefa.set(c.tarefa_id, { cumprido: c.cumprido })
+    if (c.semana_id === semanaAtual.id) {
+      compromissoAtualPorTarefa.set(c.tarefa_id, { cumprido: c.cumprido })
+      totalAtual += 1
+      if (c.cumprido === true) cumpridasAtual += 1
+      if (c.cumprido === false) {
+        naoCumpridasAtual += 1
+        if (c.motivo_categoria) motivos.set(c.motivo_categoria, (motivos.get(c.motivo_categoria) ?? 0) + 1)
+      }
+    } else {
+      compromissoProximaPorTarefa.set(c.tarefa_id, { cumprido: c.cumprido })
+    }
   }
+  const pendentesAtual = totalAtual - cumpridasAtual - naoCumpridasAtual
 
   const idsTarefas = [...new Set(compromissos.map(c => c.tarefa_id))]
   const lotesTarefas = fatiar(idsTarefas, 500)
@@ -181,7 +209,7 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' })
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
-  const ML = 62, MR = 10, MT = 26, MB = 20
+  const ML = 74, MR = 10, MT = 39, MB = 22
   const areaX = ML
   const areaW = W - ML - MR
   const topoLinhas = MT
@@ -195,15 +223,56 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
 
   function desenharTopo() {
     pdf.setFillColor(NAVY)
-    pdf.rect(0, 0, W, 15, 'F')
-    pdf.setTextColor('#ffffff')
+    pdf.rect(0, 0, W, 16, 'F')
+    pdf.setTextColor(BRANCO)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(13)
-    pdf.text('RT ENGENHARIA — GANTT DO PLANEJAMENTO', ML, 9.5)
+    pdf.text('RT ENGENHARIA - GANTT DO PLANEJAMENTO', 10, 9.5)
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8.5)
-    const rotuloSemanas = `Semana atual: ${fmt(semanaAtual.data_inicio)} a ${fmt(semanaAtual.data_fim)}   ·   Semana seguinte: ${fmt(proxima.data_inicio)} a ${fmt(proxima.data_fim)}`
-    pdf.text(rotuloSemanas, W - MR, 9.5, { align: 'right' })
+    pdf.text(obraNome, W - MR, 9.5, { align: 'right' })
+
+    const ppc = semanaAtual.ppc == null ? '-' : `${semanaAtual.ppc}%`
+    const cards: [string, string, string][] = [
+      ['SEMANA ATUAL', `${fmt(semanaAtual.data_inicio)} a ${fmt(semanaAtual.data_fim)}`, NAVY],
+      ['PPC', ppc, semanaAtual.ppc != null && semanaAtual.ppc < 70 ? VERMELHO : VERDE],
+      ['COMPROMISSOS', String(totalAtual), NAVY],
+      ['CUMPRIDAS', String(cumpridasAtual), VERDE],
+      ['NAO CUMPRIDAS', String(naoCumpridasAtual), VERMELHO],
+      ['PENDENTES', String(pendentesAtual), AMARELO],
+    ]
+    const cardY = 18
+    const cardH = 12
+    const cardW = (W - 20 - (cards.length - 1) * 3) / cards.length
+    cards.forEach(([label, valor, cor], i) => {
+      const cx = 10 + i * (cardW + 3)
+      pdf.setFillColor(i === 0 ? NUDE_BANDA : BRANCO)
+      pdf.setDrawColor(CINZA_GRADE)
+      pdf.roundedRect(cx, cardY, cardW, cardH, 1.5, 1.5, 'FD')
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(5.8)
+      pdf.setTextColor(CINZA_TEXTO)
+      pdf.text(label, cx + 2, cardY + 4)
+      pdf.setFontSize(9)
+      pdf.setTextColor(cor)
+      pdf.text(valor, cx + 2, cardY + 9)
+    })
+
+    pdf.setFillColor(NUDE_BANDA)
+    pdf.rect(0, MT - 10, ML, 10, 'F')
+    pdf.setTextColor(NAVY)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8)
+    pdf.text('Unidade / etapa / tarefa', 4, MT - 3)
+
+    const meio = x(atualFim + (proximaInicio - atualFim) / 2)
+    pdf.setFillColor(NUDE_BANDA)
+    pdf.rect(areaX, MT - 10, meio - areaX, 4.5, 'F')
+    pdf.rect(meio, MT - 10, areaX + areaW - meio, 4.5, 'F')
+    pdf.setFontSize(7)
+    pdf.setTextColor(NAVY)
+    pdf.text(`Semana atual (${fmt(semanaAtual.data_inicio)} a ${fmt(semanaAtual.data_fim)})`, areaX + 2, MT - 6.8)
+    pdf.text(`Semana seguinte (${fmt(proxima.data_inicio)} a ${fmt(proxima.data_fim)})`, meio + 2, MT - 6.8)
 
     // marcações diárias, do topo ao fundo da área de linhas
     let cursor = new Date(dataMin)
@@ -220,16 +289,16 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
       pdf.setFont('helvetica', 'bold')
       pdf.setFontSize(6.8)
       pdf.setTextColor(NAVY)
-      pdf.text(DIA_SEMANA[cursor.getDay()], px + 1, topoLinhas - 7, { align: 'left' })
+      pdf.text(DIA_SEMANA[cursor.getDay()], px + 1, topoLinhas - 4.7, { align: 'left' })
       pdf.setFont('helvetica', 'normal')
       pdf.setFontSize(6.2)
       pdf.setTextColor(CINZA_TEXTO)
-      pdf.text(`${String(cursor.getDate()).padStart(2, '0')}/${String(cursor.getMonth() + 1).padStart(2, '0')}`, px + 1, topoLinhas - 2.5, { align: 'left' })
+      pdf.text(`${String(cursor.getDate()).padStart(2, '0')}/${String(cursor.getMonth() + 1).padStart(2, '0')}`, px + 1, topoLinhas - 1.1, { align: 'left' })
       cursor = new Date(cursor.getTime() + 86400000)
     }
 
     // divisória entre a semana atual e a seguinte
-    const divisoriaX = x(atualFim + (proximaInicio - atualFim) / 2)
+    const divisoriaX = meio
     pdf.setDrawColor(NAVY)
     pdf.setLineWidth(0.6)
     pdf.line(divisoriaX, topoLinhas - 9, divisoriaX, fundoLinhas)
@@ -260,6 +329,14 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
     pdf.circle(lx + 1.3, ly - 1.3, 1.3, 'F')
     pdf.setTextColor(CINZA_TEXTO)
     pdf.text('Dia com avanço lançado', lx + 4.5, ly)
+
+    const principaisMotivos = [...motivos.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+    if (principaisMotivos.length > 0) {
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(7.2)
+      pdf.setTextColor(VERMELHO)
+      pdf.text('Principais motivos: ' + principaisMotivos.map(([motivo, qtd]) => `${CATEGORIA_LABEL[motivo] ?? motivo} (${qtd})`).join(' | '), ML, H - 15)
+    }
 
     pdf.setFontSize(7.5)
     pdf.setTextColor(CINZA_TEXTO)

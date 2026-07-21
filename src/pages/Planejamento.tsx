@@ -7,7 +7,7 @@ import { paginado, fatiar, etapaAncestralPorTarefa, type RespostaPaginada } from
 import styles from './Planejamento.module.css'
 
 type Msg = { tipo: 'ok' | 'erro'; texto: string } | null
-type Aba = 'mensal' | 'semanal' | 'trimestral'
+type Aba = 'semanal' | 'calendario' | 'mensal' | 'trimestral'
 
 interface TarefaCronograma {
   id: string
@@ -36,6 +36,20 @@ interface UnidadeSimples {
   nome: string
 }
 
+interface CompromissoView {
+  compromisso: PlanejamentoCompromisso
+  tarefaNome: string
+  unidadeNome: string
+  etapaNome: string
+  statusClasse: string
+  statusTexto: string
+}
+
+interface GrupoCompromissos {
+  unidade: string
+  etapas: { etapa: string; itens: CompromissoView[] }[]
+}
+
 export const CATEGORIA_LABEL: Record<CategoriaRestricao, string> = {
   material: 'Material',
   mao_de_obra: 'Mão de obra',
@@ -48,6 +62,18 @@ export const CATEGORIA_LABEL: Record<CategoriaRestricao, string> = {
 }
 
 const fmtData = (iso?: string | null) => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR') : '-'
+const fmtPct = (valor?: number | null) => valor == null ? '-' : `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+const hojeISO = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const dataLocal = (iso: string) => new Date(iso + 'T00:00:00')
+const isoLocal = (data: Date) => `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`
+const adicionarDias = (iso: string, dias: number) => {
+  const d = dataLocal(iso)
+  d.setDate(d.getDate() + dias)
+  return isoLocal(d)
+}
 
 export default function Planejamento() {
   const { perfil, temModulo } = useAuth()
@@ -79,7 +105,9 @@ export default function Planejamento() {
   const [semanas, setSemanas] = useState<PlanejamentoSemana[]>([])
   const [semanaSelecionadaId, setSemanaSelecionadaId] = useState<string | null>(null)
   const [compromissos, setCompromissos] = useState<PlanejamentoCompromisso[]>([])
+  const [compromissosCalendario, setCompromissosCalendario] = useState<PlanejamentoCompromisso[]>([])
   const [percentuaisAtuais, setPercentuaisAtuais] = useState<Record<string, number>>({})
+  const [avancoDiasPorTarefa, setAvancoDiasPorTarefa] = useState<Record<string, string[]>>({})
   const [marcos, setMarcos] = useState<MarcoEtapa[]>([])
 
   const [novaSemanaInicio, setNovaSemanaInicio] = useState('')
@@ -88,6 +116,7 @@ export default function Planejamento() {
   const [tarefaCompromissoId, setTarefaCompromissoId] = useState('')
   const [metaPercentual, setMetaPercentual] = useState('')
   const [gerandoGantt, setGerandoGantt] = useState(false)
+  const [mesCalendario, setMesCalendario] = useState(() => hojeISO().slice(0, 7))
 
   const [unidadesObra, setUnidadesObra] = useState<UnidadeSimples[]>([])
   const [todasTarefas, setTodasTarefas] = useState<TarefaArvoreNo[]>([])
@@ -161,6 +190,13 @@ export default function Planejamento() {
       const lista = semanasResp.data ?? []
       setSemanas(lista)
       if (!semanaSelecionadaId && lista.length > 0) setSemanaSelecionadaId(lista[0].id)
+      if (lista.length > 0) {
+        const compCalendarioResp = await supabase.from('planejamento_compromissos').select('*').eq('ativo', true).in('semana_id', lista.map(s => s.id))
+        if (compCalendarioResp.error) setMsg({ tipo: 'erro', texto: 'Erro ao carregar compromissos do calendário: ' + compCalendarioResp.error.message })
+        else setCompromissosCalendario(compCalendarioResp.data ?? [])
+      } else {
+        setCompromissosCalendario([])
+      }
     }
     setCarregando(false)
   }
@@ -190,8 +226,15 @@ export default function Planejamento() {
           .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; percentual: number; data_referencia: string }>>),
     )).then(lotes => {
       const atuais: Record<string, number> = {}
-      for (const lote of lotes) for (const row of lote) if (!(row.tarefa_id in atuais)) atuais[row.tarefa_id] = row.percentual
+      const diasPorTarefa: Record<string, Set<string>> = {}
+      for (const lote of lotes) for (const row of lote) {
+        if (!(row.tarefa_id in atuais)) atuais[row.tarefa_id] = row.percentual
+        const dias = diasPorTarefa[row.tarefa_id] ?? new Set<string>()
+        dias.add(row.data_referencia)
+        diasPorTarefa[row.tarefa_id] = dias
+      }
       setPercentuaisAtuais(atuais)
+      setAvancoDiasPorTarefa(Object.fromEntries(Object.entries(diasPorTarefa).map(([id, dias]) => [id, [...dias].sort()])))
     }).catch(erro => setMsg({ tipo: 'erro', texto: 'Erro ao carregar avanço físico: ' + (erro as Error).message }))
   }, [tarefas])
 
@@ -255,6 +298,116 @@ export default function Planejamento() {
     }
     return { filhosPorPai, raizesPorUnidade }
   }, [todasTarefas])
+
+  const hoje = hojeISO()
+
+  const compromissosView = useMemo<CompromissoView[]>(() => {
+    return compromissos.map(c => {
+      const tarefa = tarefaPorId.get(c.tarefa_id)
+      const cumprido = c.cumprido === true
+      const naoCumprido = c.cumprido === false
+      return {
+        compromisso: c,
+        tarefaNome: tarefa?.nome ?? 'Tarefa não encontrada',
+        unidadeNome: tarefa?.unidades?.nome ?? 'Sem unidade',
+        etapaNome: etapaPorTarefaId.get(c.tarefa_id) ?? 'Sem etapa',
+        statusClasse: cumprido ? styles.chipResolvida : naoCumprido ? styles.chipAberta : styles.chip,
+        statusTexto: c.cumprido == null ? 'Pendente' : cumprido ? 'Cumprida' : 'Não cumprida',
+      }
+    })
+  }, [compromissos, tarefaPorId, etapaPorTarefaId])
+
+  const compromissosCalendarioView = useMemo<CompromissoView[]>(() => {
+    return compromissosCalendario.map(c => {
+      const tarefa = tarefaPorId.get(c.tarefa_id)
+      const cumprido = c.cumprido === true
+      const naoCumprido = c.cumprido === false
+      return {
+        compromisso: c,
+        tarefaNome: tarefa?.nome ?? 'Tarefa não encontrada',
+        unidadeNome: tarefa?.unidades?.nome ?? 'Sem unidade',
+        etapaNome: etapaPorTarefaId.get(c.tarefa_id) ?? 'Sem etapa',
+        statusClasse: cumprido ? styles.chipResolvida : naoCumprido ? styles.chipAberta : styles.chip,
+        statusTexto: c.cumprido == null ? 'Pendente' : cumprido ? 'Cumprida' : 'Não cumprida',
+      }
+    })
+  }, [compromissosCalendario, tarefaPorId, etapaPorTarefaId])
+
+  const resumoSemana = useMemo(() => {
+    const total = compromissos.length
+    const cumpridas = compromissos.filter(c => c.cumprido === true).length
+    const naoCumpridas = compromissos.filter(c => c.cumprido === false).length
+    const pendentes = total - cumpridas - naoCumpridas
+    const semMotivo = compromissos.filter(c => c.cumprido === false && !c.motivo_categoria).length
+    const restritas = compromissos.filter(c => tarefasAbertasPorId.has(c.tarefa_id)).length
+    const ppcCalculado = total > 0 ? Math.round((cumpridas / total) * 100) : null
+    return { total, cumpridas, naoCumpridas, pendentes, semMotivo, restritas, ppcCalculado }
+  }, [compromissos, tarefasAbertasPorId])
+
+  const compromissosAgrupados = useMemo<GrupoCompromissos[]>(() => {
+    const porUnidade = new Map<string, Map<string, CompromissoView[]>>()
+    for (const item of compromissosView) {
+      const etapas = porUnidade.get(item.unidadeNome) ?? new Map<string, CompromissoView[]>()
+      const itens = etapas.get(item.etapaNome) ?? []
+      itens.push(item)
+      etapas.set(item.etapaNome, itens)
+      porUnidade.set(item.unidadeNome, etapas)
+    }
+    return [...porUnidade.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([unidade, etapas]) => ({
+      unidade,
+      etapas: [...etapas.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([etapa, itens]) => ({
+        etapa,
+        itens: itens.sort((a, b) => a.tarefaNome.localeCompare(b.tarefaNome)),
+      })),
+    }))
+  }, [compromissosView])
+
+  const restricoesDaSemana = useMemo(() => {
+    if (!semanaSelecionada) return []
+    return restricoes
+      .filter(r => r.status === 'aberta' && r.prazo >= semanaSelecionada.data_inicio && r.prazo <= semanaSelecionada.data_fim)
+      .sort((a, b) => a.prazo.localeCompare(b.prazo))
+  }, [restricoes, semanaSelecionada])
+
+  const restricoesVencidas = useMemo(() => {
+    return restricoes
+      .filter(r => r.status === 'aberta' && r.prazo < hoje)
+      .sort((a, b) => a.prazo.localeCompare(b.prazo))
+  }, [restricoes, hoje])
+
+  const calendario = useMemo(() => {
+    const [ano, mes] = mesCalendario.split('-').map(Number)
+    const primeiro = new Date(ano, mes - 1, 1)
+    const inicio = new Date(primeiro)
+    const deslocamentoSegunda = (primeiro.getDay() + 6) % 7
+    inicio.setDate(primeiro.getDate() - deslocamentoSegunda)
+    const dias = Array.from({ length: 42 }, (_, i) => {
+      const data = new Date(inicio)
+      data.setDate(inicio.getDate() + i)
+      const iso = isoLocal(data)
+      const semanasDoDia = semanas.filter(s => iso >= s.data_inicio && iso <= s.data_fim)
+      const compromissosDoDia = compromissosCalendarioView.filter(item => semanasDoDia.some(s => s.id === item.compromisso.semana_id))
+      const restricoesDoDia = restricoes.filter(r => r.status === 'aberta' && r.prazo === iso)
+      const avancosDoDia = compromissosDoDia.filter(item => avancoDiasPorTarefa[item.compromisso.tarefa_id]?.includes(iso))
+      return {
+        iso,
+        dia: data.getDate(),
+        foraDoMes: data.getMonth() !== mes - 1,
+        hoje: iso === hoje,
+        semanas: semanasDoDia,
+        compromissos: compromissosDoDia,
+        restricoes: restricoesDoDia,
+        avancos: avancosDoDia,
+      }
+    })
+    return dias
+  }, [mesCalendario, semanas, compromissosCalendarioView, restricoes, avancoDiasPorTarefa, hoje])
+
+  function mudarMes(delta: number) {
+    const [ano, mes] = mesCalendario.split('-').map(Number)
+    const d = new Date(ano, mes - 1 + delta, 1)
+    setMesCalendario(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
 
   function limparForm() {
     setBuscaTarefa('')
@@ -332,6 +485,7 @@ export default function Planejamento() {
     setMetaPercentual('')
     setFormCompromissoAberto(false)
     setMsg({ tipo: 'ok', texto: 'Tarefa comprometida na semana.' })
+    await carregar()
     await carregarCompromissos(semanaSelecionada.id)
   }
 
@@ -358,6 +512,7 @@ export default function Planejamento() {
     setSalvando(false)
     if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao excluir compromisso: ' + error.message })
     setMsg({ tipo: 'ok', texto: 'Compromisso excluído.' })
+    await carregar()
     if (semanaSelecionada) await carregarCompromissos(semanaSelecionada.id)
   }
 
@@ -451,6 +606,7 @@ export default function Planejamento() {
     setSalvando(false)
     if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao levar tarefa pra próxima semana: ' + error.message })
     setMsg({ tipo: 'ok', texto: 'Tarefa levada pra semana de ' + fmtData(proxima.data_inicio) + ' a ' + fmtData(proxima.data_fim) + '.' })
+    await carregar()
   }
 
   if (semPermissao) return <div className={styles.page}><h1>Planejamento</h1><div className={styles.msgErro}>Você não tem permissão para acessar Planejamento.</div></div>
@@ -464,6 +620,7 @@ export default function Planejamento() {
 
       <div className={styles.abas}>
         <button className={[styles.aba, aba === 'semanal' ? styles.abaAtiva : ''].filter(Boolean).join(' ')} onClick={() => setAba('semanal')}>Semanal</button>
+        <button className={[styles.aba, aba === 'calendario' ? styles.abaAtiva : ''].filter(Boolean).join(' ')} onClick={() => setAba('calendario')}>Calendário</button>
         <button className={[styles.aba, aba === 'mensal' ? styles.abaAtiva : ''].filter(Boolean).join(' ')} onClick={() => setAba('mensal')}>Mensal</button>
         <button className={[styles.aba, aba === 'trimestral' ? styles.abaAtiva : ''].filter(Boolean).join(' ')} onClick={() => setAba('trimestral')}>Trimestral</button>
       </div>
@@ -534,6 +691,30 @@ export default function Planejamento() {
         </div>
 
         {!semanaSelecionada ? <div className={styles.vazio}>Selecione ou crie uma semana.</div> : <>
+          <div className={styles.resumoSemana}>
+            <div className={styles.resumoPrincipal}>
+              <span className={styles.resumoLabel}>Semana selecionada</span>
+              <strong>{fmtData(semanaSelecionada.data_inicio)} a {fmtData(semanaSelecionada.data_fim)}</strong>
+              <span className={styles.resumoStatus}>{semanaSelecionada.status === 'aberta' ? 'Aberta' : semanaSelecionada.status === 'planejada' ? 'Planejamento fechado' : 'Fechada'}</span>
+            </div>
+            <div className={styles.resumoCards}>
+              <div><span>Compromissos</span><strong>{resumoSemana.total}</strong></div>
+              <div><span>Cumpridas</span><strong>{resumoSemana.cumpridas}</strong></div>
+              <div><span>Não cumpridas</span><strong>{resumoSemana.naoCumpridas}</strong></div>
+              <div><span>Pendentes</span><strong>{resumoSemana.pendentes}</strong></div>
+              <div><span>PPC</span><strong>{fmtPct(semanaSelecionada.ppc ?? resumoSemana.ppcCalculado)}</strong></div>
+              <div className={resumoSemana.semMotivo > 0 ? styles.alertaCard : ''}><span>Sem motivo</span><strong>{resumoSemana.semMotivo}</strong></div>
+            </div>
+          </div>
+
+          {(restricoesVencidas.length > 0 || restricoesDaSemana.length > 0 || resumoSemana.restritas > 0) && (
+            <div className={styles.alertasPlanejamento}>
+              {restricoesVencidas.length > 0 && <span>{restricoesVencidas.length} restrição{restricoesVencidas.length !== 1 ? 'ões vencidas' : ' vencida'}</span>}
+              {restricoesDaSemana.length > 0 && <span>{restricoesDaSemana.length} restrição{restricoesDaSemana.length !== 1 ? 'ões vencem' : ' vence'} nesta semana</span>}
+              {resumoSemana.restritas > 0 && <span>{resumoSemana.restritas} tarefa{resumoSemana.restritas !== 1 ? 's comprometidas têm' : ' comprometida tem'} restrição aberta</span>}
+            </div>
+          )}
+
           {semanaSelecionada.status === 'aberta' && (
             <div className={styles.acoesForm}>
               <button className={styles.btnSecundario} onClick={() => setFormCompromissoAberto(v => !v)}>{formCompromissoAberto ? 'Fechar' : 'Comprometer tarefa'}</button>
@@ -608,35 +789,92 @@ export default function Planejamento() {
           )}
 
           {compromissos.length === 0 ? <div className={styles.vazio}>Nenhuma tarefa comprometida nesta semana.</div> : (
-            <table className={styles.tabela}>
-              <thead><tr><th>Tarefa</th><th>Início</th><th>Meta</th><th>Real</th><th>Cumprida</th><th>Motivo</th><th>Ações</th></tr></thead>
-              <tbody>{compromissos.map(c => (
-                <tr key={c.id}>
-                  <td data-label="Tarefa">{tarefaPorId.get(c.tarefa_id)?.nome ?? 'Tarefa não encontrada'}</td>
-                  <td data-label="Início">{c.percentual_inicio}%</td>
-                  <td data-label="Meta">{c.meta_percentual}%</td>
-                  <td data-label="Real">{c.percentual_fim ?? '-'}{c.percentual_fim != null ? '%' : ''}</td>
-                  <td data-label="Cumprida">{c.cumprido == null ? '-' : c.cumprido ? <span className={styles.chipResolvida + ' ' + styles.chip}>Sim</span> : <span className={styles.chipAberta + ' ' + styles.chip}>Não</span>}</td>
-                  <td data-label="Motivo">
-                    {c.cumprido === false && semanaSelecionada.status !== 'fechada' ? (
-                      <select value={c.motivo_categoria ?? ''} onChange={e => { if (e.target.value) atualizarMotivo(c, e.target.value as CategoriaRestricao, c.motivo_observacao ?? '') }}>
-                        <option value="">Selecione o motivo</option>
-                        {(Object.keys(CATEGORIA_LABEL) as CategoriaRestricao[]).map(cat => <option key={cat} value={cat}>{CATEGORIA_LABEL[cat]}</option>)}
-                      </select>
-                    ) : c.motivo_categoria ? CATEGORIA_LABEL[c.motivo_categoria] : '-'}
-                  </td>
-                  <td data-label="Ações">
-                    {semanaSelecionada.status !== 'fechada' ? (
-                      <button className={styles.btnPerigo} disabled={salvando} onClick={() => excluirCompromisso(c)}>Excluir</button>
-                    ) : c.cumprido === false ? (
-                      <button className={styles.btnSecundario} disabled={salvando} onClick={() => levarParaProximaSemana(c)}>Levar pra próxima semana</button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
+            <div className={styles.gruposSemana}>
+              {compromissosAgrupados.map(grupo => (
+                <section key={grupo.unidade} className={styles.grupoUnidade}>
+                  <div className={styles.grupoUnidadeHeader}>
+                    <strong>{grupo.unidade}</strong>
+                    <span>{grupo.etapas.reduce((total, etapa) => total + etapa.itens.length, 0)} tarefa(s)</span>
+                  </div>
+                  {grupo.etapas.map(etapa => (
+                    <div key={etapa.etapa} className={styles.grupoEtapa}>
+                      <h3>{etapa.etapa}</h3>
+                      <div className={styles.listaCompromissos}>
+                        {etapa.itens.map(item => {
+                          const c = item.compromisso
+                          return (
+                            <article key={c.id} className={styles.compromissoCard}>
+                              <div className={styles.compromissoTopo}>
+                                <strong>{item.tarefaNome}</strong>
+                                <span className={[styles.chip, item.statusClasse].join(' ')}>{item.statusTexto}</span>
+                              </div>
+                              <div className={styles.compromissoMetricas}>
+                                <span><b>Início</b>{fmtPct(c.percentual_inicio)}</span>
+                                <span><b>Meta</b>{fmtPct(c.meta_percentual)}</span>
+                                <span><b>Real</b>{fmtPct(c.percentual_fim)}</span>
+                                <span><b>Avanço lançado</b>{avancoDiasPorTarefa[c.tarefa_id]?.length ?? 0} dia(s)</span>
+                              </div>
+                              <div className={styles.compromissoRodape}>
+                                {c.cumprido === false && semanaSelecionada.status !== 'fechada' ? (
+                                  <select value={c.motivo_categoria ?? ''} onChange={e => { if (e.target.value) atualizarMotivo(c, e.target.value as CategoriaRestricao, c.motivo_observacao ?? '') }}>
+                                    <option value="">Selecione o motivo</option>
+                                    {(Object.keys(CATEGORIA_LABEL) as CategoriaRestricao[]).map(cat => <option key={cat} value={cat}>{CATEGORIA_LABEL[cat]}</option>)}
+                                  </select>
+                                ) : <span>{c.motivo_categoria ? CATEGORIA_LABEL[c.motivo_categoria] : 'Sem motivo registrado'}</span>}
+                                {semanaSelecionada.status !== 'fechada' ? (
+                                  <button className={styles.btnPerigo} disabled={salvando} onClick={() => excluirCompromisso(c)}>Excluir</button>
+                                ) : c.cumprido === false ? (
+                                  <button className={styles.btnSecundario} disabled={salvando} onClick={() => levarParaProximaSemana(c)}>Levar pra próxima semana</button>
+                                ) : null}
+                              </div>
+                            </article>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              ))}
+            </div>
           )}
         </>}
+      </>}
+
+      {!carregando && aba === 'calendario' && <>
+        <div className={styles.calendarioTopo}>
+          <button className={styles.btnSecundario} onClick={() => mudarMes(-1)}>Mês anterior</button>
+          <h2>{dataLocal(mesCalendario + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2>
+          <button className={styles.btnSecundario} onClick={() => mudarMes(1)}>Próximo mês</button>
+        </div>
+        <div className={styles.calendario}>
+          {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(dia => <div key={dia} className={styles.diaSemana}>{dia}</div>)}
+          {calendario.map(dia => (
+            <div key={dia.iso} className={[styles.diaCalendario, dia.foraDoMes ? styles.diaFora : '', dia.hoje ? styles.diaHoje : ''].filter(Boolean).join(' ')}>
+              <div className={styles.diaTopo}>
+                <strong>{dia.dia}</strong>
+                {dia.semanas.map(s => s.status === 'fechada' && s.ppc != null ? <span key={s.id}>PPC {s.ppc}%</span> : null)}
+              </div>
+              <div className={styles.diaConteudo}>
+                {dia.restricoes.slice(0, 2).map(r => (
+                  <div key={r.id} className={styles.eventoRestricao}>
+                    {CATEGORIA_LABEL[r.categoria]}: {tarefaPorId.get(r.tarefa_id)?.nome ?? 'tarefa'}
+                  </div>
+                ))}
+                {dia.avancos.slice(0, 2).map(item => (
+                  <div key={'avanco-' + item.compromisso.id} className={styles.eventoAvanco}>
+                    Avanço: {item.unidadeNome} - {item.tarefaNome}
+                  </div>
+                ))}
+                {dia.compromissos.slice(0, 3).map(item => (
+                  <div key={item.compromisso.id} className={styles.eventoCompromisso}>
+                    {item.unidadeNome}: {item.tarefaNome}
+                  </div>
+                ))}
+                {dia.compromissos.length > 3 && <div className={styles.eventoMais}>+{dia.compromissos.length - 3} compromisso(s)</div>}
+              </div>
+            </div>
+          ))}
+        </div>
       </>}
 
       {!carregando && aba === 'trimestral' && <>

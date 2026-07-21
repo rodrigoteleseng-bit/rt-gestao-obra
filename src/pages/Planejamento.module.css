@@ -24,6 +24,7 @@
 button:disabled { opacity: .55; cursor: not-allowed; }
 .filtros { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
 .filtros select, .filtros input { border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); padding: 9px 11px; font: inherit; background: var(--branco); }
+.seletorPeriodo { display: grid; grid-template-columns: minmax(110px, .5fr) minmax(150px, .7fr) minmax(260px, 1.5fr) auto; gap: 10px; align-items: end; margin-bottom: 16px; }
 .tabela { width: 100%; border-collapse: collapse; background: var(--branco); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--sombra-sm); }
 .tabela th, .tabela td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--cinza-200); }
 .tabela th { background: var(--nude); color: var(--navy); font-weight: 800; }
@@ -91,7 +92,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .eventoMais { background: var(--nude); color: var(--cinza-600); font-weight: 800; }
 @media (max-width: 860px) {
   .header { flex-direction: column; width: 100%; }
-  .linha2, .linha3, .resumoSemana, .compromissoMetricas { grid-template-columns: 1fr; }
+  .linha2, .linha3, .resumoSemana, .compromissoMetricas, .seletorPeriodo { grid-template-columns: 1fr; }
   .resumoCards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .btnPrimario, .btnSecundario, .btnPerigo { width: 100%; }
   .compromissoTopo, .compromissoRodape, .calendarioTopo { flex-direction: column; align-items: stretch; }

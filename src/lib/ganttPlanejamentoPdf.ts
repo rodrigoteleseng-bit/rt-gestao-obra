@@ -6,24 +6,10 @@ const NAVY = '#1A3248'
 const CINZA_GRADE = '#d8dde3'
 const CINZA_TEXTO = '#444444'
 const NUDE_BANDA = '#F0EBE3'
-const VERDE = '#2E7D32'
-const VERMELHO = '#C62828'
-const AMARELO = '#E3A00C'
-const PRETO = '#222222'
 const BRANCO = '#ffffff'
 
 const DIA_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
-const CATEGORIA_LABEL: Record<string, string> = {
-  material: 'Material',
-  mao_de_obra: 'Mão de obra',
-  projeto_documentacao: 'Projeto/documentação',
-  decisao_pendente: 'Decisão pendente',
-  equipamento: 'Equipamento',
-  financeiro: 'Financeiro',
-  servico_predecessor: 'Serviço predecessor',
-  clima: 'Clima',
-}
 
 interface Segmento {
   inicio: number
@@ -37,9 +23,7 @@ interface BarraTarefa {
   unidadeNome: string
   unidadeOrdem: number
   etapaNome: string
-  atual: Segmento | null
-  proxima: Segmento | null
-  diasAvanco: number[]
+  planejado: Segmento
 }
 
 // Datas do Postgres vêm como "YYYY-MM-DD" — sem forçar meia-noite local, o
@@ -66,44 +50,18 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
   if (!semanaAtualResp.data) throw new Error('Semana não encontrada.')
   const semanaAtual = semanaAtualResp.data
 
-  // Semana seguinte = a próxima semana cadastrada por data (segunda a sexta),
-  // detectada automaticamente — precisa já existir.
-  const proximaResp = await supabase.from('planejamento_semanas')
-    .select('id, data_inicio, data_fim')
-    .eq('obra_id', obraId).eq('ativo', true).gt('data_inicio', semanaAtual.data_fim)
-    .order('data_inicio', { ascending: true }).limit(1).maybeSingle()
-  if (proximaResp.error) throw new Error('Erro ao carregar semana seguinte: ' + proximaResp.error.message)
-  if (!proximaResp.data) throw new Error('Crie a semana seguinte antes de gerar este Gantt.')
-  const proxima = proximaResp.data
-
-  const semanaIds = [semanaAtual.id, proxima.id]
   const compromissosResp = await supabase.from('planejamento_compromissos')
-    .select('tarefa_id, semana_id, cumprido, motivo_categoria')
-    .eq('ativo', true).in('semana_id', semanaIds)
+    .select('tarefa_id, semana_id, meta_percentual, percentual_inicio')
+    .eq('ativo', true).eq('semana_id', semanaAtual.id)
   if (compromissosResp.error) throw new Error('Erro ao carregar compromissos: ' + compromissosResp.error.message)
   const compromissos = compromissosResp.data ?? []
-  if (compromissos.length === 0) throw new Error('Nenhum compromisso encontrado nessas duas semanas.')
+  if (compromissos.length === 0) throw new Error('Nenhum compromisso encontrado nesta semana.')
 
-  const compromissoAtualPorTarefa = new Map<string, { cumprido: boolean | null }>()
-  const compromissoProximaPorTarefa = new Map<string, { cumprido: boolean | null }>()
-  let totalAtual = 0
-  let cumpridasAtual = 0
-  let naoCumpridasAtual = 0
-  const motivos = new Map<string, number>()
+  const compromissoPorTarefa = new Map<string, { percentual_inicio: number; meta_percentual: number }>()
   for (const c of compromissos) {
-    if (c.semana_id === semanaAtual.id) {
-      compromissoAtualPorTarefa.set(c.tarefa_id, { cumprido: c.cumprido })
-      totalAtual += 1
-      if (c.cumprido === true) cumpridasAtual += 1
-      if (c.cumprido === false) {
-        naoCumpridasAtual += 1
-        if (c.motivo_categoria) motivos.set(c.motivo_categoria, (motivos.get(c.motivo_categoria) ?? 0) + 1)
-      }
-    } else {
-      compromissoProximaPorTarefa.set(c.tarefa_id, { cumprido: c.cumprido })
-    }
+    compromissoPorTarefa.set(c.tarefa_id, { percentual_inicio: c.percentual_inicio, meta_percentual: c.meta_percentual })
   }
-  const pendentesAtual = totalAtual - cumpridasAtual - naoCumpridasAtual
+  const totalAtual = compromissoPorTarefa.size
 
   const idsTarefas = [...new Set(compromissos.map(c => c.tarefa_id))]
   const lotesTarefas = fatiar(idsTarefas, 500)
@@ -129,48 +87,22 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
       .range(de, ate) as unknown as PromiseLike<RespostaPaginada<NoParaEtapa>>)
   const etapaPorTarefaId = etapaAncestralPorTarefa(todosNos)
 
-  // Avanço físico lançado dentro da janela das duas semanas — cada dia
-  // lançado vira uma marca no Gantt (não uma barra contínua).
-  const avancoLotes = await Promise.all(lotesTarefas.map(lote =>
-    paginado<{ tarefa_id: string; data_referencia: string }>((de, ate, contar) =>
-      supabase.from('avancos_fisicos')
-        .select('tarefa_id, data_referencia', contar ? { count: 'exact' } : undefined)
-        .eq('ativo', true).in('tarefa_id', lote)
-        .gte('data_referencia', semanaAtual.data_inicio).lte('data_referencia', proxima.data_fim)
-        .range(de, ate) as unknown as PromiseLike<RespostaPaginada<{ tarefa_id: string; data_referencia: string }>>)))
-  const diasAvancoPorTarefa = new Map<string, Set<number>>()
-  for (const lote of avancoLotes) for (const a of lote) {
-    const dia = dataLocal(a.data_referencia).getTime()
-    const atual = diasAvancoPorTarefa.get(a.tarefa_id) ?? new Set<number>()
-    atual.add(dia)
-    diasAvancoPorTarefa.set(a.tarefa_id, atual)
-  }
-
   const atualInicio = dataLocal(semanaAtual.data_inicio).getTime()
   const atualFim = dataLocal(semanaAtual.data_fim).getTime()
-  const proximaInicio = dataLocal(proxima.data_inicio).getTime()
-  const proximaFim = dataLocal(proxima.data_fim).getTime()
 
   const barras: BarraTarefa[] = []
   for (const t of tarefasInfo) {
     const etapaNome = etapaPorTarefaId.get(t.id)
     if (!t.unidades || !etapaNome) continue
-    const cAtual = compromissoAtualPorTarefa.get(t.id)
-    const cProxima = compromissoProximaPorTarefa.get(t.id)
-    if (!cAtual && !cProxima) continue
-    const atual: Segmento | null = cAtual
-      ? { inicio: atualInicio, fim: atualFim, cor: cAtual.cumprido === true ? VERDE : cAtual.cumprido === false ? VERMELHO : AMARELO }
-      : null
-    const proximaSeg: Segmento | null = cProxima ? { inicio: proximaInicio, fim: proximaFim, cor: AMARELO } : null
+    const c = compromissoPorTarefa.get(t.id)
+    if (!c) continue
     barras.push({
       id: t.id,
-      nome: t.nome,
+      nome: `${t.nome} (${c.percentual_inicio}% -> ${c.meta_percentual}%)`,
       unidadeNome: t.unidades.nome,
       unidadeOrdem: t.unidades.ordem,
       etapaNome,
-      atual,
-      proxima: proximaSeg,
-      diasAvanco: [...(diasAvancoPorTarefa.get(t.id) ?? [])],
+      planejado: { inicio: atualInicio, fim: atualFim, cor: NAVY },
     })
   }
   if (barras.length === 0) throw new Error('Nenhuma tarefa comprometida encontrada para montar o Gantt.')
@@ -205,7 +137,7 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
 
   // ---- desenho do PDF ----
   const dataMin = atualInicio
-  const dataMax = proximaFim
+  const dataMax = atualFim
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' })
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
@@ -232,14 +164,10 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
     pdf.setFontSize(8.5)
     pdf.text(obraNome, W - MR, 9.5, { align: 'right' })
 
-    const ppc = semanaAtual.ppc == null ? '-' : `${semanaAtual.ppc}%`
     const cards: [string, string, string][] = [
-      ['SEMANA ATUAL', `${fmt(semanaAtual.data_inicio)} a ${fmt(semanaAtual.data_fim)}`, NAVY],
-      ['PPC', ppc, semanaAtual.ppc != null && semanaAtual.ppc < 70 ? VERMELHO : VERDE],
+      ['SEMANA PLANEJADA', `${fmt(semanaAtual.data_inicio)} a ${fmt(semanaAtual.data_fim)}`, NAVY],
+      ['STATUS', semanaAtual.status === 'aberta' ? 'Aberta' : semanaAtual.status === 'planejada' ? 'Planejada' : 'Fechada', NAVY],
       ['COMPROMISSOS', String(totalAtual), NAVY],
-      ['CUMPRIDAS', String(cumpridasAtual), VERDE],
-      ['NAO CUMPRIDAS', String(naoCumpridasAtual), VERMELHO],
-      ['PENDENTES', String(pendentesAtual), AMARELO],
     ]
     const cardY = 18
     const cardH = 12
@@ -265,14 +193,11 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
     pdf.setFontSize(8)
     pdf.text('Unidade / etapa / tarefa', 4, MT - 3)
 
-    const meio = x(atualFim + (proximaInicio - atualFim) / 2)
     pdf.setFillColor(NUDE_BANDA)
-    pdf.rect(areaX, MT - 10, meio - areaX, 4.5, 'F')
-    pdf.rect(meio, MT - 10, areaX + areaW - meio, 4.5, 'F')
+    pdf.rect(areaX, MT - 10, areaW, 4.5, 'F')
     pdf.setFontSize(7)
     pdf.setTextColor(NAVY)
-    pdf.text(`Semana atual (${fmt(semanaAtual.data_inicio)} a ${fmt(semanaAtual.data_fim)})`, areaX + 2, MT - 6.8)
-    pdf.text(`Semana seguinte (${fmt(proxima.data_inicio)} a ${fmt(proxima.data_fim)})`, meio + 2, MT - 6.8)
+    pdf.text(`Planejado da semana (${fmt(semanaAtual.data_inicio)} a ${fmt(semanaAtual.data_fim)})`, areaX + 2, MT - 6.8)
 
     // marcações diárias, do topo ao fundo da área de linhas
     let cursor = new Date(dataMin)
@@ -297,13 +222,6 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
       cursor = new Date(cursor.getTime() + 86400000)
     }
 
-    // divisória entre a semana atual e a seguinte
-    const divisoriaX = meio
-    pdf.setDrawColor(NAVY)
-    pdf.setLineWidth(0.6)
-    pdf.line(divisoriaX, topoLinhas - 9, divisoriaX, fundoLinhas)
-    pdf.setLineWidth(0.2)
-
     pdf.setDrawColor(NAVY)
     pdf.rect(areaX, topoLinhas, areaW, fundoLinhas - topoLinhas)
   }
@@ -312,9 +230,7 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
     let lx = ML
     const ly = H - 11
     const itens: [string, string][] = [
-      ['Cumprida', VERDE],
-      ['Não cumprida', VERMELHO],
-      ['Planejada (semana seguinte)', AMARELO],
+      ['Tarefa planejada para a semana', NAVY],
     ]
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(7.5)
@@ -325,21 +241,9 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
       pdf.text(rotulo, lx + 6, ly)
       lx += pdf.getTextWidth(rotulo) + 18
     }
-    pdf.setFillColor(PRETO)
-    pdf.circle(lx + 1.3, ly - 1.3, 1.3, 'F')
-    pdf.setTextColor(CINZA_TEXTO)
-    pdf.text('Dia com avanço lançado', lx + 4.5, ly)
-
-    const principaisMotivos = [...motivos.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
-    if (principaisMotivos.length > 0) {
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(7.2)
-      pdf.setTextColor(VERMELHO)
-      pdf.text('Principais motivos: ' + principaisMotivos.map(([motivo, qtd]) => `${CATEGORIA_LABEL[motivo] ?? motivo} (${qtd})`).join(' | '), ML, H - 15)
-    }
-
     pdf.setFontSize(7.5)
     pdf.setTextColor(CINZA_TEXTO)
+    pdf.text('Fonte: Planejamento semanal. A execução e o PPC ficam na tela do Planejamento e no Avanço Físico.', ML, H - 15)
     pdf.text('RT Engenharia · Rodrigo Teles Silva · CREA 1018712895 D/GO · Inteligência Aplicada', ML, H - 6)
   }
 
@@ -387,16 +291,9 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
 
     const alturaBarra = 4.2
     const byBase = y + (altura - alturaBarra) / 2
-    for (const seg of [b.atual, b.proxima]) {
-      if (!seg) continue
-      pdf.setFillColor(seg.cor)
-      const largura = Math.max(x(seg.fim) - x(seg.inicio), 0.8)
-      pdf.rect(x(seg.inicio), byBase, largura, alturaBarra, 'F')
-    }
-    for (const dia of b.diasAvanco) {
-      pdf.setFillColor(PRETO)
-      pdf.circle(x(dia) , byBase + alturaBarra / 2, 1.1, 'F')
-    }
+    pdf.setFillColor(b.planejado.cor)
+    const largura = Math.max(x(b.planejado.fim) - x(b.planejado.inicio), 0.8)
+    pdf.rect(x(b.planejado.inicio), byBase, largura, alturaBarra, 'F')
     y += altura
   }
 

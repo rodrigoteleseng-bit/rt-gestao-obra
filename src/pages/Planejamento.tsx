@@ -50,6 +50,12 @@ interface GrupoCompromissos {
   etapas: { etapa: string; itens: CompromissoView[] }[]
 }
 
+interface SemanaOpcao {
+  inicio: string
+  fim: string
+  existente: PlanejamentoSemana | null
+}
+
 export const CATEGORIA_LABEL: Record<CategoriaRestricao, string> = {
   material: 'Material',
   mao_de_obra: 'Mão de obra',
@@ -61,6 +67,7 @@ export const CATEGORIA_LABEL: Record<CategoriaRestricao, string> = {
   clima: 'Clima',
 }
 
+const MESES_LABEL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 const fmtData = (iso?: string | null) => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR') : '-'
 const fmtPct = (valor?: number | null) => valor == null ? '-' : `${valor.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 const hojeISO = () => {
@@ -74,6 +81,7 @@ const adicionarDias = (iso: string, dias: number) => {
   d.setDate(d.getDate() + dias)
   return isoLocal(d)
 }
+const statusSemanaLabel = (status: PlanejamentoSemana['status']) => status === 'aberta' ? 'aberta' : status === 'planejada' ? 'planejamento fechado' : 'fechada'
 
 export default function Planejamento() {
   const { perfil, temModulo } = useAuth()
@@ -109,14 +117,18 @@ export default function Planejamento() {
   const [percentuaisAtuais, setPercentuaisAtuais] = useState<Record<string, number>>({})
   const [avancoDiasPorTarefa, setAvancoDiasPorTarefa] = useState<Record<string, string[]>>({})
   const [marcos, setMarcos] = useState<MarcoEtapa[]>([])
+  const [fimCronograma, setFimCronograma] = useState<string | null>(null)
 
   const [novaSemanaInicio, setNovaSemanaInicio] = useState('')
   const [novaSemanaFim, setNovaSemanaFim] = useState('')
+  const [formSemanaAberto, setFormSemanaAberto] = useState(false)
   const [formCompromissoAberto, setFormCompromissoAberto] = useState(false)
   const [tarefaCompromissoId, setTarefaCompromissoId] = useState('')
   const [metaPercentual, setMetaPercentual] = useState('')
   const [gerandoGantt, setGerandoGantt] = useState(false)
   const [mesCalendario, setMesCalendario] = useState(() => hojeISO().slice(0, 7))
+  const [anoPlanejamento, setAnoPlanejamento] = useState(() => Number(hojeISO().slice(0, 4)))
+  const [mesPlanejamento, setMesPlanejamento] = useState(() => Number(hojeISO().slice(5, 7)))
 
   const [unidadesObra, setUnidadesObra] = useState<UnidadeSimples[]>([])
   const [todasTarefas, setTodasTarefas] = useState<TarefaArvoreNo[]>([])
@@ -254,6 +266,8 @@ export default function Planejamento() {
         setMsg({ tipo: 'erro', texto: 'Erro ao carregar datas previstas: ' + (erro as Error).message })
         return
       }
+      const datasCronograma = previstoLista.map(p => p.fim).filter(Boolean).sort()
+      setFimCronograma(datasCronograma.length > 0 ? datasCronograma[datasCronograma.length - 1] : null)
       const fimPorTarefa = new Map(previstoLista.map(p => [p.tarefa_id, p.fim]))
 
       const porEtapa = new Map<string, string[]>()
@@ -279,8 +293,42 @@ export default function Planejamento() {
     carregarMarcos()
   }, [obraAtiva, tarefas, percentuaisAtuais, etapaPorTarefaId])
 
+  const hoje = hojeISO()
   const semanaSelecionada = semanas.find(s => s.id === semanaSelecionadaId) ?? null
   const jaComprometidasPorId = useMemo(() => new Set(compromissos.map(c => c.tarefa_id)), [compromissos])
+
+  const anosPlanejamento = useMemo(() => {
+    const anoAtual = Number(hoje.slice(0, 4))
+    const anosSemanas = semanas.map(s => Number(s.data_inicio.slice(0, 4)))
+    const anoFim = fimCronograma ? Number(fimCronograma.slice(0, 4)) : Math.max(anoAtual, ...anosSemanas, anoAtual + 1)
+    const anoInicio = Math.min(anoAtual, ...anosSemanas, anoFim)
+    const anos: number[] = []
+    for (let ano = anoInicio; ano <= anoFim; ano++) anos.push(ano)
+    return anos
+  }, [fimCronograma, semanas, hoje])
+
+  const mesesPlanejamento = useMemo(() => {
+    const anoFim = fimCronograma ? Number(fimCronograma.slice(0, 4)) : null
+    const mesFim = fimCronograma ? Number(fimCronograma.slice(5, 7)) : 12
+    const limite = anoFim === anoPlanejamento ? mesFim : 12
+    return Array.from({ length: limite }, (_, i) => i + 1)
+  }, [anoPlanejamento, fimCronograma])
+
+  const semanasDoMes = useMemo<SemanaOpcao[]>(() => {
+    const primeiro = new Date(anoPlanejamento, mesPlanejamento - 1, 1)
+    const ultimo = new Date(anoPlanejamento, mesPlanejamento, 0)
+    const inicio = new Date(primeiro)
+    inicio.setDate(primeiro.getDate() - ((primeiro.getDay() + 6) % 7))
+    const existentes = new Map(semanas.map(s => [s.data_inicio, s]))
+    const opcoes: SemanaOpcao[] = []
+    for (const d = new Date(inicio); d <= ultimo; d.setDate(d.getDate() + 7)) {
+      const inicioIso = isoLocal(d)
+      const fimIso = adicionarDias(inicioIso, 4)
+      if (fimCronograma && inicioIso > fimCronograma) continue
+      opcoes.push({ inicio: inicioIso, fim: fimIso, existente: existentes.get(inicioIso) ?? null })
+    }
+    return opcoes
+  }, [anoPlanejamento, mesPlanejamento, semanas, fimCronograma])
 
   const arvoreCronograma = useMemo(() => {
     const filhosPorPai = new Map<string, TarefaArvoreNo[]>()
@@ -298,8 +346,6 @@ export default function Planejamento() {
     }
     return { filhosPorPai, raizesPorUnidade }
   }, [todasTarefas])
-
-  const hoje = hojeISO()
 
   const compromissosView = useMemo<CompromissoView[]>(() => {
     return compromissos.map(c => {
@@ -409,6 +455,29 @@ export default function Planejamento() {
     setMesCalendario(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
   }
 
+  function selecionarSemanaOperacional(valor: string) {
+    if (!valor) {
+      setSemanaSelecionadaId(null)
+      setCompromissos([])
+      return
+    }
+    if (valor.startsWith('nova:')) {
+      const [, inicio, fim] = valor.split(':')
+      setSemanaSelecionadaId(null)
+      setCompromissos([])
+      setNovaSemanaInicio(inicio)
+      setNovaSemanaFim(fim)
+      setFormSemanaAberto(false)
+      return
+    }
+    const semana = semanas.find(s => s.id === valor)
+    setSemanaSelecionadaId(valor)
+    if (semana) {
+      setNovaSemanaInicio(semana.data_inicio)
+      setNovaSemanaFim(semana.data_fim)
+    }
+  }
+
   function limparForm() {
     setBuscaTarefa('')
     setTarefaId('')
@@ -460,6 +529,7 @@ export default function Planejamento() {
     if (error) return setMsg({ tipo: 'erro', texto: 'Erro ao criar semana: ' + error.message })
     setNovaSemanaInicio('')
     setNovaSemanaFim('')
+    setFormSemanaAberto(false)
     setMsg({ tipo: 'ok', texto: 'Semana criada.' })
     await carregar()
     if (data) setSemanaSelecionadaId(data.id)
@@ -674,23 +744,40 @@ export default function Planejamento() {
       </>}
 
       {!carregando && aba === 'semanal' && <>
-        <div className={styles.filtros}>
-          <select value={semanaSelecionadaId ?? ''} onChange={e => setSemanaSelecionadaId(e.target.value || null)}>
-            <option value="">Selecione uma semana</option>
-            {semanas.map(s => <option key={s.id} value={s.id}>{fmtData(s.data_inicio)} a {fmtData(s.data_fim)} {s.status === 'fechada' ? '(fechada, PPC ' + s.ppc + '%)' : s.status === 'planejada' ? '(planejamento fechado)' : ''}</option>)}
-          </select>
+        <div className={styles.seletorPeriodo}>
+          <label className={styles.campo}>Ano
+            <select value={anoPlanejamento} onChange={e => { setAnoPlanejamento(Number(e.target.value)); setSemanaSelecionadaId(null); setCompromissos([]); setNovaSemanaInicio(''); setNovaSemanaFim('') }}>
+              {anosPlanejamento.map(ano => <option key={ano} value={ano}>{ano}</option>)}
+            </select>
+          </label>
+          <label className={styles.campo}>Mês
+            <select value={mesPlanejamento} onChange={e => { setMesPlanejamento(Number(e.target.value)); setSemanaSelecionadaId(null); setCompromissos([]); setNovaSemanaInicio(''); setNovaSemanaFim('') }}>
+              {mesesPlanejamento.map(mes => <option key={mes} value={mes}>{MESES_LABEL[mes - 1]}</option>)}
+            </select>
+          </label>
+          <label className={styles.campo}>Semana
+            <select value={semanaSelecionadaId ?? (novaSemanaInicio ? `nova:${novaSemanaInicio}:${novaSemanaFim}` : '')} onChange={e => selecionarSemanaOperacional(e.target.value)}>
+              <option value="">Selecione</option>
+              {semanasDoMes.map(opcao => (
+                <option key={opcao.inicio} value={opcao.existente ? opcao.existente.id : `nova:${opcao.inicio}:${opcao.fim}`}>
+                  {fmtData(opcao.inicio)} a {fmtData(opcao.fim)} {opcao.existente ? `(${statusSemanaLabel(opcao.existente.status)}${opcao.existente.ppc != null ? ', PPC ' + opcao.existente.ppc + '%' : ''})` : '(não criada)'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className={styles.btnSecundario} onClick={() => setFormSemanaAberto(v => !v)}>{formSemanaAberto ? 'Fechar' : 'Criar semana'}</button>
         </div>
 
-        <div className={styles.formulario}>
+        {formSemanaAberto && <div className={styles.formulario}>
           <div className={styles.formHeader}><h2>Nova semana</h2></div>
           <div className={styles.linha2}>
             <label className={styles.campo}>Início<input type="date" value={novaSemanaInicio} onChange={e => setNovaSemanaInicio(e.target.value)} /></label>
             <label className={styles.campo}>Fim<input type="date" value={novaSemanaFim} onChange={e => setNovaSemanaFim(e.target.value)} /></label>
           </div>
           <div className={styles.acoesForm}><button className={styles.btnPrimario} disabled={salvando} onClick={criarSemana}>Criar semana</button></div>
-        </div>
+        </div>}
 
-        {!semanaSelecionada ? <div className={styles.vazio}>Selecione ou crie uma semana.</div> : <>
+        {!semanaSelecionada ? <div className={styles.vazio}>{novaSemanaInicio ? `Semana de ${fmtData(novaSemanaInicio)} a ${fmtData(novaSemanaFim)} ainda não foi criada. Clique em "Criar semana" para cadastrar esse período.` : 'Selecione ou crie uma semana.'}</div> : <>
           <div className={styles.resumoSemana}>
             <div className={styles.resumoPrincipal}>
               <span className={styles.resumoLabel}>Semana selecionada</span>
@@ -783,7 +870,7 @@ export default function Planejamento() {
           {(semanaSelecionada.status === 'planejada' || semanaSelecionada.status === 'fechada') && (
             <div className={styles.filtros}>
               <button className={styles.btnSecundario} disabled={gerandoGantt} onClick={gerarGantt}>
-                {gerandoGantt ? 'Gerando...' : 'Gantt do planejamento (semana atual + seguinte)'}
+                {gerandoGantt ? 'Gerando...' : 'Gantt do planejado da semana'}
               </button>
             </div>
           )}

@@ -75,6 +75,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .compromissoRodape span { color: var(--cinza-600); font-size: 13px; }
 .calendarioTopo { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .calendarioTopo h2 { margin: 0; color: var(--navy); font-size: 18px; text-transform: capitalize; }
+.calendarioTitulo { text-align: center; min-width: 0; }
+.calendarioTitulo span { display: block; color: var(--cinza-600); font-size: 11px; font-weight: 800; margin-bottom: 3px; }
+.calendarioAcoes { display: flex; gap: 10px; align-items: center; }
+.calendarioCabecalhoPrint { display: none; }
 .calendario { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--cinza-200); border-radius: var(--radius-md); overflow: hidden; background: var(--branco); box-shadow: var(--sombra-sm); }
 .diaSemana { background: var(--nude); color: var(--navy); padding: 9px; font-size: 12px; font-weight: 900; text-align: center; border-right: 1px solid var(--cinza-200); }
 .diaSemana:nth-child(7) { border-right: 0; }
@@ -96,7 +100,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   .linha2, .linha3, .resumoSemana, .compromissoMetricas, .seletorPeriodo { grid-template-columns: 1fr; }
   .resumoCards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .btnPrimario, .btnSecundario, .btnPerigo { width: 100%; }
-  .compromissoTopo, .compromissoRodape, .calendarioTopo { flex-direction: column; align-items: stretch; }
+  .compromissoTopo, .compromissoRodape, .calendarioTopo, .calendarioAcoes { flex-direction: column; align-items: stretch; }
+  .calendarioTitulo { text-align: left; }
   .compromissoRodape select { min-width: 0; width: 100%; }
   .calendario { display: flex; flex-direction: column; border-radius: 0; border-left: 0; border-right: 0; }
   .diaSemana { display: none; }
@@ -106,4 +111,108 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   .tabela tr { display: block; border-bottom: 1px solid var(--cinza-200); padding: 8px 0; }
   .tabela th { display: none; }
   .tabela td { display: flex; justify-content: space-between; gap: 8px; border-bottom: 0; padding: 4px 12px; }
+}
+
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body * { visibility: hidden; }
+
+  .calendarioPrint,
+  .calendarioPrint * {
+    visibility: visible;
+  }
+
+  .calendarioPrint {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+    color: #1A3248;
+  }
+
+  .calendarioTopo { display: none; }
+
+  .calendarioCabecalhoPrint {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2mm 8mm;
+    align-items: end;
+    margin-bottom: 4mm;
+    border-bottom: 1px solid #1A3248;
+    padding-bottom: 2mm;
+  }
+
+  .calendarioCabecalhoPrint span,
+  .calendarioCabecalhoPrint em {
+    color: #52606d;
+    font-size: 8pt;
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  .calendarioCabecalhoPrint strong {
+    grid-column: 1;
+    color: #1A3248;
+    font: 900 14pt var(--font-titulo);
+  }
+
+  .calendarioCabecalhoPrint em {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    text-transform: capitalize;
+  }
+
+  .calendario {
+    box-shadow: none;
+    border-radius: 0;
+    border-color: #9aa8b5;
+    break-inside: avoid;
+  }
+
+  .diaSemana {
+    padding: 2mm;
+    background: #F0EBE3 !important;
+    border-color: #9aa8b5;
+    font-size: 8pt;
+  }
+
+  .diaCalendario {
+    min-height: 25mm;
+    padding: 1.5mm;
+    border-color: #c9d1d8;
+    page-break-inside: avoid;
+  }
+
+  .diaTopo {
+    margin-bottom: 1mm;
+    gap: 1mm;
+  }
+
+  .diaTopo strong { font-size: 8pt; }
+  .diaTopo span { font-size: 6.5pt; padding: .5mm 1.2mm; }
+
+  .diaConteudo { gap: .8mm; }
+
+  .eventoCompromisso,
+  .eventoAvanco,
+  .eventoRestricao,
+  .eventoMais {
+    border-radius: 2px;
+    padding: .8mm 1mm;
+    font-size: 6.6pt;
+    line-height: 1.12;
+  }
+
+  .eventoCompromisso { background: #edf4fa !important; }
+  .eventoAvanco { background: #e6f4ec !important; }
+  .eventoRestricao { background: #fdeaea !important; }
+  .eventoMais { background: #F0EBE3 !important; }
 }

@@ -927,11 +927,22 @@ export default function Planejamento() {
         </>}
       </>}
 
-      {!carregando && aba === 'calendario' && <>
+      {!carregando && aba === 'calendario' && <section className={styles.calendarioPrint}>
         <div className={styles.calendarioTopo}>
           <button className={styles.btnSecundario} onClick={() => mudarMes(-1)}>Mês anterior</button>
-          <h2>{dataLocal(mesCalendario + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2>
-          <button className={styles.btnSecundario} onClick={() => mudarMes(1)}>Próximo mês</button>
+          <div className={styles.calendarioTitulo}>
+            <span>{obraAtiva?.nome ?? 'Obra'}</span>
+            <h2>{dataLocal(mesCalendario + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2>
+          </div>
+          <div className={styles.calendarioAcoes}>
+            <button className={styles.btnSecundario} onClick={() => mudarMes(1)}>Próximo mês</button>
+            <button className={styles.btnPrimario} onClick={() => window.print()}>Imprimir calendário</button>
+          </div>
+        </div>
+        <div className={styles.calendarioCabecalhoPrint}>
+          <span>RT Engenharia - Planejamento</span>
+          <strong>{obraAtiva?.nome ?? 'Obra'}</strong>
+          <em>{dataLocal(mesCalendario + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</em>
         </div>
         <div className={styles.calendario}>
           {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(dia => <div key={dia} className={styles.diaSemana}>{dia}</div>)}
@@ -962,7 +973,7 @@ export default function Planejamento() {
             </div>
           ))}
         </div>
-      </>}
+      </section>}
 
       {!carregando && aba === 'trimestral' && <>
         {marcos.length === 0 ? <div className={styles.vazio}>Nenhuma versão vigente do cronograma encontrada para esta obra.</div> : (

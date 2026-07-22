@@ -278,16 +278,18 @@ function AbaLocacoes() {
 
 interface PainelLocacaoProps {
   locacao?: FerramentaLocacao
+  totalDevolvido?: number
   onFechar: () => void
   onSucesso: () => void
 }
 
-function PainelLocacao({ locacao, onFechar, onSucesso }: PainelLocacaoProps) {
+function PainelLocacao({ locacao, totalDevolvido = 0, onFechar, onSucesso }: PainelLocacaoProps) {
   const { obraAtiva } = useObra()
   const { perfil } = useAuth()
 
   const editando = !!locacao
-  const [nomeFerramenta, setNomeFerramenta] = useState(locacao?.nome_ferramenta ?? '')
+  const [nomeEquipamento, setNomeEquipamento] = useState(locacao?.nome_equipamento ?? '')
+  const [quantidade, setQuantidade] = useState(String(locacao?.quantidade ?? 1))
   const [locadora, setLocadora] = useState(locacao?.locadora ?? '')
   const [modalidade, setModalidade] = useState<ModalidadeLocacaoFerramenta>(locacao?.modalidade ?? 'diaria')
   const [dataChegada, setDataChegada] = useState(locacao?.data_chegada ?? dataHoje())
@@ -295,11 +297,17 @@ function PainelLocacao({ locacao, onFechar, onSucesso }: PainelLocacaoProps) {
   const [observacao, setObservacao] = useState(locacao?.observacao ?? '')
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  const quantidadeTravada = editando && totalDevolvido > 0
 
   async function salvar() {
     if (!obraAtiva) return
-    if (!nomeFerramenta.trim()) {
-      setMsg({ tipo: 'erro', texto: 'Informe a ferramenta alugada.' })
+    if (!nomeEquipamento.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe o equipamento alugado.' })
+      return
+    }
+    const qtd = Number(quantidade)
+    if (!Number.isInteger(qtd) || qtd <= 0) {
+      setMsg({ tipo: 'erro', texto: 'Informe uma quantidade inteira maior que zero.' })
       return
     }
     if (!locadora.trim()) {
@@ -321,7 +329,8 @@ function PainelLocacao({ locacao, onFechar, onSucesso }: PainelLocacaoProps) {
     setSalvando(true)
     setMsg(null)
     const payload = {
-      nome_ferramenta: nomeFerramenta.trim(),
+      nome_equipamento: nomeEquipamento.trim(),
+      quantidade: qtd,
       locadora: locadora.trim(),
       modalidade,
       data_chegada: dataChegada,
@@ -346,13 +355,19 @@ function PainelLocacao({ locacao, onFechar, onSucesso }: PainelLocacaoProps) {
   return (
     <div className={styles.painelForm}>
       <div className={styles.painelHeader}>
-        <h2>{editando ? 'Editar locaÃ§Ã£o de ferramenta' : 'Nova locaÃ§Ã£o de ferramenta'}</h2>
+        <h2>{editando ? 'Editar locação de equipamento' : 'Nova locação de equipamento'}</h2>
         <button className={styles.btnFechar} onClick={onFechar}>âœ•</button>
       </div>
       <div className={styles.linha2}>
         <label className={styles.campo}>
-          Ferramenta *
-          <input value={nomeFerramenta} onChange={e => setNomeFerramenta(e.target.value)} placeholder="Ex.: Compactador de solo" />
+          Equipamento *
+          <input value={nomeEquipamento} onChange={e => setNomeEquipamento(e.target.value)} placeholder="Ex.: Compactador de solo" />
+        </label>
+        <label className={styles.campo}>
+          Quantidade *
+          <input type="number" min="1" step="1" value={quantidade}
+            onChange={e => setQuantidade(e.target.value)} disabled={quantidadeTravada} />
+          {quantidadeTravada && <span className={styles.linhaDesc}>Já tem devolução registrada - não dá mais pra corrigir a quantidade.</span>}
         </label>
         <label className={styles.campo}>
           Locadora *

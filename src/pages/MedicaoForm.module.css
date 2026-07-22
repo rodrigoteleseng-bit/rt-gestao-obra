@@ -36,6 +36,7 @@
 
 .chip_rascunho { background: #eceff1; color: #546e7a; }
 .chip_aprovada { background: #e3f4e3; color: #1e6b2e; }
+.chip_cancelada { background: #fde5e5; color: #942828; }
 
 .bloco {
   background: var(--branco);
@@ -106,6 +107,15 @@
   padding: 4px 0;
 }
 
+.blocoCancelada {
+  background: #fde5e5;
+  color: #942828;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
 .acoes {
   display: flex;
   gap: 10px;
@@ -135,6 +145,19 @@
   font-weight: 700;
   cursor: pointer;
 }
+
+.btnPerigo {
+  background: var(--branco);
+  color: #a33030;
+  border: 1.5px solid #a33030;
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btnPerigo:disabled { opacity: 0.6; cursor: default; }
 
 .msgOk { color: #1e6b2e; font-weight: 600; font-size: 13px; padding: 6px 0; }
 .msgErro { color: #a33030; font-weight: 600; font-size: 13px; padding: 6px 0; }

@@ -684,7 +684,7 @@ export interface ContratoItem {
   criado_por: string
 }
 
-export type StatusMedicao = 'rascunho' | 'aprovada'
+export type StatusMedicao = 'rascunho' | 'aprovada' | 'cancelada'
 
 export interface Medicao {
   id: string
@@ -697,6 +697,9 @@ export interface Medicao {
   valor_liquido: number
   aprovada_por: string | null
   aprovada_em: string | null
+  motivo_cancelamento: string | null
+  cancelada_por: string | null
+  cancelada_em: string | null
   ativo: boolean
   criado_em: string
   criado_por: string

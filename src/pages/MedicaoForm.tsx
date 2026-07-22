@@ -13,6 +13,7 @@ import styles from './MedicaoForm.module.css'
 export const STATUS_MEDICAO_LABEL: Record<StatusMedicao, string> = {
   rascunho: 'Rascunho',
   aprovada: 'Aprovada',
+  cancelada: 'Cancelada',
 }
 
 interface ItemLinha {
@@ -28,7 +29,7 @@ interface ItemLinha {
 }
 
 export default function MedicaoForm() {
-  const { confirmar } = useConfirmDialog()
+  const { confirmar, solicitarTexto } = useConfirmDialog()
   const { contratoId, medicaoId } = useParams()
   const nova = medicaoId === 'nova'
   const navigate = useNavigate()
@@ -38,6 +39,7 @@ export default function MedicaoForm() {
 
   const [carregando, setCarregando] = useState(true)
   const [contrato, setContrato] = useState<Contrato | null>(null)
+  const [canceladorNome, setCanceladorNome] = useState<string | null>(null)
   const [empreiteiroNome, setEmpreiteiroNome] = useState('—')
   const [contratoItens, setContratoItens] = useState<ContratoItem[]>([])
   const [servicos, setServicos] = useState<Servico[]>([])
@@ -98,6 +100,12 @@ export default function MedicaoForm() {
       const atual = (todasMedicoes ?? []).find(m => m.id === medicaoId) ?? null
       setMedicao(atual)
       if (atual) setDataReferencia(atual.data_referencia)
+      if (atual?.cancelada_por) {
+        const { data: cancelador } = await supabase.from('perfis_usuario').select('nome').eq('id', atual.cancelada_por).single()
+        setCanceladorNome(cancelador?.nome ?? atual.cancelada_por)
+      } else {
+        setCanceladorNome(null)
+      }
       const { data: itensAtual } = await supabase.from('medicoes_itens').select('*')
         .eq('medicao_id', medicaoId).eq('ativo', true)
       setItensExistentes(itensAtual ?? [])
@@ -201,6 +209,30 @@ export default function MedicaoForm() {
     if (contratoId) carregar(contratoId)
   }
 
+  async function cancelar() {
+    if (!medicao) return
+    const motivo = await solicitarTexto({
+      titulo: 'Cancelar medição',
+      mensagem: 'A medição será preservada no histórico com o selo "Cancelada". O saldo do contrato volta a ficar disponível e os lançamentos gerados no Financeiro serão removidos.',
+      confirmarTexto: 'Cancelar medição',
+      perigoso: true,
+      campo: { rotulo: 'Motivo do cancelamento', placeholder: 'Descreva o motivo...' },
+    })
+    if (!motivo) return
+    setSalvando(true)
+    setMsg(null)
+    const { error } = await supabase.rpc('medicoes_cancelar_medicao', {
+      p_medicao_id: medicao.id,
+      p_motivo: motivo,
+    })
+    setSalvando(false)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Erro ao cancelar: ${error.message}` })
+      return
+    }
+    if (contratoId) carregar(contratoId)
+  }
+
   function imprimir() {
     if (!contrato || !medicao) return
     gerarPdfMedicao({
@@ -247,10 +279,10 @@ export default function MedicaoForm() {
   // podendo divergir por centavos em medições com vários itens. Em
   // rascunho (ou numa medição nova) o recomputo ao vivo continua
   // necessário pra refletir edição de quantidade ainda não salva.
-  const aprovada = !nova && medicao?.status === 'aprovada'
-  const bruto = aprovada ? medicao!.valor_bruto : brutoCalc
-  const retido = aprovada ? medicao!.valor_retido : retidoCalc
-  const liquido = aprovada ? medicao!.valor_liquido : liquidoCalc
+  const fechada = !nova && (medicao?.status === 'aprovada' || medicao?.status === 'cancelada')
+  const bruto = fechada ? medicao!.valor_bruto : brutoCalc
+  const retido = fechada ? medicao!.valor_retido : retidoCalc
+  const liquido = fechada ? medicao!.valor_liquido : liquidoCalc
   const podeEditarItens = podeEditar && (nova || medicao?.status === 'rascunho')
 
   return (
@@ -314,6 +346,14 @@ export default function MedicaoForm() {
         <div className={styles.resumoLinha}><span>Valor líquido</span><strong>R$ {formatarMoeda(liquido)}</strong></div>
       </div>
 
+      {medicao?.status === 'cancelada' && (
+        <div className={styles.blocoCancelada}>
+          <div><strong>Motivo do cancelamento:</strong> {medicao.motivo_cancelamento}</div>
+          <div><strong>Cancelada por:</strong> {canceladorNome ?? '—'}</div>
+          <div><strong>Cancelada em:</strong> {medicao.cancelada_em ? new Date(medicao.cancelada_em).toLocaleString('pt-BR') : '—'}</div>
+        </div>
+      )}
+
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
 
       <div className={styles.acoes}>
@@ -330,6 +370,11 @@ export default function MedicaoForm() {
         {!nova && ehAdmin && medicao?.status === 'rascunho' && (
           <button className={styles.btnPrincipal} onClick={aprovar} disabled={salvando}>
             {salvando ? 'Aprovando…' : 'Aprovar medição'}
+          </button>
+        )}
+        {!nova && ehAdmin && medicao?.status === 'aprovada' && (
+          <button className={styles.btnPerigo} onClick={cancelar} disabled={salvando}>
+            {salvando ? 'Cancelando...' : 'Cancelar medição'}
           </button>
         )}
         {!nova && (

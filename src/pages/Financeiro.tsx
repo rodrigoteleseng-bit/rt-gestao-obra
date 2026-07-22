@@ -240,7 +240,7 @@ export default function Financeiro() {
     if (!editando) return
     const valorNumero = Number(editValor)
     if (!editDescricao.trim() || !editFavorecido.trim() || Number.isNaN(valorNumero) || valorNumero <= 0) {
-      setMsg({ tipo: 'erro', texto: 'Preencha descriÃ§Ã£o, favorecido e valor maior que zero.' })
+      setMsg({ tipo: 'erro', texto: 'Preencha descrição, favorecido e valor maior que zero.' })
       return
     }
     const servico = editServicoId ? servicos.find(s => s.id === editServicoId) : null
@@ -263,7 +263,7 @@ export default function Financeiro() {
       return
     }
     setEditando(null)
-    setMsg({ tipo: 'ok', texto: 'LanÃ§amento atualizado.' })
+    setMsg({ tipo: 'ok', texto: 'Lançamento atualizado.' })
     carregarBase()
   }
 

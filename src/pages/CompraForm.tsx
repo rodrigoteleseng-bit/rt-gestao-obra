@@ -689,6 +689,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
 
   const [arquivoNf, setArquivoNf] = useState<File | null>(null)
   const [obsNf, setObsNf] = useState('')
+  const [valoresNf, setValoresNf] = useState<Record<string, string>>({})
   const [salvandoRecebimento, setSalvandoRecebimento] = useState(false)
   const [msgRecebimento, setMsgRecebimento] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [motivoCancelamento, setMotivoCancelamento] = useState('')
@@ -709,6 +710,17 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       setMsgRecebimento({ tipo: 'erro', texto: 'Anexe a nota fiscal.' })
       return
     }
+    const valoresInformados = itens
+      .map(it => ({
+        id: it.id,
+        valor: valoresNf[it.id]?.trim(),
+      }))
+      .filter(it => it.valor)
+    const valoresInvalidos = valoresInformados.filter(it => Number(it.valor) <= 0 || Number.isNaN(Number(it.valor)))
+    if (valoresInvalidos.length > 0) {
+      setMsgRecebimento({ tipo: 'erro', texto: 'Informe valores da NF maiores que zero.' })
+      return
+    }
     setSalvandoRecebimento(true)
     setMsgRecebimento(null)
     const path = `${pedido.id}/nf-${crypto.randomUUID()}-${nomeArquivoStorage(arquivoNf.name)}`
@@ -726,6 +738,18 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       setMsgRecebimento({ tipo: 'erro', texto: `Falha ao registrar a NF: ${error.message}` })
       return
     }
+    if (valoresInformados.length > 0) {
+      const atualizacoes = await Promise.all(valoresInformados.map(it =>
+        supabase.from('pedidos_compra_itens').update({ valor_recebido: Number(it.valor) }).eq('id', it.id)
+      ))
+      const erroValor = atualizacoes.find(r => r.error)?.error
+      if (erroValor) {
+        setSalvandoRecebimento(false)
+        setMsgRecebimento({ tipo: 'erro', texto: `NF registrada, mas falhou ao gravar valor por item: ${erroValor.message}` })
+        onRecarregar()
+        return
+      }
+    }
     if (['recebido_parcial', 'recebido_total'].includes(pedido.status)) {
       const { error: eStatus } = await supabase.from('pedidos_compra').update({ status: 'conferido_nf' }).eq('id', pedido.id)
       if (eStatus) {
@@ -736,7 +760,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       }
     }
     setSalvandoRecebimento(false)
-    setArquivoNf(null); setObsNf('')
+    setArquivoNf(null); setObsNf(''); setValoresNf({})
     setMsgRecebimento({ tipo: 'ok', texto: 'NF registrada.' })
     onRecarregar()
   }
@@ -1029,6 +1053,19 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
             Nota fiscal (PDF/foto) *
             <input type="file" accept="application/pdf,image/*" onChange={e => setArquivoNf(e.target.files?.[0] ?? null)} />
           </label>
+          {itens.filter(it => it.valor_recebido === null).map(it => (
+            <label key={it.id} className={styles.campo}>
+              Valor da NF - {it.descricao_item} ({it.und})
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={valoresNf[it.id] ?? ''}
+                onChange={e => setValoresNf(prev => ({ ...prev, [it.id]: e.target.value }))}
+                placeholder="0,00"
+              />
+            </label>
+          ))}
           <label className={styles.campo}>
             Observação
             <input value={obsNf} onChange={e => setObsNf(e.target.value)} placeholder="Ex.: NF 12345, entrega em duas notas…" />

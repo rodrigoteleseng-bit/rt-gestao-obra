@@ -537,6 +537,32 @@ export interface RecebimentoNf {
   criado_por: string
 }
 
+export type StatusLancamentoFinanceiro = 'a_pagar' | 'pago'
+
+export interface LancamentoFinanceiro {
+  id: string
+  obra_id: string
+  unidade_id: string | null
+  etapa_id: string | null
+  servico_id: string | null
+  descricao: string
+  favorecido: string
+  valor: number
+  medicao_item_id: string | null
+  pedido_item_id: string | null
+  status: StatusLancamentoFinanceiro
+  data_vencimento: string | null
+  data_pagamento: string | null
+  forma_pagamento: string | null
+  conta_origem: string | null
+  observacao: string | null
+  ativo: boolean
+  criado_por: string
+  criado_em: string
+  pago_por: string | null
+  pago_em: string | null
+}
+
 export type CategoriaMaterial = 'material' | 'epi' | 'escritorio'
 export type TipoMovimentoEstoque = 'entrada' | 'saida'
 export interface Material {

@@ -327,6 +327,11 @@ function Lancamentos({
     [faceEscolha, setFaceEscolha] = useState<FaceParede | null>(null),
     [cancelandoId, setCancelandoId] = useState<string | null>(null),
     [motivoCancelamento, setMotivoCancelamento] = useState("");
+  const [editando, setEditando] = useState<ProducaoLancamento | null>(null),
+    [editData, setEditData] = useState(""),
+    [editArea, setEditArea] = useState(""),
+    [editPreco, setEditPreco] = useState(""),
+    [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
   async function carregar() {
     if (!obraAtiva) return;
@@ -342,10 +347,14 @@ function Lancamentos({
   }
   useEffect(() => { carregar(); }, [obraAtiva]);
 
+  async function carregarProgresso(unidadeId = form.unidade) {
+    if (!unidadeId) { setProgresso([]); return; }
+    const { data } = await supabase.from("producao_paredes_progresso").select("*").eq("unidade_id", unidadeId);
+    setProgresso(data ?? []);
+  }
+
   useEffect(() => {
-    if (!form.unidade) { setProgresso([]); return; }
-    supabase.from("producao_paredes_progresso").select("*").eq("unidade_id", form.unidade)
-      .then(({ data }) => setProgresso(data ?? []));
+    carregarProgresso();
   }, [form.unidade]);
 
   const plantaAtual = plantas.find((p) => p.pavimento === form.pavimento) ?? null;
@@ -412,6 +421,9 @@ function Lancamentos({
   const participantes = selecionados.filter(Boolean);
   const areaNum = numero(form.area) || 0;
   const total = areaNum * (numero(form.preco) || 0);
+  const lancamentosFiltrados = form.unidade
+    ? lista.filter((l) => l.unidade_id === form.unidade && l.servico === form.servico)
+    : [];
 
   function preencherAreaTotal() {
     if (saldoRestante == null || saldoRestante <= 0) return;
@@ -442,8 +454,7 @@ function Lancamentos({
     setParedeSelecionada(null); setFaceEscolha(null);
     const unidadeAtual = form.unidade;
     await carregar();
-    supabase.from("producao_paredes_progresso").select("*").eq("unidade_id", unidadeAtual)
-      .then(({ data }) => setProgresso(data ?? []));
+    await carregarProgresso(unidadeAtual);
   }
 
   async function confirmarCancelamento() {
@@ -454,6 +465,38 @@ function Lancamentos({
     if (error) { setMsg({ tipo: "erro", texto: error.message }); return; }
     setCancelandoId(null); setMotivoCancelamento("");
     await carregar();
+    await carregarProgresso();
+  }
+
+  function abrirEdicao(l: ProducaoLancamento) {
+    setEditando(l);
+    setEditData(l.data_producao);
+    setEditArea(String(l.area_liquida).replace(".", ","));
+    setEditPreco(String(l.preco_m2).replace(".", ","));
+    setMsg(null);
+  }
+
+  async function salvarEdicao() {
+    if (!editando) return;
+    const area = numero(editArea);
+    const preco = numero(editPreco);
+    if (!editData || area <= 0 || preco <= 0) {
+      setMsg({ tipo: "erro", texto: "Informe data, área e preço válidos." });
+      return;
+    }
+    setSalvandoEdicao(true);
+    const { error } = await supabase.rpc("producao_editar_lancamento_parede", {
+      p_lancamento: editando.id,
+      p_data: editData,
+      p_area_m2: area,
+      p_preco: preco,
+    });
+    setSalvandoEdicao(false);
+    if (error) { setMsg({ tipo: "erro", texto: error.message }); return; }
+    setEditando(null);
+    setMsg({ tipo: "ok", texto: "Lançamento corrigido." });
+    await carregar();
+    await carregarProgresso();
   }
 
   return (
@@ -512,16 +555,19 @@ function Lancamentos({
         )}
         <div className={styles.campos}>
           <Campo label="Área produzida hoje (m²)">
-            <input className={styles.input} inputMode="decimal" value={form.area}
-              onChange={(e) => setForm({ ...form, area: e.target.value })} />
-            <button
-              type="button"
-              className={styles.btnCampo}
-              disabled={!paredeSelecionada || (form.servico === "reboco" && !faceEscolha) || saldoRestante == null || saldoRestante <= 0}
-              onClick={preencherAreaTotal}
-            >
-              100% da parede
-            </button>
+            <div className={styles.areaInputBox}>
+              <input className={styles.input} inputMode="decimal" value={form.area}
+                onChange={(e) => setForm({ ...form, area: e.target.value })} />
+              <button
+                type="button"
+                className={styles.btnCampo}
+                disabled={!paredeSelecionada || (form.servico === "reboco" && !faceEscolha) || saldoRestante == null || saldoRestante <= 0}
+                onClick={preencherAreaTotal}
+              >
+                <strong>100%</strong>
+                <span>lançar saldo</span>
+              </button>
+            </div>
           </Campo>
           <Campo label="Preço do dia (R$/m²)">
             <input className={styles.input} inputMode="decimal" value={form.preco}
@@ -571,8 +617,13 @@ function Lancamentos({
       <Mensagem msg={msg} />
       <section className={styles.bloco}>
         <h2>Lançamentos recentes</h2>
+        <p className={styles.sub}>
+          {form.unidade
+            ? `Mostrando somente ${form.servico} da unidade selecionada.`
+            : "Selecione uma unidade para ver os lançamentos recentes dela."}
+        </p>
         <div className={styles.lista}>
-          {lista.map((l) => (
+          {lancamentosFiltrados.map((l) => (
             <div className={styles.linha} key={l.id}>
               <div>
                 <strong>{l.parede_nome}{l.face ? ` — Face ${l.face.toUpperCase()}` : ""}</strong>
@@ -586,12 +637,46 @@ function Lancamentos({
                 <div className={styles.meta}>R$ {formatarMoeda(l.valor_total)}</div>
               </div>
               {!l.cancelado_em && (
-                <button className={styles.btnSec} onClick={() => setCancelandoId(l.id)}>Cancelar</button>
+                <div className={styles.acoesLinha}>
+                  {l.parede_id && <button className={styles.btnSec} onClick={() => abrirEdicao(l)}>Editar</button>}
+                  <button className={styles.btnSec} onClick={() => setCancelandoId(l.id)}>Cancelar</button>
+                </div>
               )}
             </div>
           ))}
+          {form.unidade && lancamentosFiltrados.length === 0 && (
+            <p className={styles.vazio}>Nenhum lançamento deste serviço nesta unidade.</p>
+          )}
         </div>
       </section>
+      {editando && (
+        <div className={styles.modalFundo} onClick={() => setEditando(null)}>
+          <div className={styles.modalCaixa} onClick={(e) => e.stopPropagation()}>
+            <h3>Editar lançamento</h3>
+            <p className={styles.meta}>
+              {editando.parede_nome}{editando.face ? ` - Face ${editando.face.toUpperCase()}` : ""} · {editando.servico}
+            </p>
+            <Campo label="Data lançada">
+              <input className={styles.input} type="date" value={editData} onChange={(e) => setEditData(e.target.value)} />
+            </Campo>
+            <Campo label="Área lançada (m²)">
+              <input className={styles.input} inputMode="decimal" value={editArea} onChange={(e) => setEditArea(e.target.value)} />
+            </Campo>
+            <Campo label="Preço do dia (R$/m²)">
+              <input className={styles.input} inputMode="decimal" value={editPreco} onChange={(e) => setEditPreco(e.target.value)} />
+            </Campo>
+            <div className={styles.resumo}>
+              <span>Total corrigido: <strong>R$ {formatarMoeda((numero(editArea) || 0) * (numero(editPreco) || 0))}</strong></span>
+            </div>
+            <div className={styles.acoes}>
+              <button className={styles.btn} disabled={salvandoEdicao} onClick={salvarEdicao}>
+                {salvandoEdicao ? "Salvando..." : "Salvar correção"}
+              </button>
+              <button className={styles.btnSec} onClick={() => setEditando(null)}>Voltar</button>
+            </div>
+          </div>
+        </div>
+      )}
       {cancelandoId && (
         <div className={styles.modalFundo} onClick={() => setCancelandoId(null)}>
           <div className={styles.modalCaixa} onClick={(e) => e.stopPropagation()}>

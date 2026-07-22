@@ -115,6 +115,19 @@
   e isolamento por obra. Ajuste pós-revisão em `20260721_ferramenta_locacoes_revisao.sql`
   simplifica a policy de leitura e trava UPDATE quando `data_entregue` já está preenchida.
 
+## Ajuste de 22/07/2026 — aluguéis com equipamento, quantidade e devolução parcial
+
+- **Renomeação conceitual:** o cadastro passou de "ferramenta" para **equipamento**, mantendo o módulo dentro da aba Aluguéis.
+- **Quantidade locada:** cada locação registra a quantidade total do equipamento alugado (`quantidade > 0`).
+- **Devolução parcial:** a entrega deixou de ser um UPDATE direto que encerrava tudo. Agora cada devolução grava uma linha imutável em `ferramenta_locacoes_devolucoes`.
+- **Saldo pendente:** a lista mostra `X de Y devolvido` para locações abertas.
+- **Fechamento automático:** trigger fecha a locação quando a soma devolvida atinge a quantidade total, reaproveitando `data_entregue`, `entregue_por` e `entregue_em`.
+- **Travas de banco:** trigger bloqueia devolver mais do que o saldo pendente e bloqueia devolução em locação já encerrada.
+- **Edição segura:** o campo Quantidade fica travado na edição quando já existe devolução parcial registrada.
+- **Banco:** migração `20260722_alugueis_quantidade_devolucao.sql`, com rename `nome_ferramenta -> nome_equipamento`, nova tabela de devoluções, RLS própria e isolamento por obra.
+- **Validação:** a migração foi testada em transação com `ROLLBACK`, cobrindo devolução parcial, excesso de devolução, fechamento automático e tentativa de devolver locação encerrada.
+- **Revisão obrigatória:** por ter tabela nova e triggers encadeados, precisa de revisão pós-commit do Claude Code antes de teste de campo com locação real.
+
 ## Fora de escopo (registrado na spec, não entregue nesta fase)
 
 - Assinatura digital na requisição.

@@ -79,6 +79,13 @@ Roteiro funcional recomendado:
 - Isolamento por obra e permissões por módulo confirmados na revisão (RLS via função `SECURITY DEFINER` dedicada por tabela-pai, nunca subquery inline).
 - Arquivos órfãos no Storage ao recadastrar uma planta (achado baixo, não bloqueante) ficam para uma iteração futura se o uso real mostrar que o recadastro é frequente.
 
+## Ajustes de uso real — 21/07/2026
+
+- **Status visual das paredes:** a planta passou a diferenciar parede sem lançamento, parcialmente lançada e 100% lançada, para o usuário enxergar rapidamente o que falta produzir.
+- **Botão 100%/total:** no lançamento por parede, foi criado atalho para lançar o saldo total da parede sem precisar digitar a área manualmente.
+- **Lançamentos recentes filtrados:** a lista inferior passou a mostrar apenas lançamentos da unidade selecionada e do serviço selecionado, evitando misturar, por exemplo, alvenaria do Sobrado 01 com lançamentos de outros sobrados/serviços.
+- **Edição de lançamento:** lançamentos já feitos podem ter valor e data corrigidos quando houver erro de digitação, preservando rastreabilidade conforme regras do módulo.
+
 ## Fora do MVP
 
 - Edição visual avançada da parede após desenho.

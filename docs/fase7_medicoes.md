@@ -62,6 +62,17 @@ via subagent-driven-development, com revisão de cada task antes de avançar).
 - Edição do cabeçalho da medição (data de referência) e exclusão de medição aprovada pela
   tela — permanente por design.
 
+## Ajuste de 22/07/2026 — cancelamento de medição aprovada
+
+- **Novo status `cancelada`:** medições de empreiteiros agora podem sair de `aprovada` para `cancelada` por fluxo auditado.
+- **Motivo obrigatório:** o cancelamento exige justificativa textual.
+- **Auditoria:** grava `motivo_cancelamento`, `cancelada_por` e `cancelada_em`.
+- **RPC admin-only:** `medicoes_cancelar_medicao(p_medicao_id, p_motivo)` cancela a medição e inativa os `lancamentos_financeiros` vinculados na mesma transação.
+- **Trigger de status:** `restringir_status_medicao()` foi ajustada para permitir apenas a transição aprovada → cancelada nesse caso específico.
+- **Frontend:** `MedicaoForm.tsx` ganhou botão "Cancelar medição", usando confirmação com texto; a lista `/medicoes` ganhou filtro "Cancelada".
+- **Caso motivador:** a medição JFC `875f3d53-51b6-4763-9bde-7b4186e0af9d` foi formalizada como cancelada para fechar a auditoria da correção manual feita em 22/07/2026.
+- **Revisão obrigatória:** por alterar trigger existente e adicionar RPC que grava em Medições e Financeiro, exige revisão pós-commit do Claude Code antes de qualquer novo teste de campo com medição real.
+
 ## Pendência de verificação
 
 O teste de campo (roteiro em vários papéis — admin, equipe com/sem módulo, cliente — e

@@ -81,6 +81,14 @@ export default function Financeiro() {
   const [baixaForma, setBaixaForma] = useState('')
   const [baixaConta, setBaixaConta] = useState('')
   const [salvandoBaixa, setSalvandoBaixa] = useState(false)
+  const [editando, setEditando] = useState<LancamentoFinanceiro | null>(null)
+  const [editDescricao, setEditDescricao] = useState('')
+  const [editFavorecido, setEditFavorecido] = useState('')
+  const [editValor, setEditValor] = useState('')
+  const [editVencimento, setEditVencimento] = useState('')
+  const [editServicoId, setEditServicoId] = useState<string | null>(null)
+  const [editObservacao, setEditObservacao] = useState('')
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false)
 
   useEffect(() => {
     if (!obraAtiva || !podeAcessar) return
@@ -184,9 +192,22 @@ export default function Financeiro() {
 
   function iniciarBaixa(l: LancamentoFinanceiro) {
     setBaixando(l)
+    setEditando(null)
     setBaixaData(hojeIso())
     setBaixaForma(l.forma_pagamento ?? '')
     setBaixaConta(l.conta_origem ?? '')
+  }
+
+  function iniciarEdicao(l: LancamentoFinanceiro) {
+    setEditando(l)
+    setBaixando(null)
+    setEditDescricao(l.descricao)
+    setEditFavorecido(l.favorecido)
+    setEditValor(String(l.valor))
+    setEditVencimento(l.data_vencimento ?? hojeIso())
+    setEditServicoId(l.servico_id)
+    setEditObservacao(l.observacao ?? '')
+    setMsg(null)
   }
 
   async function confirmarBaixa() {
@@ -212,6 +233,37 @@ export default function Financeiro() {
     }
     setBaixando(null)
     setMsg({ tipo: 'ok', texto: 'Baixa registrada.' })
+    carregarBase()
+  }
+
+  async function salvarEdicao() {
+    if (!editando) return
+    const valorNumero = Number(editValor)
+    if (!editDescricao.trim() || !editFavorecido.trim() || Number.isNaN(valorNumero) || valorNumero <= 0) {
+      setMsg({ tipo: 'erro', texto: 'Preencha descriÃ§Ã£o, favorecido e valor maior que zero.' })
+      return
+    }
+    const servico = editServicoId ? servicos.find(s => s.id === editServicoId) : null
+    const etapa = servico ? etapas.find(e => e.id === servico.etapa_id) : null
+    setSalvandoEdicao(true)
+    setMsg(null)
+    const { error } = await supabase.from('lancamentos_financeiros').update({
+      unidade_id: etapa?.unidade_id ?? null,
+      etapa_id: etapa?.id ?? null,
+      servico_id: servico?.id ?? null,
+      descricao: editDescricao.trim(),
+      favorecido: editFavorecido.trim(),
+      valor: valorNumero,
+      data_vencimento: editVencimento || null,
+      observacao: editObservacao.trim() || null,
+    }).eq('id', editando.id)
+    setSalvandoEdicao(false)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: `Erro ao editar: ${error.message}` })
+      return
+    }
+    setEditando(null)
+    setMsg({ tipo: 'ok', texto: 'LanÃ§amento atualizado.' })
     carregarBase()
   }
 
@@ -274,6 +326,25 @@ export default function Financeiro() {
         </section>
       )}
 
+      {editando && (
+        <section className={styles.bloco}>
+          <h2>Editar lançamento</h2>
+          <p className={styles.meta}>{editando.descricao} - R$ {formatarMoeda(editando.valor)}</p>
+          <div className={styles.formGrid}>
+            <label className={styles.campo}>Descrição<input value={editDescricao} onChange={e => setEditDescricao(e.target.value)} /></label>
+            <label className={styles.campo}>Favorecido<input value={editFavorecido} onChange={e => setEditFavorecido(e.target.value)} /></label>
+            <label className={styles.campo}>Valor<input type="number" min="0" step="0.01" value={editValor} onChange={e => setEditValor(e.target.value)} /></label>
+            <label className={styles.campo}>Vencimento<input type="date" value={editVencimento} onChange={e => setEditVencimento(e.target.value)} /></label>
+          </div>
+          <AplicacaoCascata unidades={unidades} etapas={etapas} servicos={servicos} servicoId={editServicoId} onSelecionar={setEditServicoId} />
+          <label className={styles.campo}>Observação<input value={editObservacao} onChange={e => setEditObservacao(e.target.value)} /></label>
+          <div className={styles.acoes}>
+            <button className={styles.btnPrincipal} onClick={salvarEdicao} disabled={salvandoEdicao}>{salvandoEdicao ? 'Salvando...' : 'Salvar edição'}</button>
+            <button className={styles.btnSecundario} onClick={() => setEditando(null)}>Cancelar</button>
+          </div>
+        </section>
+      )}
+
       <section className={styles.bloco}>
         <div className={styles.filtros}>
           <label className={styles.campo}>Status
@@ -322,7 +393,14 @@ export default function Financeiro() {
                     <td data-label="Origem"><span className={styles.badge}>{origemLabel(l)}</span></td>
                     <td data-label="Status">{l.status === 'pago' ? 'Pago' : vencido ? 'Vencido' : 'A pagar'}</td>
                     <td data-label="Valor"><strong>R$ {formatarMoeda(l.valor)}</strong></td>
-                    <td data-label="Ação">{l.status === 'a_pagar' && <button className={styles.btnSecundario} onClick={() => iniciarBaixa(l)}>Dar baixa</button>}</td>
+                    <td data-label="Ação">
+                      {l.status === 'a_pagar' && (
+                        <div className={styles.acoesTabela}>
+                          <button className={styles.btnSecundario} onClick={() => iniciarEdicao(l)}>Editar</button>
+                          <button className={styles.btnSecundario} onClick={() => iniciarBaixa(l)}>Dar baixa</button>
+                        </div>
+                      )}
+                    </td>
                   </tr>
                 )
               })}

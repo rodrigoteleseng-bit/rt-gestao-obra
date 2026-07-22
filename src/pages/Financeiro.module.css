@@ -139,6 +139,13 @@
   align-items: center;
 }
 
+.acoesTabela {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .msgOk,
 .msgErro,
 .alerta {
@@ -253,5 +260,13 @@
   .acoes {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .acoesTabela {
+    align-items: stretch;
+  }
+
+  .acoesTabela .btnSecundario {
+    width: 100%;
   }
 }

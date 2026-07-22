@@ -108,16 +108,16 @@ function estadoDaLocacao(locacao: FerramentaLocacao): { estado: EstadoLocacao; d
 }
 
 function AbaLocacoes() {
-  const { confirmar } = useConfirmDialog()
-  const { perfil } = useAuth()
   const { obraAtiva } = useObra()
 
   const [locacoes, setLocacoes] = useState<FerramentaLocacao[]>([])
+  const [devolvidoPorLocacao, setDevolvidoPorLocacao] = useState<Map<string, number>>(new Map())
   const [carregando, setCarregando] = useState(true)
   const [busca, setBusca] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstadoLocacao>('')
   const [mostrarNova, setMostrarNova] = useState(false)
   const [locacaoEditando, setLocacaoEditando] = useState<FerramentaLocacao | null>(null)
+  const [locacaoDevolvendo, setLocacaoDevolvendo] = useState<FerramentaLocacao | null>(null)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
   async function carregar() {
@@ -125,12 +125,30 @@ function AbaLocacoes() {
     setCarregando(true)
     const { data, error } = await supabase.from('ferramenta_locacoes').select('*')
       .eq('obra_id', obraAtiva.id).eq('ativo', true).order('data_entrega_prevista')
-    setCarregando(false)
     if (error) {
+      setCarregando(false)
       setMsg({ tipo: 'erro', texto: `Erro ao carregar aluguéis: ${error.message}` })
       return
     }
+    const abertas = (data ?? []).filter(locacao => !locacao.data_entregue)
+    const mapa = new Map<string, number>()
+    if (abertas.length > 0) {
+      const { data: devolucoes, error: erroDevolucoes } = await supabase
+        .from('ferramenta_locacoes_devolucoes')
+        .select('locacao_id, quantidade')
+        .in('locacao_id', abertas.map(locacao => locacao.id))
+      if (erroDevolucoes) {
+        setCarregando(false)
+        setMsg({ tipo: 'erro', texto: `Erro ao carregar devoluções: ${erroDevolucoes.message}` })
+        return
+      }
+      for (const devolucao of devolucoes ?? []) {
+        mapa.set(devolucao.locacao_id, (mapa.get(devolucao.locacao_id) ?? 0) + devolucao.quantidade)
+      }
+    }
+    setDevolvidoPorLocacao(mapa)
     setLocacoes(data ?? [])
+    setCarregando(false)
   }
 
   useEffect(() => { carregar() }, [obraAtiva])
@@ -141,7 +159,7 @@ function AbaLocacoes() {
     return locacoes
       .map(locacao => ({ locacao, ...estadoDaLocacao(locacao) }))
       .filter(l =>
-        (!termo || l.locacao.nome_ferramenta.toLowerCase().includes(termo) || l.locacao.locadora.toLowerCase().includes(termo)) &&
+        (!termo || l.locacao.nome_equipamento.toLowerCase().includes(termo) || l.locacao.locadora.toLowerCase().includes(termo)) &&
         (!filtroEstado || l.estado === filtroEstado)
       )
       .sort((a, b) => {
@@ -159,26 +177,6 @@ function AbaLocacoes() {
       amanha: abertas.filter(l => l.estado === 'vence_amanha').length,
     }
   }, [locacoes])
-
-  async function registrarEntrega(locacao: FerramentaLocacao) {
-    if (!perfil) return
-    if (!await confirmar({
-      titulo: 'Registrar entrega',
-      mensagem: `Confirma que "${locacao.nome_ferramenta}" foi entregue para a locadora?`,
-      confirmarTexto: 'Registrar entrega',
-    })) return
-    setMsg(null)
-    const { data, error } = await supabase.from('ferramenta_locacoes')
-      .update({ data_entregue: dataHoje(), entregue_por: perfil.id, entregue_em: new Date().toISOString() })
-      .eq('id', locacao.id).is('data_entregue', null).select()
-    if (error || !data || data.length === 0) {
-      setMsg({ tipo: 'erro', texto: error?.message ?? 'Esta locação já foi entregue por outra pessoa.' })
-      await carregar()
-      return
-    }
-    await carregar()
-    setMsg({ tipo: 'ok', texto: 'Entrega registrada.' })
-  }
 
   return (
     <div>
@@ -200,11 +198,25 @@ function AbaLocacoes() {
       {locacaoEditando && (
         <PainelLocacao
           locacao={locacaoEditando}
+          totalDevolvido={devolvidoPorLocacao.get(locacaoEditando.id) ?? 0}
           onFechar={() => setLocacaoEditando(null)}
           onSucesso={async () => {
             setLocacaoEditando(null)
             await carregar()
             setMsg({ tipo: 'ok', texto: 'Locação corrigida.' })
+          }}
+        />
+      )}
+
+      {locacaoDevolvendo && (
+        <PainelDevolucao
+          locacao={locacaoDevolvendo}
+          saldoPendente={locacaoDevolvendo.quantidade - (devolvidoPorLocacao.get(locacaoDevolvendo.id) ?? 0)}
+          onFechar={() => setLocacaoDevolvendo(null)}
+          onSucesso={async () => {
+            setLocacaoDevolvendo(null)
+            await carregar()
+            setMsg({ tipo: 'ok', texto: 'Devolução registrada.' })
           }}
         />
       )}
@@ -219,7 +231,7 @@ function AbaLocacoes() {
 
       <div className={styles.filtros}>
         <input className={styles.busca} value={busca} onChange={e => setBusca(e.target.value)}
-          placeholder="Buscar por ferramenta ou locadora…" />
+          placeholder="Buscar por equipamento ou locadora…" />
         <select className={styles.selectFiltro} value={filtroEstado} onChange={e => setFiltroEstado(e.target.value as FiltroEstadoLocacao)}>
           <option value="">Todos os estados</option>
           <option value="vencida">Vencida</option>
@@ -234,7 +246,7 @@ function AbaLocacoes() {
       {carregando && <p className={styles.vazio}>Carregando…</p>}
       {!carregando && linhas.length === 0 && (
         <p className={styles.vazio}>
-          {locacoes.length === 0 ? 'Nenhuma locação de ferramenta cadastrada.' : 'Nenhuma locação com esses filtros.'}
+          {locacoes.length === 0 ? 'Nenhuma locação de equipamento cadastrada.' : 'Nenhuma locação com esses filtros.'}
         </p>
       )}
 
@@ -244,12 +256,17 @@ function AbaLocacoes() {
             <div key={locacao.id} className={styles.linha}>
               <div className={styles.linhaInfo}>
                 <div className={styles.linhaTopo}>
-                  <span className={styles.linhaNome}>{locacao.nome_ferramenta}</span>
+                  <span className={styles.linhaNome}>{locacao.nome_equipamento}</span>
                   <span className={`${styles.chip} ${styles[`chip_${estado}`]}`}>{ESTADO_LOCACAO_LABEL[estado]}</span>
                 </div>
                 <div className={styles.linhaDesc}>
                   {locacao.locadora} · {MODALIDADE_LOCACAO_LABEL[locacao.modalidade]} · chegada {fmtData(locacao.data_chegada)} · entrega {fmtData(locacao.data_entrega_prevista)}
                 </div>
+                {!locacao.data_entregue && (
+                  <div className={styles.linhaDesc}>
+                    {devolvidoPorLocacao.get(locacao.id) ?? 0} de {locacao.quantidade} devolvido
+                  </div>
+                )}
                 {estado === 'vencida' && <div className={styles.linhaDesc}>Vencida há {dias} dia{dias === 1 ? '' : 's'}.</div>}
                 {estado === 'vence_amanha' && <div className={styles.linhaDesc}>Alerta: vence amanhã.</div>}
                 {estado === 'vence_hoje' && <div className={styles.linhaDesc}>Alerta: vence hoje.</div>}
@@ -262,7 +279,7 @@ function AbaLocacoes() {
                     <button className={styles.btnSecundario} onClick={() => setLocacaoEditando(locacao)}>
                       Editar
                     </button>
-                    <button className={styles.btnSecundario} onClick={() => registrarEntrega(locacao)}>
+                    <button className={styles.btnSecundario} onClick={() => setLocacaoDevolvendo(locacao)}>
                       Registrar entrega
                     </button>
                   </>
@@ -355,7 +372,7 @@ function PainelLocacao({ locacao, totalDevolvido = 0, onFechar, onSucesso }: Pai
   return (
     <div className={styles.painelForm}>
       <div className={styles.painelHeader}>
-        <h2>{editando ? 'Editar loca��o de equipamento' : 'Nova loca��o de equipamento'}</h2>
+        <h2>{editando ? 'Editar locação de equipamento' : 'Nova locação de equipamento'}</h2>
         <button className={styles.btnFechar} onClick={onFechar}>✕</button>
       </div>
       <div className={styles.linha2}>
@@ -367,7 +384,7 @@ function PainelLocacao({ locacao, totalDevolvido = 0, onFechar, onSucesso }: Pai
           Quantidade *
           <input type="number" min="1" step="1" value={quantidade}
             onChange={e => setQuantidade(e.target.value)} disabled={quantidadeTravada} />
-          {quantidadeTravada && <span className={styles.linhaDesc}>J� tem devolu��o registrada - n�o d� mais pra corrigir a quantidade.</span>}
+          {quantidadeTravada && <span className={styles.linhaDesc}>Já tem devolução registrada - não dá mais pra corrigir a quantidade.</span>}
         </label>
         <label className={styles.campo}>
           Locadora *
@@ -399,6 +416,68 @@ function PainelLocacao({ locacao, totalDevolvido = 0, onFechar, onSucesso }: Pai
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
       <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
         {salvando ? 'Salvando…' : editando ? 'Salvar correção' : 'Cadastrar locação'}
+      </button>
+    </div>
+  )
+}
+
+interface PainelDevolucaoProps {
+  locacao: FerramentaLocacao
+  saldoPendente: number
+  onFechar: () => void
+  onSucesso: () => void
+}
+
+function PainelDevolucao({ locacao, saldoPendente, onFechar, onSucesso }: PainelDevolucaoProps) {
+  const [quantidade, setQuantidade] = useState(String(saldoPendente))
+  const [salvando, setSalvando] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  const qtd = Number(quantidade)
+  const restante = saldoPendente - (Number.isFinite(qtd) ? qtd : 0)
+
+  async function salvar() {
+    if (!Number.isInteger(qtd) || qtd <= 0) {
+      setMsg({ tipo: 'erro', texto: 'Informe uma quantidade inteira maior que zero.' })
+      return
+    }
+    if (qtd > saldoPendente) {
+      setMsg({ tipo: 'erro', texto: `Não pode devolver mais do que o saldo pendente (${saldoPendente}).` })
+      return
+    }
+
+    setSalvando(true)
+    setMsg(null)
+    const { error } = await supabase.from('ferramenta_locacoes_devolucoes')
+      .insert({ locacao_id: locacao.id, quantidade: qtd })
+    setSalvando(false)
+
+    if (error) {
+      setMsg({ tipo: 'erro', texto: error.message })
+      return
+    }
+    onSucesso()
+  }
+
+  return (
+    <div className={styles.painelForm}>
+      <div className={styles.painelHeader}>
+        <h2>Registrar devolução - {locacao.nome_equipamento}</h2>
+        <button className={styles.btnFechar} onClick={onFechar}>✕</button>
+      </div>
+      <div className={styles.linha2}>
+        <label className={styles.campo}>
+          Quantidade devolvida agora * (saldo pendente: {saldoPendente})
+          <input type="number" min="1" max={saldoPendente} step="1" value={quantidade}
+            onChange={e => setQuantidade(e.target.value)} />
+        </label>
+      </div>
+      {qtd > 0 && qtd < saldoPendente && (
+        <p className={styles.linhaDesc}>Vai continuar {restante} pendente.</p>
+      )}
+      {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
+      <button className={styles.btnPrincipal} onClick={salvar} disabled={salvando}>
+        {salvando ? 'Salvando...' : 'Registrar devolução'}
       </button>
     </div>
   )

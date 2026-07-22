@@ -592,7 +592,8 @@ export type ModalidadeLocacaoFerramenta = 'diaria' | 'semanal' | 'mensal'
 export interface FerramentaLocacao {
   id: string
   obra_id: string
-  nome_ferramenta: string
+  nome_equipamento: string
+  quantidade: number
   locadora: string
   modalidade: ModalidadeLocacaoFerramenta
   data_chegada: string
@@ -606,6 +607,14 @@ export interface FerramentaLocacao {
   entregue_em: string | null
   editado_por: string | null
   editado_em: string | null
+}
+
+export interface FerramentaLocacaoDevolucao {
+  id: string
+  locacao_id: string
+  quantidade: number
+  devolvido_por: string
+  devolvido_em: string
 }
 export interface RequisicaoBloco {
   id: string; obra_id: string; numero_inicial: number; numero_final: number

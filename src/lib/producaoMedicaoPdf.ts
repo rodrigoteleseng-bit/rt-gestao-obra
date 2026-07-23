@@ -1,30 +1,180 @@
 import { jsPDF } from 'jspdf'
 import type { ProducaoMedicao } from './supabase'
 import { formatarMoeda } from './formato'
-export interface LinhaProducaoPdf{data_producao:string;servico:string;parede_nome:string;area_atribuida:number;preco_m2:number;valor_atribuido:number}
-export interface LinhaDiaPdf{data:string;salario_mensal:number;divisor:number;valor_dia:number;motivo:string}
-export interface DadosProducaoPdf{medicao:ProducaoMedicao;obraNome:string;profissionalNome:string;funcao:string;producao:LinhaProducaoPdf[];dias:LinhaDiaPdf[]}
-const NAVY='#1A3248',TERRACOTA='#C49A7A',CINZA='#6c757d',fmt=(d:string)=>`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`
-const SERVICO_LABEL:Record<string,string>={alvenaria:'Alvenaria',reboco:'Reboco'}
-export function gerarPdfProducao(d:DadosProducaoPdf){
- const pdf=new jsPDF({unit:'mm',format:'a4'}),W=210,ML=14,MR=14;let y=39
- const nova=(h=8)=>{if(y+h>278){pdf.addPage();y=16}},linha=(cols:string[],xs:number[],right:number[]=[] )=>{nova(7);pdf.setFontSize(8);pdf.setTextColor('#222222');cols.forEach((c,i)=>pdf.text(c,xs[i],y,{align:right.includes(i)?'right':'left'}));y+=6}
- pdf.setFillColor(NAVY);pdf.rect(0,0,W,30,'F');pdf.setFillColor(TERRACOTA);pdf.rect(0,30,W,1.4,'F');pdf.setTextColor('#ffffff');pdf.setFont('helvetica','bold');pdf.setFontSize(17);pdf.text('RT ENGENHARIA',ML,13);pdf.setFontSize(10);pdf.text(`MEDIÇÃO MP-${String(d.medicao.numero).padStart(3,'0')}`,W-MR,13,{align:'right'});pdf.setFont('helvetica','normal');pdf.setFontSize(8.5);pdf.text('Inteligência Aplicada',ML,19);pdf.text(d.medicao.status.toUpperCase(),W-MR,19,{align:'right'})
- pdf.setTextColor('#222222');pdf.setFont('helvetica','bold');pdf.setFontSize(11);pdf.text(d.profissionalNome,ML,y);y+=6;pdf.setFont('helvetica','normal');pdf.setFontSize(9);pdf.text(`${d.funcao} · ${d.obraNome} · ${fmt(d.medicao.data_inicio)} a ${fmt(d.medicao.data_fim)}`,ML,y);y+=10
- pdf.setFont('helvetica','bold');pdf.setTextColor(NAVY);pdf.text('PRODUÇÃO',ML,y);y+=6;linha(['Data','Serviço / parede','Área','R$/m²','Valor'],[ML,35,145,168,W-MR],[2,3,4]);for(const p of d.producao)linha([fmt(p.data_producao),`${p.servico} · ${p.parede_nome}`.slice(0,58),`${p.area_atribuida.toFixed(2)} m²`,formatarMoeda(p.preco_m2),formatarMoeda(p.valor_atribuido)],[ML,35,145,168,W-MR],[2,3,4]);y+=5
- nova(16);pdf.setFont('helvetica','bold');pdf.setTextColor(NAVY);pdf.text('DIAS SALARIAIS',ML,y);y+=6;linha(['Data','Motivo','Salário / divisor','Valor dia'],[ML,35,145,W-MR],[2,3]);for(const x of d.dias)linha([fmt(x.data),x.motivo.slice(0,58),`${formatarMoeda(x.salario_mensal)} ÷ ${x.divisor}`,formatarMoeda(x.valor_dia)],[ML,35,145,W-MR],[2,3]);y+=8
- const grupos:Record<string,{area:number;valor:number}>={}
- for(const p of d.producao){if(!grupos[p.servico])grupos[p.servico]={area:0,valor:0};grupos[p.servico].area+=p.area_atribuida;grupos[p.servico].valor+=p.valor_atribuido}
- const valorProducaoTotal=d.producao.reduce((s,p)=>s+p.valor_atribuido,0)
- const diasValor=d.dias.reduce((s,x)=>s+x.valor_dia,0)
- nova(16);pdf.setFont('helvetica','bold');pdf.setTextColor(NAVY);pdf.setFontSize(9);pdf.text('RESUMO',ML,y);y+=6;pdf.setFont('helvetica','normal');pdf.setTextColor('#222222');pdf.setFontSize(9)
- for(const servico of Object.keys(grupos)){const g=grupos[servico];nova(6);pdf.text(`${SERVICO_LABEL[servico]??servico}: ${g.area.toFixed(2)} m²`,ML,y);pdf.text(`R$ ${formatarMoeda(g.valor)}`,W-MR,y,{align:'right'});y+=6}
- if(d.dias.length>0){nova(6);pdf.text(`Dias salariais: ${d.dias.length} dia${d.dias.length===1?'':'s'}`,ML,y);pdf.text(`R$ ${formatarMoeda(diasValor)}`,W-MR,y,{align:'right'});y+=6}
- y+=3
- // Calculado a partir da producao/dias do periodo, nao dos campos da medicao —
- // esses so sao gravados na aprovacao (producao_aprovar_medicao) e ficam em
- // zero antes disso, o que deixava o total divergente do resumo acima em
- // qualquer previa de rascunho.
- nova(25);pdf.setFont('helvetica','normal');pdf.setTextColor('#222222');pdf.setFontSize(10);pdf.text('Produção:',130,y);pdf.text(`R$ ${formatarMoeda(valorProducaoTotal)}`,W-MR,y,{align:'right'});y+=6;pdf.text('Parcela salarial:',130,y);pdf.text(`R$ ${formatarMoeda(diasValor)}`,W-MR,y,{align:'right'});y+=7;pdf.setFont('helvetica','bold');pdf.setFontSize(12);pdf.text('TOTAL:',130,y);pdf.text(`R$ ${formatarMoeda(valorProducaoTotal+diasValor)}`,W-MR,y,{align:'right'})
- const n=pdf.getNumberOfPages();for(let i=1;i<=n;i++){pdf.setPage(i);pdf.setDrawColor(TERRACOTA);pdf.line(ML,285,W-MR,285);pdf.setFontSize(7.5);pdf.setTextColor(CINZA);pdf.text('RT Engenharia · Rodrigo Teles Silva · CREA 1018712895 D/GO · Inteligência Aplicada',ML,290);pdf.text(`Página ${i} de ${n}`,W-MR,290,{align:'right'})}pdf.save(`MP-${String(d.medicao.numero).padStart(3,'0')} - ${d.profissionalNome}.pdf`)
+
+export interface LinhaProducaoPdf {
+  data_producao: string
+  servico: string
+  unidade_nome: string
+  parede_nome: string
+  area_atribuida: number
+  preco_m2: number
+  valor_atribuido: number
+}
+
+export interface LinhaDiaPdf {
+  data: string
+  salario_mensal: number
+  divisor: number
+  valor_dia: number
+  motivo: string
+}
+
+export interface DadosProducaoPdf {
+  medicao: ProducaoMedicao
+  obraNome: string
+  profissionalNome: string
+  funcao: string
+  producao: LinhaProducaoPdf[]
+  dias: LinhaDiaPdf[]
+}
+
+const NAVY = '#1A3248'
+const TERRACOTA = '#C49A7A'
+const CINZA = '#6c757d'
+const SERVICO_LABEL: Record<string, string> = { alvenaria: 'Alvenaria', reboco: 'Reboco' }
+const fmt = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
+
+export function gerarPdfProducao(d: DadosProducaoPdf) {
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
+  const W = 210
+  const ML = 14
+  const MR = 14
+  let y = 39
+
+  const nova = (h = 8) => {
+    if (y + h > 278) {
+      pdf.addPage()
+      y = 16
+    }
+  }
+
+  const linha = (cols: string[], xs: number[], right: number[] = []) => {
+    nova(7)
+    pdf.setFontSize(8)
+    pdf.setTextColor('#222222')
+    cols.forEach((c, i) => pdf.text(c, xs[i], y, { align: right.includes(i) ? 'right' : 'left' }))
+    y += 6
+  }
+
+  pdf.setFillColor(NAVY)
+  pdf.rect(0, 0, W, 30, 'F')
+  pdf.setFillColor(TERRACOTA)
+  pdf.rect(0, 30, W, 1.4, 'F')
+  pdf.setTextColor('#ffffff')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(17)
+  pdf.text('RT ENGENHARIA', ML, 13)
+  pdf.setFontSize(10)
+  pdf.text(`MEDIÇÃO MP-${String(d.medicao.numero).padStart(3, '0')}`, W - MR, 13, { align: 'right' })
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(8.5)
+  pdf.text('Inteligência Aplicada', ML, 19)
+  pdf.text(d.medicao.status.toUpperCase(), W - MR, 19, { align: 'right' })
+
+  pdf.setTextColor('#222222')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(11)
+  pdf.text(d.profissionalNome, ML, y)
+  y += 6
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
+  pdf.text(`${d.funcao} · ${d.obraNome} · ${fmt(d.medicao.data_inicio)} a ${fmt(d.medicao.data_fim)}`, ML, y)
+  y += 10
+
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(NAVY)
+  pdf.text('PRODUÇÃO', ML, y)
+  y += 6
+  linha(['Data', 'Unidade / serviço / parede', 'Área', 'R$/m²', 'Valor'], [ML, 35, 145, 168, W - MR], [2, 3, 4])
+  for (const p of d.producao) {
+    linha([
+      fmt(p.data_producao),
+      `${p.unidade_nome} · ${p.servico} · ${p.parede_nome}`.slice(0, 58),
+      `${p.area_atribuida.toFixed(2)} m²`,
+      formatarMoeda(p.preco_m2),
+      formatarMoeda(p.valor_atribuido),
+    ], [ML, 35, 145, 168, W - MR], [2, 3, 4])
+  }
+  y += 5
+
+  nova(16)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(NAVY)
+  pdf.text('DIAS SALARIAIS', ML, y)
+  y += 6
+  linha(['Data', 'Motivo', 'Salário / divisor', 'Valor dia'], [ML, 35, 145, W - MR], [2, 3])
+  for (const x of d.dias) {
+    linha([
+      fmt(x.data),
+      x.motivo.slice(0, 58),
+      `${formatarMoeda(x.salario_mensal)} / ${x.divisor}`,
+      formatarMoeda(x.valor_dia),
+    ], [ML, 35, 145, W - MR], [2, 3])
+  }
+  y += 8
+
+  const grupos: Record<string, { area: number; valor: number }> = {}
+  for (const p of d.producao) {
+    if (!grupos[p.servico]) grupos[p.servico] = { area: 0, valor: 0 }
+    grupos[p.servico].area += p.area_atribuida
+    grupos[p.servico].valor += p.valor_atribuido
+  }
+
+  const valorProducaoTotal = d.producao.reduce((s, p) => s + p.valor_atribuido, 0)
+  const diasValor = d.dias.reduce((s, x) => s + x.valor_dia, 0)
+
+  nova(16)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor(NAVY)
+  pdf.setFontSize(9)
+  pdf.text('RESUMO', ML, y)
+  y += 6
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor('#222222')
+  pdf.setFontSize(9)
+
+  for (const servico of Object.keys(grupos)) {
+    const g = grupos[servico]
+    nova(6)
+    pdf.text(`${SERVICO_LABEL[servico] ?? servico}: ${g.area.toFixed(2)} m²`, ML, y)
+    pdf.text(`R$ ${formatarMoeda(g.valor)}`, W - MR, y, { align: 'right' })
+    y += 6
+  }
+
+  if (d.dias.length > 0) {
+    nova(6)
+    pdf.text(`Dias salariais: ${d.dias.length} dia${d.dias.length === 1 ? '' : 's'}`, ML, y)
+    pdf.text(`R$ ${formatarMoeda(diasValor)}`, W - MR, y, { align: 'right' })
+    y += 6
+  }
+  y += 3
+
+  nova(25)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor('#222222')
+  pdf.setFontSize(10)
+  pdf.text('Produção:', 130, y)
+  pdf.text(`R$ ${formatarMoeda(valorProducaoTotal)}`, W - MR, y, { align: 'right' })
+  y += 6
+  pdf.text('Parcela salarial:', 130, y)
+  pdf.text(`R$ ${formatarMoeda(diasValor)}`, W - MR, y, { align: 'right' })
+  y += 7
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(12)
+  pdf.text('TOTAL:', 130, y)
+  pdf.text(`R$ ${formatarMoeda(valorProducaoTotal + diasValor)}`, W - MR, y, { align: 'right' })
+
+  const n = pdf.getNumberOfPages()
+  for (let i = 1; i <= n; i++) {
+    pdf.setPage(i)
+    pdf.setDrawColor(TERRACOTA)
+    pdf.line(ML, 285, W - MR, 285)
+    pdf.setFontSize(7.5)
+    pdf.setTextColor(CINZA)
+    pdf.text('RT Engenharia · Rodrigo Teles Silva · CREA 1018712895 D/GO · Inteligência Aplicada', ML, 290)
+    pdf.text(`Página ${i} de ${n}`, W - MR, 290, { align: 'right' })
+  }
+
+  pdf.save(`MP-${String(d.medicao.numero).padStart(3, '0')} - ${d.profissionalNome}.pdf`)
 }

@@ -8,30 +8,325 @@ import { formatarMoeda } from '../lib/formato'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Producao.module.css'
 
-type LinhaProd={id:string;data_producao:string;servico:string;parede_nome:string;area_atribuida:number;preco_m2:number;valor_atribuido:number}
-type LinhaDia={id:string;data:string;salario_mensal:number;divisor:number;valor_dia:number;motivo:string}
-const fmt=(d:string)=>`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`
+type LinhaProd = {
+  id: string
+  data_producao: string
+  servico: string
+  unidade_id: string | null
+  unidade_nome: string
+  parede_nome: string
+  area_atribuida: number
+  preco_m2: number
+  valor_atribuido: number
+}
 
-export default function ProducaoMedicaoForm(){
- const {id}=useParams(),navigate=useNavigate(),{perfil}=useAuth(),{obraAtiva}=useObra(),{confirmar,solicitarTexto}=useConfirmDialog(); const nova=id==='nova'
- const [trabalhadores,setTrabalhadores]=useState<Trabalhador[]>([]),[trab,setTrab]=useState(''),[inicio,setInicio]=useState(hojeISO().slice(0,8)+'01'),[fim,setFim]=useState(hojeISO())
- const [medicao,setMedicao]=useState<ProducaoMedicao|null>(null),[prod,setProd]=useState<LinhaProd[]>([]),[dias,setDias]=useState<LinhaDia[]>([]),[msg,setMsg]=useState(''),[carregando,setCarregando]=useState(false)
- useEffect(()=>{if(!obraAtiva)return;supabase.from('trabalhadores').select('*').eq('obra_id',obraAtiva.id).eq('ativo',true).order('nome').then(({data})=>setTrabalhadores(data??[]))},[obraAtiva])
- useEffect(()=>{if(!nova&&id)carregarMedicao(id)},[id])
- useEffect(()=>{if(nova&&trab)carregarPrevia()},[nova,trab,inicio,fim])
- async function carregarPrevia(t=trab,ini=inicio,fimPeriodo=fim){if(!obraAtiva||!t)return;setCarregando(true);const [p,d,usados]=await Promise.all([
-  supabase.from('producao_participantes').select('id,area_atribuida,valor_atribuido,producao_lancamentos!inner(data_producao,servico,parede_nome,preco_m2,obra_id,ativo)').eq('trabalhador_id',t).eq('ativo',true).eq('producao_lancamentos.obra_id',obraAtiva.id).eq('producao_lancamentos.ativo',true).gte('producao_lancamentos.data_producao',ini).lte('producao_lancamentos.data_producao',fimPeriodo),
-  supabase.from('producao_dias_salariais').select('*').eq('obra_id',obraAtiva.id).eq('trabalhador_id',t).eq('ativo',true).is('medicao_id',null).gte('data',ini).lte('data',fimPeriodo),
-  supabase.from('producao_medicao_lancamentos').select('participante_id').eq('ativo',true)
- ]);const idsUsados=new Set((usados.data??[]).map(x=>x.participante_id));setProd(((p.data??[]) as unknown as {id:string;area_atribuida:number;valor_atribuido:number;producao_lancamentos:{data_producao:string;servico:string;parede_nome:string;preco_m2:number}}[]).filter(x=>!idsUsados.has(x.id)).map(x=>({id:x.id,area_atribuida:x.area_atribuida,valor_atribuido:x.valor_atribuido,...x.producao_lancamentos})));setDias((d.data??[]).map(x=>({id:x.id,data:x.data,salario_mensal:x.salario_mensal_snapshot,divisor:x.divisor_snapshot,valor_dia:x.valor_dia,motivo:x.motivo})));setCarregando(false)}
- async function carregarMedicao(mid:string){const {data:m,error}=await supabase.from('producao_medicoes').select('*').eq('id',mid).single();if(error||!m)return setMsg(error?.message??'Medição não encontrada.');setMedicao(m);setTrab(m.trabalhador_id);setInicio(m.data_inicio);setFim(m.data_fim);if(m.status==='rascunho'){await carregarPreviaDetalhe(m)}else{const [p,d]=await Promise.all([supabase.from('producao_medicao_lancamentos').select('*').eq('medicao_id',mid).eq('ativo',true),supabase.from('producao_medicao_dias').select('*').eq('medicao_id',mid).eq('ativo',true)]);setProd((p.data??[]).map(x=>({id:x.id,data_producao:x.data_producao,servico:x.servico,parede_nome:x.parede_nome,area_atribuida:x.area_atribuida,preco_m2:x.preco_m2,valor_atribuido:x.valor_atribuido})));setDias((d.data??[]).map(x=>({id:x.id,data:x.data,salario_mensal:x.salario_mensal,divisor:x.divisor,valor_dia:x.valor_dia,motivo:x.motivo})))}}
- async function carregarPreviaDetalhe(m:ProducaoMedicao){await carregarPrevia(m.trabalhador_id,m.data_inicio,m.data_fim)}
- async function criar(){if(!obraAtiva||!trab)return setMsg('Selecione o profissional.');const {data,error}=await supabase.from('producao_medicoes').insert({obra_id:obraAtiva.id,trabalhador_id:trab,data_inicio:inicio,data_fim:fim}).select().single();if(error)return setMsg(error.message);navigate(`/medicoes/producao/${data.id}`)}
- async function aprovar(){if(!medicao||!await confirmar({titulo:'Aprovar medição de produção',mensagem:'A medição será congelada e não poderá mais ser editada.',confirmarTexto:'Aprovar medição'}))return;const {error}=await supabase.rpc('producao_aprovar_medicao',{p_medicao:medicao.id});if(error)return setMsg(error.message);await carregarMedicao(medicao.id);setMsg('Medição aprovada.')}
- async function pagar(){if(!medicao||!await confirmar({titulo:'Marcar medição como paga',mensagem:'Confirma que o pagamento desta medição foi realizado?',confirmarTexto:'Marcar como paga'}))return;const {error}=await supabase.from('producao_medicoes').update({status:'paga'}).eq('id',medicao.id);if(error)return setMsg(error.message);await carregarMedicao(medicao.id)}
- async function cancelar(){if(!medicao)return;const motivo=await solicitarTexto({titulo:'Cancelar medição',mensagem:'Informe o motivo. O registro será preservado no histórico.',confirmarTexto:'Cancelar medição',perigoso:true,campo:{rotulo:'Motivo do cancelamento',placeholder:'Descreva o motivo…'}});if(!motivo)return;const {error}=await supabase.rpc('producao_cancelar_medicao',{p_medicao:medicao.id,p_motivo:motivo});if(error)return setMsg(error.message);await carregarMedicao(medicao.id)}
- async function imprimir(){if(!medicao||!obraAtiva)return;const t=trabalhadores.find(x=>x.id===trab);const {gerarPdfProducao}=await import('../lib/producaoMedicaoPdf');gerarPdfProducao({medicao,obraNome:obraAtiva.nome,profissionalNome:t?.nome??'Profissional',funcao:t?.funcao??'',producao:prod,dias})}
- const valorProd=prod.reduce((s,x)=>s+Number(x.valor_atribuido),0),valorSal=Math.round(dias.reduce((s,x)=>s+Number(x.valor_dia),0)*100)/100,total=valorProd+valorSal
- const nome=trabalhadores.find(t=>t.id===trab)?.nome??'Profissional'
- return <div className={styles.page}><div className={styles.header}><div><h1>{nova?'Nova medição de produção':`MP-${String(medicao?.numero??0).padStart(3,'0')}`}</h1><p className={styles.sub}>{nova?'Selecione profissional e período para conferir.':`${nome} · ${medicao?.status??''}`}</p></div></div>{msg&&<p className={styles.msgErro}>{msg}</p>}<section className={styles.bloco}><div className={styles.campos}><label className={styles.campo}>Profissional<select className={styles.select} disabled={!nova} value={trab} onChange={e=>setTrab(e.target.value)}><option value="">Selecione…</option>{trabalhadores.map(t=><option key={t.id} value={t.id}>{t.nome} — {t.funcao}</option>)}</select></label><label className={styles.campo}>Data inicial<input className={styles.input} disabled={!nova} type="date" value={inicio} onChange={e=>setInicio(e.target.value)}/></label><label className={styles.campo}>Data final<input className={styles.input} disabled={!nova} type="date" value={fim} onChange={e=>setFim(e.target.value)}/></label></div>{carregando&&<p>Calculando…</p>}<div className={styles.resumo}><span>Produção: <strong>R$ {formatarMoeda(valorProd)}</strong></span><span>Dias salariais: <strong>R$ {formatarMoeda(valorSal)}</strong></span><span>Total: <strong>R$ {formatarMoeda(total)}</strong></span></div><div className={styles.acoes}>{nova&&<button className={styles.btn} onClick={criar}>Criar rascunho</button>}{!nova&&medicao&&<button className={styles.btnSec} onClick={imprimir}>Imprimir</button>}{!nova&&medicao?.status==='rascunho'&&perfil?.papel==='admin'&&<button className={styles.btn} onClick={aprovar}>Aprovar medição</button>}{medicao?.status==='aprovada'&&perfil?.papel==='admin'&&<button className={styles.btn} onClick={pagar}>Marcar como paga</button>}{!nova&&['rascunho','aprovada'].includes(medicao?.status??'')&&perfil?.papel==='admin'&&<button className={styles.btnSec} onClick={cancelar}>Cancelar</button>}</div></section><section className={styles.bloco}><h2>Produção do período</h2><div className={styles.lista}>{prod.map(x=><div className={styles.linha} key={x.id}><div><strong>{x.parede_nome}</strong><div className={styles.meta}>{fmt(x.data_producao)} · {x.servico} · {x.area_atribuida.toFixed(2)} m² × R$ {formatarMoeda(x.preco_m2)}</div></div><strong>R$ {formatarMoeda(x.valor_atribuido)}</strong></div>)}{!prod.length&&<p className={styles.vazio}>Nenhuma produção livre no período.</p>}</div></section><section className={styles.bloco}><h2>Dias salariais</h2><div className={styles.lista}>{dias.map(x=><div className={styles.linha} key={x.id}><div><strong>{fmt(x.data)}</strong><div className={styles.meta}>{x.motivo} · R$ {formatarMoeda(x.salario_mensal)} ÷ {x.divisor}</div></div><strong>R$ {formatarMoeda(x.valor_dia)}</strong></div>)}{!dias.length&&<p className={styles.vazio}>Nenhum dia salarial livre no período.</p>}</div></section></div>
+type LinhaDia = {
+  id: string
+  data: string
+  salario_mensal: number
+  divisor: number
+  valor_dia: number
+  motivo: string
+}
+
+const fmt = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
+
+type ParticipanteComLancamento = {
+  id: string
+  area_atribuida: number
+  valor_atribuido: number
+  producao_lancamentos: {
+    data_producao: string
+    servico: string
+    unidade_id: string | null
+    parede_nome: string
+    preco_m2: number
+  }
+}
+
+type MedicaoLancamentoComUnidade = {
+  id: string
+  data_producao: string
+  servico: string
+  parede_nome: string
+  area_atribuida: number
+  preco_m2: number
+  valor_atribuido: number
+  producao_lancamentos?: { unidade_id: string | null } | null
+}
+
+export default function ProducaoMedicaoForm() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { perfil } = useAuth()
+  const { obraAtiva } = useObra()
+  const { confirmar, solicitarTexto } = useConfirmDialog()
+  const nova = id === 'nova'
+
+  const [trabalhadores, setTrabalhadores] = useState<Trabalhador[]>([])
+  const [trab, setTrab] = useState('')
+  const [inicio, setInicio] = useState(hojeISO().slice(0, 8) + '01')
+  const [fim, setFim] = useState(hojeISO())
+  const [medicao, setMedicao] = useState<ProducaoMedicao | null>(null)
+  const [prod, setProd] = useState<LinhaProd[]>([])
+  const [dias, setDias] = useState<LinhaDia[]>([])
+  const [msg, setMsg] = useState('')
+  const [carregando, setCarregando] = useState(false)
+
+  useEffect(() => {
+    if (!obraAtiva) return
+    supabase.from('trabalhadores').select('*').eq('obra_id', obraAtiva.id).eq('ativo', true).order('nome')
+      .then(({ data }) => setTrabalhadores(data ?? []))
+  }, [obraAtiva])
+
+  useEffect(() => { if (!nova && id) carregarMedicao(id) }, [id])
+  useEffect(() => { if (nova && trab) carregarPrevia() }, [nova, trab, inicio, fim])
+
+  async function carregarNomesUnidades(obraId: string) {
+    const { data } = await supabase.from('unidades').select('id,nome').eq('obra_id', obraId).eq('ativo', true)
+    return new Map((data ?? []).map((x) => [x.id, x.nome]))
+  }
+
+  function nomeUnidade(nomes: Map<string, string>, unidadeId: string | null) {
+    return nomes.get(unidadeId ?? '') ?? 'Unidade não identificada'
+  }
+
+  async function carregarPrevia(t = trab, ini = inicio, fimPeriodo = fim) {
+    if (!obraAtiva || !t) return
+    setCarregando(true)
+
+    const [p, d, usados, nomesUnidades] = await Promise.all([
+      supabase.from('producao_participantes')
+        .select('id,area_atribuida,valor_atribuido,producao_lancamentos!inner(data_producao,servico,unidade_id,parede_nome,preco_m2,obra_id,ativo)')
+        .eq('trabalhador_id', t)
+        .eq('ativo', true)
+        .eq('producao_lancamentos.obra_id', obraAtiva.id)
+        .eq('producao_lancamentos.ativo', true)
+        .gte('producao_lancamentos.data_producao', ini)
+        .lte('producao_lancamentos.data_producao', fimPeriodo),
+      supabase.from('producao_dias_salariais').select('*')
+        .eq('obra_id', obraAtiva.id).eq('trabalhador_id', t).eq('ativo', true).is('medicao_id', null)
+        .gte('data', ini).lte('data', fimPeriodo),
+      supabase.from('producao_medicao_lancamentos').select('participante_id').eq('ativo', true),
+      carregarNomesUnidades(obraAtiva.id),
+    ])
+
+    const idsUsados = new Set((usados.data ?? []).map((x) => x.participante_id))
+    setProd(((p.data ?? []) as unknown as ParticipanteComLancamento[])
+      .filter((x) => !idsUsados.has(x.id))
+      .map((x) => ({
+        id: x.id,
+        area_atribuida: x.area_atribuida,
+        valor_atribuido: x.valor_atribuido,
+        ...x.producao_lancamentos,
+        unidade_nome: nomeUnidade(nomesUnidades, x.producao_lancamentos.unidade_id),
+      })))
+    setDias((d.data ?? []).map((x) => ({
+      id: x.id,
+      data: x.data,
+      salario_mensal: x.salario_mensal_snapshot,
+      divisor: x.divisor_snapshot,
+      valor_dia: x.valor_dia,
+      motivo: x.motivo,
+    })))
+    setCarregando(false)
+  }
+
+  async function carregarMedicao(mid: string) {
+    const { data: m, error } = await supabase.from('producao_medicoes').select('*').eq('id', mid).single()
+    if (error || !m) return setMsg(error?.message ?? 'Medição não encontrada.')
+
+    setMedicao(m)
+    setTrab(m.trabalhador_id)
+    setInicio(m.data_inicio)
+    setFim(m.data_fim)
+
+    if (m.status === 'rascunho') {
+      await carregarPreviaDetalhe(m)
+      return
+    }
+
+    const [p, d, nomesUnidades] = await Promise.all([
+      supabase.from('producao_medicao_lancamentos')
+        .select('*,producao_lancamentos(unidade_id)')
+        .eq('medicao_id', mid)
+        .eq('ativo', true),
+      supabase.from('producao_medicao_dias').select('*').eq('medicao_id', mid).eq('ativo', true),
+      carregarNomesUnidades(m.obra_id),
+    ])
+
+    setProd(((p.data ?? []) as unknown as MedicaoLancamentoComUnidade[]).map((x) => {
+      const unidadeId = x.producao_lancamentos?.unidade_id ?? null
+      return {
+        id: x.id,
+        data_producao: x.data_producao,
+        servico: x.servico,
+        unidade_id: unidadeId,
+        unidade_nome: nomeUnidade(nomesUnidades, unidadeId),
+        parede_nome: x.parede_nome,
+        area_atribuida: x.area_atribuida,
+        preco_m2: x.preco_m2,
+        valor_atribuido: x.valor_atribuido,
+      }
+    }))
+    setDias((d.data ?? []).map((x) => ({
+      id: x.id,
+      data: x.data,
+      salario_mensal: x.salario_mensal,
+      divisor: x.divisor,
+      valor_dia: x.valor_dia,
+      motivo: x.motivo,
+    })))
+  }
+
+  async function carregarPreviaDetalhe(m: ProducaoMedicao) {
+    await carregarPrevia(m.trabalhador_id, m.data_inicio, m.data_fim)
+  }
+
+  async function criar() {
+    if (!obraAtiva || !trab) return setMsg('Selecione o profissional.')
+    const { data, error } = await supabase.from('producao_medicoes')
+      .insert({ obra_id: obraAtiva.id, trabalhador_id: trab, data_inicio: inicio, data_fim: fim })
+      .select()
+      .single()
+    if (error) return setMsg(error.message)
+    navigate(`/medicoes/producao/${data.id}`)
+  }
+
+  async function aprovar() {
+    if (!medicao || !await confirmar({
+      titulo: 'Aprovar medição de produção',
+      mensagem: 'A medição será congelada e não poderá mais ser editada.',
+      confirmarTexto: 'Aprovar medição',
+    })) return
+    const { error } = await supabase.rpc('producao_aprovar_medicao', { p_medicao: medicao.id })
+    if (error) return setMsg(error.message)
+    await carregarMedicao(medicao.id)
+    setMsg('Medição aprovada.')
+  }
+
+  async function pagar() {
+    if (!medicao || !await confirmar({
+      titulo: 'Marcar medição como paga',
+      mensagem: 'Confirma que o pagamento desta medição foi realizado?',
+      confirmarTexto: 'Marcar como paga',
+    })) return
+    const { error } = await supabase.from('producao_medicoes').update({ status: 'paga' }).eq('id', medicao.id)
+    if (error) return setMsg(error.message)
+    await carregarMedicao(medicao.id)
+  }
+
+  async function cancelar() {
+    if (!medicao) return
+    const motivo = await solicitarTexto({
+      titulo: 'Cancelar medição',
+      mensagem: 'Informe o motivo. O registro será preservado no histórico.',
+      confirmarTexto: 'Cancelar medição',
+      perigoso: true,
+      campo: { rotulo: 'Motivo do cancelamento', placeholder: 'Descreva o motivo...' },
+    })
+    if (!motivo) return
+    const { error } = await supabase.rpc('producao_cancelar_medicao', { p_medicao: medicao.id, p_motivo: motivo })
+    if (error) return setMsg(error.message)
+    await carregarMedicao(medicao.id)
+  }
+
+  async function imprimir() {
+    if (!medicao || !obraAtiva) return
+    const t = trabalhadores.find((x) => x.id === trab)
+    const { gerarPdfProducao } = await import('../lib/producaoMedicaoPdf')
+    gerarPdfProducao({
+      medicao,
+      obraNome: obraAtiva.nome,
+      profissionalNome: t?.nome ?? 'Profissional',
+      funcao: t?.funcao ?? '',
+      producao: prod,
+      dias,
+    })
+  }
+
+  const valorProd = prod.reduce((s, x) => s + Number(x.valor_atribuido), 0)
+  const valorSal = Math.round(dias.reduce((s, x) => s + Number(x.valor_dia), 0) * 100) / 100
+  const total = valorProd + valorSal
+  const nome = trabalhadores.find((t) => t.id === trab)?.nome ?? 'Profissional'
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.header}>
+        <div>
+          <h1>{nova ? 'Nova medição de produção' : `MP-${String(medicao?.numero ?? 0).padStart(3, '0')}`}</h1>
+          <p className={styles.sub}>{nova ? 'Selecione profissional e período para conferir.' : `${nome} · ${medicao?.status ?? ''}`}</p>
+        </div>
+      </div>
+
+      {msg && <p className={styles.msgErro}>{msg}</p>}
+
+      <section className={styles.bloco}>
+        <div className={styles.campos}>
+          <label className={styles.campo}>Profissional
+            <select className={styles.select} disabled={!nova} value={trab} onChange={(e) => setTrab(e.target.value)}>
+              <option value="">Selecione...</option>
+              {trabalhadores.map((t) => <option key={t.id} value={t.id}>{t.nome} - {t.funcao}</option>)}
+            </select>
+          </label>
+          <label className={styles.campo}>Data inicial
+            <input className={styles.input} disabled={!nova} type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+          </label>
+          <label className={styles.campo}>Data final
+            <input className={styles.input} disabled={!nova} type="date" value={fim} onChange={(e) => setFim(e.target.value)} />
+          </label>
+        </div>
+
+        {carregando && <p>Calculando...</p>}
+
+        <div className={styles.resumo}>
+          <span>Produção: <strong>R$ {formatarMoeda(valorProd)}</strong></span>
+          <span>Dias salariais: <strong>R$ {formatarMoeda(valorSal)}</strong></span>
+          <span>Total: <strong>R$ {formatarMoeda(total)}</strong></span>
+        </div>
+
+        <div className={styles.acoes}>
+          {nova && <button className={styles.btn} onClick={criar}>Criar rascunho</button>}
+          {!nova && medicao && <button className={styles.btnSec} onClick={imprimir}>Imprimir</button>}
+          {!nova && medicao?.status === 'rascunho' && perfil?.papel === 'admin' && <button className={styles.btn} onClick={aprovar}>Aprovar medição</button>}
+          {medicao?.status === 'aprovada' && perfil?.papel === 'admin' && <button className={styles.btn} onClick={pagar}>Marcar como paga</button>}
+          {!nova && ['rascunho', 'aprovada'].includes(medicao?.status ?? '') && perfil?.papel === 'admin' && <button className={styles.btnSec} onClick={cancelar}>Cancelar</button>}
+        </div>
+      </section>
+
+      <section className={styles.bloco}>
+        <h2>Produção do período</h2>
+        <div className={styles.lista}>
+          {prod.map((x) => (
+            <div className={styles.linha} key={x.id}>
+              <div>
+                <strong>{x.unidade_nome} · {x.parede_nome}</strong>
+                <div className={styles.meta}>
+                  {fmt(x.data_producao)} · {x.servico} · {x.area_atribuida.toFixed(2)} m² x R$ {formatarMoeda(x.preco_m2)}
+                </div>
+              </div>
+              <strong>R$ {formatarMoeda(x.valor_atribuido)}</strong>
+            </div>
+          ))}
+          {!prod.length && <p className={styles.vazio}>Nenhuma produção livre no período.</p>}
+        </div>
+      </section>
+
+      <section className={styles.bloco}>
+        <h2>Dias salariais</h2>
+        <div className={styles.lista}>
+          {dias.map((x) => (
+            <div className={styles.linha} key={x.id}>
+              <div>
+                <strong>{fmt(x.data)}</strong>
+                <div className={styles.meta}>{x.motivo} · R$ {formatarMoeda(x.salario_mensal)} / {x.divisor}</div>
+              </div>
+              <strong>R$ {formatarMoeda(x.valor_dia)}</strong>
+            </div>
+          ))}
+          {!dias.length && <p className={styles.vazio}>Nenhum dia salarial livre no período.</p>}
+        </div>
+      </section>
+    </div>
+  )
 }

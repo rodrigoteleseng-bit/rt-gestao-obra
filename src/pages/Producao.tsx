@@ -426,7 +426,7 @@ function Lancamentos({
     : [];
 
   function preencherAreaTotal() {
-    if (saldoRestante == null || saldoRestante <= 0) return;
+    if (saldoRestante == null || saldoRestante <= 0.0001) return;
     setForm((atual) => ({ ...atual, area: saldoRestante.toFixed(2).replace(".", ",") }));
   }
 
@@ -561,7 +561,7 @@ function Lancamentos({
               <button
                 type="button"
                 className={styles.btnCampo}
-                disabled={!paredeSelecionada || (form.servico === "reboco" && !faceEscolha) || saldoRestante == null || saldoRestante <= 0}
+                disabled={!paredeSelecionada || (form.servico === "reboco" && !faceEscolha) || saldoRestante == null || saldoRestante <= 0.0001}
                 onClick={preencherAreaTotal}
               >
                 <strong>100%</strong>

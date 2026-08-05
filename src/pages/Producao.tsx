@@ -436,7 +436,7 @@ function Lancamentos({
       setMsg({ tipo: "erro", texto: "Selecione unidade, parede, área, preço e profissionais." });
       return;
     }
-    if (saldoRestante != null && areaNum > saldoRestante) {
+    if (saldoRestante != null && areaNum > saldoRestante + 0.0001) {
       setMsg({ tipo: "erro", texto: `Área maior que o saldo restante (${saldoRestante.toFixed(2)} m²).` });
       return;
     }

@@ -563,6 +563,15 @@ export interface LancamentoFinanceiro {
   pago_em: string | null
 }
 
+// Retorno da RPC financeiro_realizado_agregado — totais pagos por dia/etapa/servico,
+// sem fornecedor/NF/descricao (ver migração 20260904_financeiro_curva_s_agregado.sql).
+export interface RealizadoAgregado {
+  data_pagamento: string
+  etapa_id: string | null
+  servico_id: string | null
+  valor: number
+}
+
 export type CategoriaMaterial = 'material' | 'epi' | 'escritorio'
 export type TipoMovimentoEstoque = 'entrada' | 'saida'
 export interface Material {

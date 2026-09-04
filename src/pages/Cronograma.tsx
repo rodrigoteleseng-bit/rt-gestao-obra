@@ -1,27 +1,52 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useObra } from '../contexts/ObraContext'
-import { supabase, type Unidade } from '../lib/supabase'
+import { supabase, type Etapa, type RealizadoAgregado, type Servico, type Unidade } from '../lib/supabase'
 import {
   carregarCronograma, percentuaisAtuais, montarArvore, statusTarefa, hojeISO,
-  folhasComPrevisto,
+  folhasComPrevisto, calcularPesoFinanceiro,
   type DadosCronograma, type NoCronograma, type StatusTarefa,
 } from '../lib/cronograma'
+import { carregarRealizadoAgregado, calcularSaldoPorEtapa, calcularProjecao, calcularCurvaSFinanceira } from '../lib/financeiro-curva'
 import styles from './Cronograma.module.css'
 
 const fmtData = (iso: string | null | undefined) =>
   iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : '—'
 const fmtPct = (v: number) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+const fmtMoeda = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 
 const STATUS_LABEL: Record<StatusTarefa, string> = {
   concluida: 'Concluída', atrasada: 'Atrasada', andamento: 'Em andamento', prevista: 'Prevista',
 }
 
-type Aba = 'arvore' | 'curva' | 'atrasadas'
+type Aba = 'arvore' | 'curva' | 'financeiro' | 'atrasadas'
+
+async function carregarTodosServicosAtivos(): Promise<Servico[]> {
+  const todos: Servico[] = []
+  const pagina = 1000
+  for (let de = 0; ; de += pagina) {
+    const { data } = await supabase.from('servicos').select('*').eq('ativo', true).order('codigo').range(de, de + pagina - 1)
+    const lote = data ?? []
+    todos.push(...lote)
+    if (lote.length < pagina) break
+  }
+  return todos
+}
+
+async function carregarEtapasDaObra(obraId: string): Promise<Etapa[]> {
+  const { data: unidadesData } = await supabase.from('unidades').select('id').eq('obra_id', obraId)
+  const ids = (unidadesData ?? []).map(u => u.id)
+  if (ids.length === 0) return []
+  const { data } = await supabase.from('etapas').select('*').in('unidade_id', ids).eq('placeholder', false).order('ordem')
+  return data ?? []
+}
 
 export default function Cronograma() {
   const { obraAtiva } = useObra()
   const [dados, setDados] = useState<DadosCronograma | null>(null)
   const [unidades, setUnidades] = useState<Unidade[]>([])
+  const [servicos, setServicos] = useState<Servico[]>([])
+  const [etapas, setEtapas] = useState<Etapa[]>([])
+  const [realizados, setRealizados] = useState<RealizadoAgregado[]>([])
   const [carregando, setCarregando] = useState(true)
   const [aba, setAba] = useState<Aba>('arvore')
   const [busca, setBusca] = useState('')
@@ -35,9 +60,15 @@ export default function Cronograma() {
     Promise.all([
       carregarCronograma(obraAtiva.id),
       supabase.from('unidades').select('*').eq('obra_id', obraAtiva.id).order('ordem').then(r => r.data ?? []),
-    ]).then(([d, u]) => {
+      carregarTodosServicosAtivos(),
+      carregarEtapasDaObra(obraAtiva.id),
+      carregarRealizadoAgregado(obraAtiva.id),
+    ]).then(([d, u, s, e, r]) => {
       setDados(d)
       setUnidades(u)
+      setServicos(s)
+      setEtapas(e)
+      setRealizados(r)
       setCarregando(false)
     })
   }, [obraAtiva])
@@ -89,6 +120,7 @@ export default function Cronograma() {
       <div className={styles.abas}>
         <button className={aba === 'arvore' ? styles.abaAtiva : styles.aba} onClick={() => setAba('arvore')}>Tarefas</button>
         <button className={aba === 'curva' ? styles.abaAtiva : styles.aba} onClick={() => setAba('curva')}>Curva S</button>
+        <button className={aba === 'financeiro' ? styles.abaAtiva : styles.aba} onClick={() => setAba('financeiro')}>Financeiro</button>
         <button className={aba === 'atrasadas' ? styles.abaAtiva : styles.aba} onClick={() => setAba('atrasadas')}>
           Atrasadas
         </button>
@@ -104,6 +136,12 @@ export default function Cronograma() {
         />
       )}
       {aba === 'curva' && <CurvaS dados={dados} arvore={arvore} hoje={hoje} pctObra={pctObra} />}
+      {aba === 'financeiro' && (
+        <CurvaSFinanceira
+          dados={dados} arvore={arvore} hoje={hoje}
+          servicos={servicos} etapas={etapas} realizados={realizados}
+        />
+      )}
       {aba === 'atrasadas' && <Atrasadas unidades={unidades} arvore={arvore} hoje={hoje} />}
     </div>
   )
@@ -358,9 +396,176 @@ function CurvaS({ dados, arvore, hoje, pctObra }: {
         <summary>De onde vêm estes números</summary>
         <ul>
           <li><strong>Previsto:</strong> baseline "{dados.versao?.nome}" importada do MS Project — soma das durações previstas das {curva.folhas.toLocaleString('pt-BR')} tarefas-folha, distribuídas linearmente entre o início e o fim previstos de cada uma.</li>
-          <li><strong>Peso de cada tarefa:</strong> duração prevista em horas [estimado — passa a ser o valor (R$) do orçamento quando o de-para cronograma ↔ orçamento for feito na Fase 3].</li>
+          <li><strong>Peso de cada tarefa:</strong> duração prevista em horas [estimado]. A aba "Financeiro" usa um peso em R$ à parte, ver detalhes lá.</li>
           <li><strong>Realizado:</strong> {dados.avancos.length.toLocaleString('pt-BR')} lançamento{dados.avancos.length !== 1 ? 's' : ''} ativo{dados.avancos.length !== 1 ? 's' : ''} de avanço físico{ultimoLancamento ? ` (último em ${fmtData(ultimoLancamento.data_referencia)})` : ''} — % acumulado de cada tarefa-folha × peso da tarefa.</li>
           <li>Todo lançamento grava autor, data/hora e tarefa — o histórico completo está na tela Avanço Físico.</li>
+        </ul>
+      </details>
+    </>
+  )
+}
+
+// ---------- Aba Financeiro ----------
+
+function CurvaSFinanceira({ dados, arvore, hoje, servicos, etapas, realizados }: {
+  dados: DadosCronograma
+  arvore: Map<string, NoCronograma[]>
+  hoje: string
+  servicos: Servico[]
+  etapas: Etapa[]
+  realizados: RealizadoAgregado[]
+}) {
+  const peso = useMemo(
+    () => calcularPesoFinanceiro(dados.tarefas, dados.previstoPorTarefa, servicos),
+    [dados, servicos],
+  )
+
+  const arvoreFinanceira = useMemo(
+    () => montarArvore(dados.tarefas, dados.previstoPorTarefa, percentuaisAtuais(dados.avancos), (t) => peso.pesoFolha(t.id)),
+    [dados, peso],
+  )
+
+  const folhas = useMemo(() => folhasComPrevisto(arvoreFinanceira), [arvoreFinanceira])
+
+  const curva = useMemo(
+    () => calcularCurvaSFinanceira(
+      folhas.map(f => ({ peso: f.peso, previsto: { inicio: f.previsto!.inicio, fim: f.previsto!.fim } })),
+      realizados,
+      hoje,
+    ),
+    [folhas, realizados, hoje],
+  )
+
+  const fimCronograma = folhas.reduce<string | null>((a, f) => {
+    const fim = f.previsto!.fim
+    return !a || fim > a ? fim : a
+  }, null)
+
+  const projecao = useMemo(
+    () => calcularProjecao(realizados, hoje, fimCronograma, peso.valorTotal),
+    [realizados, hoje, fimCronograma, peso.valorTotal],
+  )
+
+  const saldoPorEtapa = useMemo(
+    () => calcularSaldoPorEtapa(servicos, etapas, realizados),
+    [servicos, etapas, realizados],
+  )
+
+  if (peso.valorTotal === 0 || curva.pontos.length === 0) {
+    return <p className={styles.vazio}>Sem orçamento ou cronograma suficiente para calcular a Curva S financeira.</p>
+  }
+
+  const { pontos } = curva
+  const pontosPassados = pontos.filter(p => p.data <= hoje)
+  const previstoHoje = pontosPassados[pontosPassados.length - 1]?.previsto ?? 0
+  const realizadoHoje = projecao.realizadoTotal
+  const desvio = realizadoHoje - previstoHoje
+
+  const W = 820, H = 320, ML = 64, MR = 16, MT = 16, MB = 40
+  const maxValor = Math.max(...pontos.map(p => p.previsto), realizadoHoje, 1)
+  const x = (i: number) => ML + (i / (pontos.length - 1)) * (W - ML - MR)
+  const y = (v: number) => MT + (1 - v / maxValor) * (H - MT - MB)
+  const pathPrevisto = pontos.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.previsto).toFixed(1)}`).join('')
+  const reais = pontos.map((p, i) => ({ p, i })).filter(({ p }) => p.realizado !== null)
+  const pathReal = reais.map(({ p, i }, k) => `${k === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.realizado!).toFixed(1)}`).join('')
+  const idxHoje = reais.length > 0 ? reais[reais.length - 1].i : -1
+
+  const marcas = pontos
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }, k, arr) => {
+      const mes = p.data.slice(0, 7)
+      return k === 0 || (mes !== arr[k - 1].p.data.slice(0, 7) && ['01', '04', '07', '10'].includes(p.data.slice(5, 7)))
+    })
+
+  return (
+    <>
+      <div className={styles.cards}>
+        <div className={styles.card}>
+          <span className={styles.cardLabel}>Previsto até hoje</span>
+          <span className={styles.cardValor}>{fmtMoeda(previstoHoje)}</span>
+        </div>
+        <div className={styles.card}>
+          <span className={styles.cardLabel}>Realizado</span>
+          <span className={styles.cardValor}>{fmtMoeda(realizadoHoje)}</span>
+        </div>
+        <div className={`${styles.card} ${desvio > 0 ? styles.cardRuim : styles.cardBom}`}>
+          <span className={styles.cardLabel}>Desvio</span>
+          <span className={styles.cardValor}>{desvio >= 0 ? '+' : ''}{fmtMoeda(desvio)}</span>
+        </div>
+      </div>
+
+      <div className={styles.graficoWrap}>
+        <svg viewBox={`0 0 ${W} ${H}`} className={styles.grafico} role="img" aria-label="Curva S financeira: previsto x realizado">
+          {[0, 0.25, 0.5, 0.75, 1].map(f => (
+            <g key={f}>
+              <line x1={ML} y1={y(f * maxValor)} x2={W - MR} y2={y(f * maxValor)} className={styles.grade} />
+              <text x={ML - 8} y={y(f * maxValor) + 4} className={styles.eixoY}>{fmtMoeda(f * maxValor)}</text>
+            </g>
+          ))}
+          {marcas.map(({ p, i }) => (
+            <text key={p.data} x={x(i)} y={H - MB + 18} className={styles.eixoX}>
+              {p.data.slice(5, 7)}/{p.data.slice(2, 4)}
+            </text>
+          ))}
+          {idxHoje >= 0 && <line x1={x(idxHoje)} y1={MT} x2={x(idxHoje)} y2={H - MB} className={styles.linhaHoje} />}
+          <path d={pathPrevisto} className={styles.curvaPrevisto} />
+          {pathReal && <path d={pathReal} className={styles.curvaReal} />}
+        </svg>
+        <div className={styles.legenda}>
+          <span><span className={styles.legPrevisto} /> Previsto</span>
+          <span><span className={styles.legReal} /> Realizado</span>
+        </div>
+      </div>
+
+      <div className={styles.tabelaWrap}>
+        <h3>Previsto × realizado × saldo por etapa</h3>
+        <table className={styles.tabela}>
+          <thead>
+            <tr>
+              <th>Etapa</th>
+              <th className={styles.num}>Orçado</th>
+              <th className={styles.num}>Realizado</th>
+              <th className={styles.num}>Saldo</th>
+              <th className={styles.num}>% consumido</th>
+            </tr>
+          </thead>
+          <tbody>
+            {saldoPorEtapa.map(l => (
+              <tr key={l.etapaId ?? 'sem-etapa'}>
+                <td>{l.etapaNome}</td>
+                <td className={styles.num}>{fmtMoeda(l.orcado)}</td>
+                <td className={styles.num}>{fmtMoeda(l.realizado)}</td>
+                <td className={styles.num}>{fmtMoeda(l.saldo)}</td>
+                <td className={styles.num}>{l.pctConsumido === null ? '—' : `${(l.pctConsumido * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className={styles.cards}>
+        <div className={styles.card}>
+          <span className={styles.cardLabel}>Ritmo mensal de gasto</span>
+          <span className={styles.cardValor}>{projecao.ritmoMensal === null ? 'Sem dados suficientes' : fmtMoeda(projecao.ritmoMensal)}</span>
+        </div>
+        <div className={styles.card}>
+          <span className={styles.cardLabel}>Custo final projetado</span>
+          <span className={styles.cardValor}>{projecao.custoFinalProjetado === null ? '—' : fmtMoeda(projecao.custoFinalProjetado)}</span>
+        </div>
+        <div className={`${styles.card} ${(projecao.desvioProjetado ?? 0) > 0 ? styles.cardRuim : styles.cardBom}`}>
+          <span className={styles.cardLabel}>Desvio projetado vs. orçado</span>
+          <span className={styles.cardValor}>{projecao.desvioProjetado === null ? '—' : `${projecao.desvioProjetado >= 0 ? '+' : ''}${fmtMoeda(projecao.desvioProjetado)}`}</span>
+        </div>
+      </div>
+
+      <details className={styles.fonte}>
+        <summary>De onde vêm estes números</summary>
+        <ul>
+          <li><strong>Cobertura do de-para:</strong> {(peso.cobertura * 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}% do orçamento total ({fmtMoeda(peso.valorTotal)}) está vinculado diretamente a uma tarefa do cronograma; o restante é distribuído entre as tarefas sem vínculo, proporcional à duração prevista de cada uma.</li>
+          <li><strong>Previsto:</strong> peso híbrido R$/duração de cada tarefa-folha, distribuído linearmente entre início e fim previstos.</li>
+          <li><strong>Realizado:</strong> soma de {realizados.length.toLocaleString('pt-BR')} lançamento(s) financeiro(s) pago(s), agregados por data — sem fornecedor, NF ou lançamento individual.</li>
+          <li><strong>Projeção de custo final:</strong> realizado acumulado + (ritmo médio dos últimos 3 meses fechados × meses restantes até o fim do cronograma vigente). Estimativa por tendência, não uma projeção técnica de engenharia (Earned Value).</li>
+          <li>Lançamentos sem etapa/serviço vinculado aparecem como "Não classificado" na tabela de saldo — nunca somados a nenhuma etapa específica.</li>
         </ul>
       </details>
     </>

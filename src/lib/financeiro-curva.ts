@@ -74,8 +74,13 @@ function mesAnoISO(dataISO: string): string {
 }
 
 // Média do realizado dos últimos 3 meses fechados (o mês corrente nunca entra —
-// está incompleto). Sem mês fechado ainda: retorna null ("sem dados suficientes",
-// nunca inventa um número — regra de rastreabilidade nº 3 do CLAUDE.md).
+// está incompleto). Um mês fechado sem nenhum lançamento pago conta como R$ 0 —
+// não é pulado (senão um hiato de gasto real inflaria a média artificialmente).
+// Só recua além do primeiro mês com histórico se "usa os meses disponíveis" for
+// impossível de outra forma (obra com menos de 3 meses de lançamentos ainda) — aí
+// usa só os meses que realmente existem, sem meses fantasmas antes do início.
+// Sem nenhum mês fechado ainda: retorna null ("sem dados suficientes", nunca
+// inventa um número — regra de rastreabilidade nº 3 do CLAUDE.md).
 export function calcularRitmoMensal(realizados: RealizadoAgregado[], hoje: string): number | null {
   const mesAtual = mesAnoISO(hoje)
   const porMes = new Map<string, number>()
@@ -84,7 +89,18 @@ export function calcularRitmoMensal(realizados: RealizadoAgregado[], hoje: strin
     if (m >= mesAtual) continue
     porMes.set(m, (porMes.get(m) ?? 0) + r.valor)
   }
-  const meses = [...porMes.keys()].sort().reverse().slice(0, 3)
+  if (porMes.size === 0) return null
+  const primeiroMes = [...porMes.keys()].sort()[0]
+
+  const meses: string[] = []
+  let [ano, mes] = mesAtual.split('-').map(Number)
+  for (let i = 0; i < 3; i++) {
+    mes -= 1
+    if (mes === 0) { mes = 12; ano -= 1 }
+    const chave = `${ano}-${String(mes).padStart(2, '0')}`
+    if (chave < primeiroMes) break
+    meses.push(chave)
+  }
   if (meses.length === 0) return null
   const soma = meses.reduce((a, m) => a + (porMes.get(m) ?? 0), 0)
   return soma / meses.length

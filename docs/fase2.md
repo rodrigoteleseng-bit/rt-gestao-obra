@@ -89,5 +89,5 @@ Os **68 avanços físicos** lançados até então (testes do Rodrigo e da Catari
 
 - Exportação Excel/PDF (orçamento e cronograma) — pendência desde a Fase 1. [sugestão] A skill `xlsx` (instalada) pode ser usada para gerar a exportação de orçamento/cronograma quando essa pendência for retomada.
 - Script de **reimportação** de baseline (v2+) — adaptar `importar-cronograma.cjs` quando o Project mudar.
-- De-para cronograma ↔ orçamento + Curva S em R$ — Fase 3.
+- ~~De-para cronograma ↔ orçamento + Curva S em R$~~ — entregue em 04/09/2026 como peso híbrido R$/duração (as 702 tarefas com `servico_id` direto pesam pelo valor real; o restante do orçamento é distribuído pelas tarefas sem vínculo, proporcional à duração). Ver `docs/fase3_financeiro.md`.
 - Teste guiado do Rodrigo (celular + desktop) e aceite formal da fase.

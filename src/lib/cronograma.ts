@@ -119,10 +119,15 @@ export function statusTarefa(no: NoCronograma, hoje: string): StatusTarefa {
 }
 
 // Monta a árvore e agrega peso/percentual de baixo para cima.
+// pesoFolha é opcional — default preserva o comportamento atual (peso = duração
+// prevista). A Curva S financeira passa um peso híbrido R$/duração (ver
+// calcularPesoFinanceiro) sem afetar a Curva S física.
 export function montarArvore(
   tarefas: CronogramaTarefa[],
   previstoPorTarefa: Map<string, CronogramaPrevisto>,
   pctPorTarefa: Map<string, AvancoFisico>,
+  pesoFolha: (tarefa: CronogramaTarefa, previsto: CronogramaPrevisto | null) => number =
+    (_tarefa, previsto) => previsto?.duracao_horas || 1,
 ): Map<string, NoCronograma[]> {
   const nos = new Map<string, NoCronograma>()
   for (const t of tarefas) {
@@ -141,7 +146,7 @@ export function montarArvore(
   }
   function agregar(no: NoCronograma): void {
     if (no.filhos.length === 0) {
-      no.peso = no.previsto?.duracao_horas || 1
+      no.peso = pesoFolha(no.tarefa, no.previsto)
       no.percentual = pctPorTarefa.get(no.tarefa.id)?.percentual ?? 0
       return
     }
@@ -157,6 +162,19 @@ export function montarArvore(
   }
   for (const raizes of raizesPorUnidade.values()) for (const r of raizes) agregar(r)
   return raizesPorUnidade
+}
+
+// Extrai as tarefas-folha com previsto de uma árvore já montada — usado pela Curva S
+// física e pela Curva S financeira (mesmo critério: só entram na curva tarefas com
+// data prevista na baseline vigente).
+export function folhasComPrevisto(arvore: Map<string, NoCronograma[]>): NoCronograma[] {
+  const folhas: NoCronograma[] = []
+  const coletar = (no: NoCronograma) => {
+    if (no.filhos.length === 0) { if (no.previsto) folhas.push(no) }
+    else no.filhos.forEach(coletar)
+  }
+  for (const raizes of arvore.values()) raizes.forEach(coletar)
+  return folhas
 }
 
 export interface NoParaEtapa {

@@ -3,6 +3,7 @@ import { useObra } from '../contexts/ObraContext'
 import { supabase, type Unidade } from '../lib/supabase'
 import {
   carregarCronograma, percentuaisAtuais, montarArvore, statusTarefa, hojeISO,
+  folhasComPrevisto,
   type DadosCronograma, type NoCronograma, type StatusTarefa,
 } from '../lib/cronograma'
 import styles from './Cronograma.module.css'
@@ -231,13 +232,7 @@ function CurvaS({ dados, arvore, hoje, pctObra }: {
   pctObra: number
 }) {
   const curva = useMemo(() => {
-    // Folhas com previsto
-    const folhas: NoCronograma[] = []
-    const coletar = (no: NoCronograma) => {
-      if (no.filhos.length === 0) { if (no.previsto) folhas.push(no) }
-      else no.filhos.forEach(coletar)
-    }
-    for (const raizes of arvore.values()) raizes.forEach(coletar)
+    const folhas = folhasComPrevisto(arvore)
     if (folhas.length === 0) return null
 
     const pesoTotal = folhas.reduce((a, f) => a + f.peso, 0)

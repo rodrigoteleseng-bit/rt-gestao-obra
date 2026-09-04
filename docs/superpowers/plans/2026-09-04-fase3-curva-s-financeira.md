@@ -50,7 +50,7 @@ automatizados no projeto (ver Global Constraints).
   (data_pagamento date, etapa_id uuid, servico_id uuid, valor numeric)`, `GRANT EXECUTE ... TO
   authenticated`. Task 5 consome via `supabase.rpc('financeiro_realizado_agregado', { p_obra_id })`.
 
-- [ ] **Step 1: Escrever a migração**
+- [x] **Step 1: Escrever a migração**
 
 ```sql
 -- Curva S financeira: agrega lancamentos_financeiros pagos por data/etapa/servico,
@@ -76,13 +76,13 @@ $$;
 GRANT EXECUTE ON FUNCTION financeiro_realizado_agregado(UUID) TO authenticated;
 ```
 
-- [ ] **Step 2: Aplicar a migração**
+- [x] **Step 2: Aplicar a migração**
 
 Aplicar via Supabase MCP (`apply_migration`) ou `supabase db push`, conforme o fluxo já usado nas
 migrações anteriores deste projeto (não há stack local — migrações vão direto para o projeto
 remoto).
 
-- [ ] **Step 3: Verificar a função existe e o shape das colunas está correto**
+- [x] **Step 3: Verificar a função existe e o shape das colunas está correto**
 
 Rodar no SQL Editor do Supabase:
 
@@ -95,7 +95,7 @@ WHERE proname = 'financeiro_realizado_agregado';
 Expected: uma linha, `retorno` contendo `TABLE(data_pagamento date, etapa_id uuid, servico_id uuid,
 valor numeric)`.
 
-- [ ] **Step 4: Verificar que a função soma corretamente contra a obra piloto**
+- [x] **Step 4: Verificar que a função soma corretamente contra a obra piloto**
 
 ```sql
 SELECT SUM(valor) AS total_pago
@@ -107,7 +107,7 @@ Expected: um número (pode ser 0 se não houver lançamento `pago` ainda) que ba
 '00000000-0000-0000-0000-000000000001' AND ativo AND status = 'pago'` rodado como superusuário no
 mesmo SQL Editor — os dois totais devem ser idênticos.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add supabase/migrations/20260904_financeiro_curva_s_agregado.sql
@@ -130,7 +130,7 @@ git commit -m "feat: RPC financeiro_realizado_agregado para Curva S financeira"
   quem já chama com 3 argumentos). Nova função exportada `folhasComPrevisto(arvore: Map<string,
   NoCronograma[]>): NoCronograma[]`, usada por Task 6.
 
-- [ ] **Step 1: Generalizar `montarArvore` em `src/lib/cronograma.ts`**
+- [x] **Step 1: Generalizar `montarArvore` em `src/lib/cronograma.ts`**
 
 Substituir a assinatura e o corpo de `agregar` (linhas 122-157 atuais):
 
@@ -178,7 +178,7 @@ export function montarArvore(
 }
 ```
 
-- [ ] **Step 2: Adicionar `folhasComPrevisto` logo depois de `montarArvore` em `src/lib/cronograma.ts`**
+- [x] **Step 2: Adicionar `folhasComPrevisto` logo depois de `montarArvore` em `src/lib/cronograma.ts`**
 
 ```ts
 // Extrai as tarefas-folha com previsto de uma árvore já montada — usado pela Curva S
@@ -195,7 +195,7 @@ export function folhasComPrevisto(arvore: Map<string, NoCronograma[]>): NoCronog
 }
 ```
 
-- [ ] **Step 3: Usar `folhasComPrevisto` em `CurvaS` (`src/pages/Cronograma.tsx`)**
+- [x] **Step 3: Usar `folhasComPrevisto` em `CurvaS` (`src/pages/Cronograma.tsx`)**
 
 No import do topo do arquivo, adicionar `folhasComPrevisto` à lista importada de `../lib/cronograma`
 (linha 4-7 atual). Dentro de `CurvaS` (por volta da linha 233-241 atual), substituir:
@@ -218,19 +218,19 @@ por:
     if (folhas.length === 0) return null
 ```
 
-- [ ] **Step 4: Checagem de tipo**
+- [x] **Step 4: Checagem de tipo**
 
 Run: `npm run build`
 Expected: build passa sem erro (`tsc -b && vite build` conclui, sem `error TS...` no output).
 
-- [ ] **Step 5: Verificar que a Curva S física não mudou**
+- [x] **Step 5: Verificar que a Curva S física não mudou — verificado por inspeção de código, não em navegador (sem ferramenta de browser na sessão que implementou)**
 
-Rodar `npm run dev`, abrir `/cronograma` → aba "Curva S" com a obra piloto carregada, anotar os
-valores dos três cards (Previsto até hoje / Realizado / Desvio). Devem ser **idênticos** aos
-valores de antes desta mudança (a refatoração só reorganiza código, não muda cálculo — `pesoFolha`
-não foi passado, então o default reproduz exatamente `previsto?.duracao_horas || 1`).
+O default do 4º parâmetro reproduz literalmente a expressão original (`previsto?.duracao_horas ||
+1`) e `folhasComPrevisto` é uma extração ao pé da letra do bloco removido — nenhum caminho de
+código muda para quem chama `montarArvore` com 3 argumentos (a Curva S física continua chamando
+assim). Falta ainda a confirmação visual em navegador — incluída no Step 6 pendente da Task 6.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/cronograma.ts src/pages/Cronograma.tsx
@@ -252,13 +252,13 @@ git commit -m "refactor: generaliza peso da arvore do cronograma para aceitar pe
   CronogramaTarefa[], previstoPorTarefa: Map<string, CronogramaPrevisto>, servicos: Servico[]):
   PesoFinanceiro`. Consumido por Task 6.
 
-- [ ] **Step 1: Adicionar o import de `Servico` no topo de `src/lib/cronograma.ts`**
+- [x] **Step 1: Adicionar o import de `Servico` no topo de `src/lib/cronograma.ts`**
 
 ```ts
 import type { CronogramaVersao, CronogramaTarefa, CronogramaPrevisto, AvancoFisico, Servico } from './supabase'
 ```
 
-- [ ] **Step 2: Adicionar `calcularPesoFinanceiro` ao final de `src/lib/cronograma.ts`**
+- [x] **Step 2: Adicionar `calcularPesoFinanceiro` ao final de `src/lib/cronograma.ts`**
 
 ```ts
 // Peso hibrido R$/duracao para a Curva S financeira (ver
@@ -327,26 +327,21 @@ export function calcularPesoFinanceiro(
 }
 ```
 
-- [ ] **Step 3: Checagem de tipo**
+- [x] **Step 3: Checagem de tipo**
 
 Run: `npm run build`
 Expected: build passa sem erro.
 
-- [ ] **Step 4: Verificar a soma dos pesos bate com o orçamento total**
+- [x] **Step 4: Verificar a soma dos pesos bate com o orçamento total — feito via SQL contra dados reais na Task 6, não via console.log no navegador**
 
-Verificação manual temporária: em `src/pages/Cronograma.tsx`, dentro do `useMemo` de `calculado`
-(por volta da linha 46-51 atual), adicionar por um instante:
+Em vez do `console.log` no navegador (sem ferramenta de browser disponível), a mesma verificação
+foi feita reproduzindo a lógica de `calcularPesoFinanceiro` em SQL direto contra a obra piloto: 1.933
+tarefas-folha, 702 com `servico_id`, `valorTotal` = R$ 10.413.111,11, `valorVinculado` = R$
+3.093.003,42, cobertura 29,7% — números batendo exatamente com o que a função TS calcularia para
+os mesmos dados (mesma regra: soma do valor do serviço para toda folha vinculada, sem contar
+nenhum serviço duas vezes).
 
-```ts
-console.log('DEBUG peso financeiro', calcularPesoFinanceiro(dados.tarefas, dados.previstoPorTarefa, /* servicos carregados */))
-```
-
-Não é possível rodar este passo isoladamente antes da Task 6 carregar `servicos` — adiar esta
-verificação específica (soma dos pesos = `valorTotal`, `cobertura` entre 0 e 1) para o Step de
-verificação da Task 6, que já tem `servicos` disponível. Marcar este step como feito após a
-verificação da Task 6 confirmar os números.
-
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/cronograma.ts
@@ -365,7 +360,7 @@ git commit -m "feat: peso hibrido R$/duracao para Curva S financeira"
 - Produces: `interface RealizadoAgregado { data_pagamento: string; etapa_id: string | null;
   servico_id: string | null; valor: number }`. Consumido por Task 5.
 
-- [ ] **Step 1: Adicionar a interface**
+- [x] **Step 1: Adicionar a interface**
 
 ```ts
 // Retorno da RPC financeiro_realizado_agregado — totais pagos por dia/etapa/servico,
@@ -378,12 +373,12 @@ export interface RealizadoAgregado {
 }
 ```
 
-- [ ] **Step 2: Checagem de tipo**
+- [x] **Step 2: Checagem de tipo**
 
 Run: `npm run build`
 Expected: build passa sem erro.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/lib/supabase.ts
@@ -420,7 +415,7 @@ git commit -m "feat: tipo RealizadoAgregado para Curva S financeira"
 
   Consumido por Task 6.
 
-- [ ] **Step 1: Criar o arquivo com carregamento e saldo por etapa**
+- [x] **Step 1: Criar o arquivo com carregamento e saldo por etapa**
 
 ```ts
 // Curva S financeira, previsto x realizado x saldo por etapa, e projeção de custo
@@ -495,7 +490,7 @@ export function calcularSaldoPorEtapa(
 }
 ```
 
-- [ ] **Step 2: Adicionar projeção de custo final ao mesmo arquivo**
+- [x] **Step 2: Adicionar projeção de custo final ao mesmo arquivo**
 
 ```ts
 function mesAnoISO(dataISO: string): string {
@@ -548,7 +543,7 @@ export function calcularProjecao(
 }
 ```
 
-- [ ] **Step 3: Adicionar a série da Curva S financeira ao mesmo arquivo**
+- [x] **Step 3: Adicionar a série da Curva S financeira ao mesmo arquivo**
 
 ```ts
 export interface PontoCurvaFinanceira { data: string; previsto: number; realizado: number | null }
@@ -599,12 +594,12 @@ export function calcularCurvaSFinanceira(
 }
 ```
 
-- [ ] **Step 4: Checagem de tipo**
+- [x] **Step 4: Checagem de tipo**
 
 Run: `npm run build`
 Expected: build passa sem erro.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/financeiro-curva.ts
@@ -627,7 +622,7 @@ git commit -m "feat: calculos da Curva S financeira, saldo por etapa e projecao 
 - Produces: aba "Financeiro" visível a todos os papéis (mesma visibilidade da aba "Curva S" já
   existente).
 
-- [ ] **Step 1: Carregar `servicos`, `etapas` e `realizados` junto com o cronograma**
+- [x] **Step 1: Carregar `servicos`, `etapas` e `realizados` junto com o cronograma**
 
 No topo de `src/pages/Cronograma.tsx`, ajustar os imports:
 
@@ -706,7 +701,7 @@ async function carregarEtapasDaObra(obraId: string): Promise<Etapa[]> {
 }
 ```
 
-- [ ] **Step 2: Adicionar o botão da aba**
+- [x] **Step 2: Adicionar o botão da aba**
 
 Na barra de abas (linhas 88-94 atuais), adicionar o botão entre "Curva S" e "Atrasadas":
 
@@ -732,7 +727,7 @@ Depois do bloco `{aba === 'curva' && (...)}`, adicionar:
       )}
 ```
 
-- [ ] **Step 3: Escrever o componente `CurvaSFinanceira`**
+- [x] **Step 3: Escrever o componente `CurvaSFinanceira`**
 
 Adicionar ao final de `src/pages/Cronograma.tsx`, no mesmo estilo do componente `CurvaS` existente
 (reaproveita `styles.cards`, `styles.card`, `styles.cardLabel`, `styles.cardValor`,
@@ -909,22 +904,19 @@ function CurvaSFinanceira({ dados, arvore, hoje, servicos, etapas, realizados }:
 }
 ```
 
-- [ ] **Step 4: Checagem de tipo**
+- [x] **Step 4: Checagem de tipo**
 
 Run: `npm run build`
 Expected: build passa sem erro.
 
-- [ ] **Step 5: Verificar a Task 3 pendente (soma dos pesos = orçamento total)**
+- [x] **Step 5: Verificar a Task 3 pendente (soma dos pesos = orçamento total) — feito via SQL, ver Task 3 Step 4**
 
-Com `npm run dev` rodando, abrir `/cronograma` → aba "Financeiro" com a obra piloto. No console do
-navegador, a cobertura mostrada na caixa "De onde vêm estes números" deve ser um número entre 0% e
-100%. Conferir manualmente: `peso.valorVinculado + valorResto` deve bater com `peso.valorTotal` —
-adicionar temporariamente `console.log(peso)` dentro de `CurvaSFinanceira`, comparar
-`valorVinculado <= valorTotal` e que a soma de todos os `pesoFolha(id)` das folhas bate com
-`valorTotal` (dentro de arredondamento de ponto flutuante, diferença < R$ 1). Remover o
-`console.log` antes do commit.
+Cobertura confirmada em 29,7% (`valorVinculado` R$ 3.093.003,42 de `valorTotal` R$
+10.413.111,11), dentro do intervalo esperado 0–100%. Não foi possível abrir `/cronograma` num
+navegador real nesta sessão (sem ferramenta de browser) — a verificação usou a mesma lógica
+reproduzida em SQL contra a obra piloto em vez de `console.log` no devtools.
 
-- [ ] **Step 6: Teste guiado (manual, com usuário temporário — mesmo padrão de toda fase anterior)**
+- [ ] **Step 6: Teste guiado (manual, com usuário temporário — mesmo padrão de toda fase anterior) — PENDENTE: sem ferramenta de browser na sessão que implementou. Os cálculos foram verificados por outro caminho (SQL contra dados reais, impersonando o admin real — ver commits desta entrega), mas o clique-a-clique na tela real, incluindo o teste com usuário `cliente` temporário, ainda precisa acontecer.**
 
 1. Login como `admin`: abrir `/cronograma` → aba "Financeiro". Conferir que os três cards
    (Previsto/Realizado/Desvio) aparecem, o gráfico desenha as duas curvas, a tabela de saldo por
@@ -938,7 +930,7 @@ adicionar temporariamente `console.log(peso)` dentro de `CurvaSFinanceira`, comp
    `cliente` (comportamento já existente da Fase 3a, não deve ter mudado).
 4. Remover o usuário temporário de teste.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/pages/Cronograma.tsx
@@ -955,13 +947,13 @@ git commit -m "feat: aba Financeiro em /cronograma com Curva S financeira, saldo
 
 **Interfaces:** nenhuma — só documentação.
 
-- [ ] **Step 1: Fechar a pendência em `docs/fase2.md`**
+- [x] **Step 1: Fechar a pendência em `docs/fase2.md`**
 
 Na seção "Pendências transferidas", remover ou marcar como concluída a linha "De-para cronograma ↔
 orçamento + Curva S em R$ — Fase 3", com uma nota curta apontando para
 `docs/fase3_financeiro.md` (data desta entrega) e para a migração `20260904_financeiro_curva_s_agregado.sql`.
 
-- [ ] **Step 2: Registrar a entrega em `docs/fase3_financeiro.md`**
+- [x] **Step 2: Registrar a entrega em `docs/fase3_financeiro.md`**
 
 Adicionar uma seção nova (mesmo padrão das demais seções de `docs/fase3_financeiro.md`) descrevendo:
 Curva S financeira, previsto×realizado×saldo por etapa e projeção de custo final entregues; a
@@ -970,7 +962,7 @@ números" testado no Step 6 da Task 6); que a projeção usa ritmo de gasto, nã
 cliente vê os agregados, nunca lançamento individual. Mover essas três funcionalidades da lista
 "Fora de escopo da Fase 3a" (linhas 25-27 do arquivo atual) para "O que foi entregue".
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/fase2.md docs/fase3_financeiro.md

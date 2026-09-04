@@ -3,7 +3,7 @@
 // [estimado — migra para valor (R$) quando houver de-para com o orçamento, Fase 3].
 
 import { supabase } from './supabase'
-import type { CronogramaVersao, CronogramaTarefa, CronogramaPrevisto, AvancoFisico } from './supabase'
+import type { CronogramaVersao, CronogramaTarefa, CronogramaPrevisto, AvancoFisico, Servico } from './supabase'
 
 // Supabase limita linhas por resposta: busca a primeira página com count e paraleliza o restante.
 export type RespostaPaginada<T> = { data: T[] | null; count?: number | null; error?: { message: string } | null }
@@ -220,4 +220,69 @@ export function etapaAncestralPorTarefa(nos: NoParaEtapa[]): Map<string, string>
 export function hojeISO(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Peso hibrido R$/duracao para a Curva S financeira (ver
+// docs/superpowers/specs/2026-09-04-fase3-curva-s-financeira-design.md secao 4).
+// Tarefas-folha com servico_id vinculado a um servico ativo pesam pelo valor real
+// do servico (dividido proporcionalmente por duracao se o mesmo servico_id estiver
+// em mais de uma tarefa, para nunca contar o mesmo valor duas vezes). O restante do
+// orcamento total (o que ainda nao tem vinculo direto) e distribuido pelas tarefas
+// sem vinculo, proporcional a duracao de cada uma — mesma aproximacao [estimado] ja
+// usada pelo peso por duracao puro, agora ancorada a um total real.
+export interface PesoFinanceiro {
+  pesoFolha: (tarefaId: string) => number
+  valorTotal: number
+  valorVinculado: number
+  cobertura: number
+}
+
+export function calcularPesoFinanceiro(
+  tarefas: CronogramaTarefa[],
+  previstoPorTarefa: Map<string, CronogramaPrevisto>,
+  servicos: Servico[],
+): PesoFinanceiro {
+  const valorPorServico = new Map(servicos.filter(s => s.ativo).map(s => [s.id, s.total ?? 0]))
+  const valorTotal = servicos.filter(s => s.ativo).reduce((a, s) => a + (s.total ?? 0), 0)
+
+  const idsComFilhos = new Set(tarefas.filter(t => t.parent_id).map(t => t.parent_id as string))
+  const folhas = tarefas.filter(t => !idsComFilhos.has(t.id))
+
+  const duracao = (t: CronogramaTarefa) => previstoPorTarefa.get(t.id)?.duracao_horas || 1
+
+  const grupoPorServico = new Map<string, CronogramaTarefa[]>()
+  const naoVinculadas: CronogramaTarefa[] = []
+  for (const f of folhas) {
+    if (f.servico_id && valorPorServico.has(f.servico_id)) {
+      const grupo = grupoPorServico.get(f.servico_id) ?? []
+      grupo.push(f)
+      grupoPorServico.set(f.servico_id, grupo)
+    } else {
+      naoVinculadas.push(f)
+    }
+  }
+
+  const pesos = new Map<string, number>()
+  let valorVinculado = 0
+  for (const [servicoId, grupo] of grupoPorServico) {
+    const valorServico = valorPorServico.get(servicoId) ?? 0
+    valorVinculado += valorServico
+    const duracaoGrupo = grupo.reduce((a, t) => a + duracao(t), 0)
+    for (const t of grupo) {
+      pesos.set(t.id, duracaoGrupo > 0 ? valorServico * (duracao(t) / duracaoGrupo) : valorServico / grupo.length)
+    }
+  }
+
+  const valorResto = Math.max(0, valorTotal - valorVinculado)
+  const duracaoResto = naoVinculadas.reduce((a, t) => a + duracao(t), 0)
+  for (const t of naoVinculadas) {
+    pesos.set(t.id, duracaoResto > 0 ? valorResto * (duracao(t) / duracaoResto) : 0)
+  }
+
+  return {
+    pesoFolha: (tarefaId: string) => pesos.get(tarefaId) ?? 0,
+    valorTotal,
+    valorVinculado,
+    cobertura: valorTotal > 0 ? valorVinculado / valorTotal : 0,
+  }
 }

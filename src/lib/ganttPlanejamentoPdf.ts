@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import { supabase } from './supabase'
 import { paginado, fatiar, etapaAncestralPorTarefa, type RespostaPaginada, type NoParaEtapa } from './cronograma'
+import { carregarIdentidadeObra, larguraProporcional } from './pdfBranding'
 
 const NAVY = '#1A3248'
 const CINZA_GRADE = '#d8dde3'
@@ -42,8 +43,9 @@ function truncarTexto(pdf: jsPDF, texto: string, larguraMax: number): string {
 }
 
 export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: string) {
-  const obraResp = await supabase.from('obras').select('nome').eq('id', obraId).maybeSingle()
+  const obraResp = await supabase.from('obras').select('nome, logo_url, rodape_pdf').eq('id', obraId).maybeSingle()
   const obraNome = obraResp.data?.nome ?? 'Obra'
+  const identidade = await carregarIdentidadeObra(obraResp.data)
 
   const semanaAtualResp = await supabase.from('planejamento_semanas')
     .select('id, data_inicio, data_fim, status, ppc')
@@ -163,9 +165,18 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
     pdf.setFillColor(NAVY)
     pdf.rect(0, 0, W, 16, 'F')
     pdf.setTextColor(BRANCO)
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(13)
-    pdf.text('RT ENGENHARIA - GANTT DO PLANEJAMENTO', 10, 9.5)
+    if (identidade.logoBase64) {
+      const alturaLogo = 10
+      const larguraLogo = larguraProporcional(pdf, identidade.logoBase64, alturaLogo)
+      pdf.addImage(identidade.logoBase64, 'PNG', 10, 3, larguraLogo, alturaLogo)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(9)
+      pdf.text('GANTT DO PLANEJAMENTO', 10 + larguraLogo + 4, 9.5)
+    } else {
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(13)
+      pdf.text('RT ENGENHARIA - GANTT DO PLANEJAMENTO', 10, 9.5)
+    }
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8.5)
     pdf.text(obraNome, W - MR, 9.5, { align: 'right' })
@@ -254,7 +265,7 @@ export async function gerarPdfGanttPlanejamento(obraId: string, semanaAtualId: s
     pdf.setFontSize(7.5)
     pdf.setTextColor(CINZA_TEXTO)
     pdf.text('Fonte: Planejamento semanal. A execução e o PPC ficam na tela do Planejamento e no Avanço Físico.', ML, H - 15)
-    pdf.text('RT Engenharia · Rodrigo Teles Silva · CREA 1018712895 D/GO · Inteligência Aplicada', ML, H - 6)
+    pdf.text(identidade.rodapeTexto, ML, H - 6)
   }
 
   let y = topoLinhas

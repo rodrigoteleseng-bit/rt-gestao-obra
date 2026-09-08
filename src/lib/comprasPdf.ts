@@ -174,7 +174,7 @@ export function gerarPdfPedido(d: DadosPdfPedido): void {
     if (it.urgente) {
       pdf.setTextColor('#a35c00')
       pdf.setFont('helvetica', 'bold')
-      pdf.text('⚡ SIM', colX.urg + 1, y + 4.2)
+      pdf.text('SIM', colX.urg + 1, y + 4.2)
       pdf.setFont('helvetica', 'normal')
     } else {
       pdf.setTextColor(CINZA)

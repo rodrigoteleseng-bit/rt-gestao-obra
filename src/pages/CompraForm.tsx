@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useObra } from '../contexts/ObraContext'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, type Servico, type Unidade, type Etapa, type PedidoCompra, type PedidoCompraItem, type Cotacao, type CotacaoItem, type Fornecedor, type RecebimentoNf } from '../lib/supabase'
+import { carregarIdentidadeObra } from '../lib/pdfBranding'
 import { STATUS_LABEL } from './Compras'
 import { formatarMoeda } from '../lib/formato'
 import styles from './CompraForm.module.css'
@@ -419,7 +420,9 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
     setGerandoPdf(true)
     try {
       const { gerarPdfPedido } = await import('../lib/comprasPdf')
-      gerarPdfPedido({ pedido, itens, obraNome, servicos })
+      const { data: obraRow } = await supabase.from('obras').select('logo_url, rodape_pdf').eq('id', pedido.obra_id).maybeSingle()
+      const identidade = await carregarIdentidadeObra(obraRow)
+      gerarPdfPedido({ pedido, itens, obraNome, identidade, servicos })
     } finally {
       setGerandoPdf(false)
     }

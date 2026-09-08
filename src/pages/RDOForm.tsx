@@ -9,6 +9,7 @@ import {
 } from '../lib/supabase'
 import { obterPosicao, sha256Hex, carimbarFoto, fmtCoord, fmtDuracao } from '../lib/rdo'
 import { agruparPresencasComoEfetivo } from '../lib/efetivo'
+import { carregarIdentidadeObra } from '../lib/pdfBranding'
 import styles from './RDO.module.css'
 
 const fmtData = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
@@ -548,9 +549,11 @@ export default function RDOForm() {
     setGerandoPdf(true)
     try {
       const { gerarPdfRdo } = await import('../lib/rdoPdf')
+      const identidade = await carregarIdentidadeObra(obraAtiva)
       await gerarPdfRdo({
         rdo: { ...rdo, horario_inicio: horario || rdo.horario_inicio, observacoes: obs || rdo.observacoes },
         obraNome: obraAtiva.nome,
+        identidade,
         atividades, efetivo, fotos, audios, avancosDia, fvsDia, unidades,
       })
     } catch (e) {

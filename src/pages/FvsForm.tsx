@@ -7,6 +7,7 @@ import {
   type FvsResposta, type FvsFoto, type Unidade, type CronogramaTarefa, type StatusFvs, type RespostaFvs,
 } from '../lib/supabase'
 import { obterPosicao, sha256Hex, carimbarFoto, fmtCoord } from '../lib/rdo'
+import { carregarIdentidadeObra } from '../lib/pdfBranding'
 import { STATUS_FVS_LABEL } from './Fvs'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Fvs.module.css'
@@ -344,9 +345,11 @@ export default function FvsForm() {
       const { data: fotos } = await supabase.from('fvs_fotos')
         .select('*').eq('fvs_id', fvs.id).eq('ativo', true).order('criado_em')
       const { gerarPdfFvs } = await import('../lib/fvsPdf')
+      const identidade = await carregarIdentidadeObra(obraAtiva)
       await gerarPdfFvs({
         fvs, modelo, itens, verificacoes,
         obraNome: obraAtiva.nome,
+        identidade,
         unidadeNome: unidades.find(u => u.id === fvs.unidade_id)?.nome ?? '—',
         tarefaNome: tarefasUnidade.find(t => t.id === fvs.tarefa_id)?.nome ?? null,
         autores, fotos: fotos ?? [],

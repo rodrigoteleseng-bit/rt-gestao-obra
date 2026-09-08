@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
 import { supabase, type ProducaoMedicao, type Trabalhador } from '../lib/supabase'
 import { hojeISO } from '../lib/cronograma'
+import { carregarIdentidadeObra } from '../lib/pdfBranding'
 import { formatarMoeda } from '../lib/formato'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Producao.module.css'
@@ -235,9 +236,11 @@ export default function ProducaoMedicaoForm() {
     if (!medicao || !obraAtiva) return
     const t = trabalhadores.find((x) => x.id === trab)
     const { gerarPdfProducao } = await import('../lib/producaoMedicaoPdf')
+    const identidade = await carregarIdentidadeObra(obraAtiva)
     gerarPdfProducao({
       medicao,
       obraNome: obraAtiva.nome,
+      identidade,
       profissionalNome: t?.nome ?? 'Profissional',
       funcao: t?.funcao ?? '',
       producao: prod,

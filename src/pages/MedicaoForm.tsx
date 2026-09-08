@@ -6,6 +6,7 @@ import {
   type Medicao, type MedicaoItem, type StatusMedicao,
 } from '../lib/supabase'
 import { gerarPdfMedicao } from '../lib/medicoesPdf'
+import { carregarIdentidadeObra } from '../lib/pdfBranding'
 import { formatarMoeda } from '../lib/formato'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './MedicaoForm.module.css'
@@ -233,11 +234,14 @@ export default function MedicaoForm() {
     if (contratoId) carregar(contratoId)
   }
 
-  function imprimir() {
+  async function imprimir() {
     if (!contrato || !medicao) return
+    const { data: obraRow } = await supabase.from('obras').select('logo_url, rodape_pdf').eq('id', contrato.obra_id).maybeSingle()
+    const identidade = await carregarIdentidadeObra(obraRow)
     gerarPdfMedicao({
       contrato,
       medicao,
+      identidade,
       empreiteiroNome,
       itens: linhas.map(l => ({
         servicoCodigo: l.servicoCodigo,

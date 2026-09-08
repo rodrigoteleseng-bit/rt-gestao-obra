@@ -9,6 +9,7 @@ import {
 } from '../lib/supabase'
 import { gerarPdfBlocoRequisicoes } from '../lib/requisicoesPdf'
 import { gerarPdfEstoque } from '../lib/estoquePdf'
+import { carregarIdentidadeObra } from '../lib/pdfBranding'
 import { dataLocalISO, dataHoje, diasEntre } from '../lib/almoxarifado'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './Almoxarifado.module.css'
@@ -539,8 +540,10 @@ function AbaRequisicoes() {
       setMsg({ tipo: 'erro', texto: 'Falha inesperada ao gerar o bloco.' })
       return
     }
+    const identidade = await carregarIdentidadeObra(obraAtiva)
     gerarPdfBlocoRequisicoes({
       obraNome: obraAtiva.nome,
+      identidade,
       numeroInicial: faixa.numero_inicial,
       numeroFinal: faixa.numero_final,
     })
@@ -551,10 +554,12 @@ function AbaRequisicoes() {
     await carregarBlocos()
   }
 
-  function baixarBloco(b: RequisicaoBloco) {
+  async function baixarBloco(b: RequisicaoBloco) {
     if (!obraAtiva) return
+    const identidade = await carregarIdentidadeObra(obraAtiva)
     gerarPdfBlocoRequisicoes({
       obraNome: obraAtiva.nome,
+      identidade,
       numeroInicial: b.numero_inicial,
       numeroFinal: b.numero_final,
     })
@@ -699,14 +704,16 @@ function AbaEstoque() {
     setMateriais(prev => [...prev, m].sort((a, b) => a.nome.localeCompare(b.nome)))
   }
 
-  function imprimirEstoque(categoria: CategoriaMaterial) {
+  async function imprimirEstoque(categoria: CategoriaMaterial) {
     const itens = materiais
       .filter(m => m.categoria === categoria)
       .sort((a, b) => a.nome.localeCompare(b.nome))
       .map(m => ({ codigo: m.codigo, nome: m.nome, und: m.und, saldo: saldos.get(m.id) ?? 0 }))
+    const identidade = await carregarIdentidadeObra(obraAtiva)
     gerarPdfEstoque({
       categoriaLabel: CATEGORIA_LABEL[categoria],
       obraNome: obraAtiva?.nome ?? '',
+      identidade,
       itens,
     })
     setMenuImpressaoAberto(false)

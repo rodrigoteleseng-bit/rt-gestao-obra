@@ -420,9 +420,24 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
     setGerandoPdf(true)
     try {
       const { gerarPdfPedido } = await import('../lib/comprasPdf')
-      const { data: obraRow } = await supabase.from('obras').select('logo_url, rodape_pdf').eq('id', pedido.obra_id).maybeSingle()
+      const [{ data: obraRow }, { data: solicitanteRow }] = await Promise.all([
+        supabase.from('obras').select('logo_url, rodape_pdf, nome_empreendimento, endereco, cidade, estado').eq('id', pedido.obra_id).maybeSingle(),
+        supabase.from('perfis_usuario').select('nome, email').eq('id', pedido.criado_por).maybeSingle(),
+      ])
       const identidade = await carregarIdentidadeObra(obraRow)
-      gerarPdfPedido({ pedido, itens, obraNome, identidade, servicos })
+      gerarPdfPedido({
+        pedido,
+        itens,
+        obraNome,
+        nomeEmpreendimento: obraRow?.nome_empreendimento ?? null,
+        enderecoObra: obraRow?.endereco ?? null,
+        cidadeObra: obraRow?.cidade ?? null,
+        estadoObra: obraRow?.estado ?? null,
+        identidade,
+        solicitanteNome: solicitanteRow?.nome ?? '—',
+        solicitanteEmail: solicitanteRow?.email ?? '—',
+        servicos,
+      })
     } finally {
       setGerandoPdf(false)
     }

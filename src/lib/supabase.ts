@@ -560,6 +560,7 @@ export interface LancamentoFinanceiro {
   forma_pagamento: string | null
   conta_origem: string | null
   observacao: string | null
+  nf_numero: string | null
   ativo: boolean
   criado_por: string
   criado_em: string

@@ -16,6 +16,7 @@ export interface PerfilUsuario {
   id: string
   nome: string
   email: string
+  telefone: string | null
   papel: PapelUsuario
   modulos_permitidos: ModuloApp[]
   ativo: boolean

@@ -21,6 +21,7 @@ export interface DadosPdfPedido {
   identidade: IdentidadeMarca
   solicitanteNome: string
   solicitanteEmail: string
+  solicitanteTelefone: string | null
   servicos: Servico[]
 }
 
@@ -115,7 +116,10 @@ export function gerarPdfPedido(d: DadosPdfPedido): void {
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8.5)
   pdf.setTextColor(CINZA)
-  pdf.text(`Solicitante: ${d.solicitanteNome} · E-mail: ${d.solicitanteEmail}`, ML, y)
+  const linhaSolicitante = d.solicitanteTelefone
+    ? `Solicitante: ${d.solicitanteNome} · E-mail: ${d.solicitanteEmail} · Tel.: ${d.solicitanteTelefone}`
+    : `Solicitante: ${d.solicitanteNome} · E-mail: ${d.solicitanteEmail}`
+  pdf.text(linhaSolicitante, ML, y)
   y += 6
 
   if (d.pedido.descricao) {

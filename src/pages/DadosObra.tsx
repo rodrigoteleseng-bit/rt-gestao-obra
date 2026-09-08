@@ -29,6 +29,10 @@ export default function DadosObra() {
   const [dataInicio, setDataInicio] = useState('')
   const [dataFimPrevista, setDataFimPrevista] = useState('')
   const [status, setStatus] = useState<StatusObra>('ativa')
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [rodapePdf, setRodapePdf] = useState('')
+  const [logoArquivo, setLogoArquivo] = useState<File | null>(null)
+  const [enviandoLogo, setEnviandoLogo] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
@@ -44,6 +48,7 @@ export default function DadosObra() {
     setEditandoId(null)
     setNome(''); setDescricao(''); setEndereco(''); setCidade(''); setEstado('')
     setDataInicio(''); setDataFimPrevista(''); setStatus('ativa')
+    setLogoUrl(null); setRodapePdf(''); setLogoArquivo(null)
     setMsg(null)
     setFormAberto(true)
   }
@@ -58,6 +63,9 @@ export default function DadosObra() {
     setDataInicio(o.data_inicio ?? '')
     setDataFimPrevista(o.data_fim_prevista ?? '')
     setStatus(o.status)
+    setLogoUrl(o.logo_url)
+    setRodapePdf(o.rodape_pdf ?? '')
+    setLogoArquivo(null)
     setMsg(null)
     setFormAberto(true)
   }
@@ -67,8 +75,29 @@ export default function DadosObra() {
       setMsg({ tipo: 'erro', texto: 'Informe o nome da obra.' })
       return
     }
+    if (logoArquivo && !rodapePdf.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe o texto do rodapé junto com a logo.' })
+      return
+    }
     setSalvando(true)
     setMsg(null)
+
+    let novoLogoUrl = logoUrl
+    if (logoArquivo && editandoId) {
+      setEnviandoLogo(true)
+      const caminho = `${editandoId}/logo.png`
+      const { error: erroUpload } = await supabase.storage
+        .from('obras-logos')
+        .upload(caminho, logoArquivo, { upsert: true, contentType: 'image/png' })
+      setEnviandoLogo(false)
+      if (erroUpload) {
+        setSalvando(false)
+        setMsg({ tipo: 'erro', texto: `Erro ao enviar a logo: ${erroUpload.message}` })
+        return
+      }
+      novoLogoUrl = caminho
+    }
+
     const dados = {
       nome: nome.trim(),
       descricao: descricao.trim() || null,
@@ -78,6 +107,8 @@ export default function DadosObra() {
       data_inicio: dataInicio || null,
       data_fim_prevista: dataFimPrevista || null,
       status,
+      logo_url: novoLogoUrl,
+      rodape_pdf: rodapePdf.trim() || null,
     }
     const { error } = editandoId
       ? await supabase.from('obras').update(dados).eq('id', editandoId)
@@ -152,6 +183,28 @@ export default function DadosObra() {
                 <option value="arquivada">Arquivada</option>
               </select>
             </label>
+            {editandoId && (
+              <>
+                <label className={styles.campo}>
+                  Logo para os PDFs desta obra (PNG, fundo transparente)
+                  <input
+                    type="file"
+                    accept="image/png"
+                    onChange={e => setLogoArquivo(e.target.files?.[0] ?? null)}
+                  />
+                  {logoUrl && !logoArquivo && <small>Já existe uma logo cadastrada — escolher um arquivo novo substitui.</small>}
+                  {enviandoLogo && <small>Enviando…</small>}
+                </label>
+                <label className={styles.campo}>
+                  Texto do rodapé dos PDFs (deixe vazio para usar o padrão RT Engenharia)
+                  <input
+                    value={rodapePdf}
+                    onChange={e => setRodapePdf(e.target.value)}
+                    placeholder="Ex.: ENGEFER - Eng. Civil Rodrigo Teles - CREA 1018712895 D/GO"
+                  />
+                </label>
+              </>
+            )}
           </div>
           {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
           <div className={styles.acoesForm}>

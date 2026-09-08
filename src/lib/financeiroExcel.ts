@@ -109,21 +109,21 @@ export function calcularLinhasOrcamentoMes(
   const somar = (lista: (LancamentoFinanceiro & { data_pagamento: string })[], filtro: (l: LancamentoFinanceiro & { data_pagamento: string }) => boolean) =>
     lista.filter(filtro).reduce((s, l) => s + l.valor, 0)
 
-  // Etapa alvo de cada lançamento: resolve por servico_id mesmo que o
-  // serviço esteja inativo (só a listagem de linhas por serviço usa
-  // apenas serviços ativos — a soma da etapa nunca pode perder um valor
-  // já pago), com fallback pra etapa_id direto. Só retorna um id que
-  // realmente existe em `etapas`; senão, o lançamento cai em "Não
-  // classificado" — nunca fica escondido somado a uma etapa que não é a
-  // dele nem descartado em silêncio.
+  // Etapa alvo de cada lançamento: resolve por servico_id quando o serviço
+  // segue ativo (só serviços ativos entram no array `servicos` que chega
+  // aqui — um serviço inativado não aparece mais, então o fallback por
+  // etapa_id roda de qualquer forma, nunca é pulado por causa de um
+  // servico_id que não resolve mais). Só retorna um id que realmente
+  // existe em `etapas`; senão, o lançamento cai em "Não classificado" —
+  // nunca fica escondido somado a uma etapa que não é a dele nem
+  // descartado em silêncio.
   function etapaAlvo(l: LancamentoFinanceiro): string | null {
     let etapaId: string | null = null
     if (l.servico_id) {
       const servico = servicos.find(s => s.id === l.servico_id)
-      etapaId = servico ? servico.etapa_id : null
-    } else if (l.etapa_id) {
-      etapaId = l.etapa_id
+      if (servico) etapaId = servico.etapa_id
     }
+    if (!etapaId && l.etapa_id) etapaId = l.etapa_id
     if (!etapaId) return null
     return etapas.some(e => e.id === etapaId) ? etapaId : null
   }
@@ -200,7 +200,10 @@ export async function gerarExcelFinanceiro(
   const primeiraData = comData.reduce((min, l) => (l.data_pagamento! < min ? l.data_pagamento! : min), comData[0].data_pagamento!)
   const hoje = new Date().toISOString().slice(0, 10)
   const meses = listarMesesDoRange(primeiraData, hoje)
-  const valorTotalOrcamento = servicos.filter(s => s.ativo).reduce((s, sv) => s + (sv.total ?? 0), 0)
+  const etapaIds = new Set(etapas.map(e => e.id))
+  const valorTotalOrcamento = servicos
+    .filter(s => s.ativo && etapaIds.has(s.etapa_id))
+    .reduce((s, sv) => s + (sv.total ?? 0), 0)
 
   const workbook = new ExcelJS.Workbook()
 

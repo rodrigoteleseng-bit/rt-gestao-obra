@@ -63,6 +63,7 @@ export default function Financeiro() {
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [carregando, setCarregando] = useState(true)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  const [exportando, setExportando] = useState(false)
 
   const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>('a_pagar')
   const [filtroOrigem, setFiltroOrigem] = useState<FiltroOrigem>('todas')
@@ -113,6 +114,21 @@ export default function Financeiro() {
     setUnidades(base.unidades)
     setEtapas(base.etapas)
     setCarregando(false)
+  }
+
+  async function exportarExcel() {
+    if (!obraAtiva) return
+    setExportando(true)
+    setMsg(null)
+    try {
+      const { gerarExcelFinanceiro } = await import('../lib/financeiroExcel')
+      const pagos = lancamentos.filter(l => l.status === 'pago')
+      await gerarExcelFinanceiro(obraAtiva.nome, pagos, servicos, etapas, unidades)
+    } catch (e) {
+      setMsg({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Erro ao gerar o Excel.' })
+    } finally {
+      setExportando(false)
+    }
   }
 
   const resumo = useMemo(() => {
@@ -289,9 +305,14 @@ export default function Financeiro() {
           <h1>Financeiro</h1>
           <p>Livro de lançamentos a pagar e pagos da obra ativa.</p>
         </div>
-        <button className={styles.btnSecundario} onClick={carregarBase} disabled={carregando}>
-          Atualizar
-        </button>
+        <div className={styles.acoes}>
+          <button className={styles.btnSecundario} onClick={exportarExcel} disabled={exportando || carregando}>
+            {exportando ? 'Gerando...' : 'Exportar Excel'}
+          </button>
+          <button className={styles.btnSecundario} onClick={carregarBase} disabled={carregando}>
+            Atualizar
+          </button>
+        </div>
       </div>
 
       <div className={styles.kpis}>

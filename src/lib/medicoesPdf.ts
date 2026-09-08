@@ -5,6 +5,7 @@
 import { jsPDF } from 'jspdf'
 import type { Contrato, Medicao } from './supabase'
 import { formatarMoeda } from './formato'
+import { carregarIdentidadeObra, larguraProporcional, type IdentidadeMarca } from './pdfBranding'
 
 const NAVY = '#1A3248'
 const TERRACOTA = '#C49A7A'
@@ -24,6 +25,7 @@ export interface DadosPdfMedicao {
   contrato: Contrato
   medicao: Medicao
   empreiteiroNome: string
+  identidade: IdentidadeMarca
   itens: ItemPdfMedicao[]
 }
 
@@ -50,7 +52,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
       pdf.setFontSize(7.5)
       pdf.setTextColor(CINZA)
       pdf.setFont('helvetica', 'normal')
-      pdf.text('RT Engenharia — Rodrigo Teles Silva · CREA 1018712895 D/GO · Inteligência Aplicada', ML, 290)
+      pdf.text(d.identidade.rodapeTexto, ML, 290)
       pdf.text(`Página ${i} de ${total}`, W - MR, 290, { align: 'right' })
     }
   }
@@ -64,13 +66,19 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   pdf.setFillColor(TERRACOTA)
   pdf.rect(0, 30, W, 1.4, 'F')
   pdf.setTextColor('#ffffff')
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(17)
-  pdf.text('RT ENGENHARIA', ML, 13)
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8.5)
-  pdf.setTextColor('#B8D4E8')
-  pdf.text('Inteligência Aplicada', ML, 18.5)
+  if (d.identidade.logoBase64) {
+    const alturaLogo = 22
+    const larguraLogo = larguraProporcional(pdf, d.identidade.logoBase64, alturaLogo)
+    pdf.addImage(d.identidade.logoBase64, 'PNG', ML, 4, larguraLogo, alturaLogo)
+  } else {
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(17)
+    pdf.text('RT ENGENHARIA', ML, 13)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8.5)
+    pdf.setTextColor('#B8D4E8')
+    pdf.text('Inteligência Aplicada', ML, 18.5)
+  }
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(11)
   pdf.setTextColor('#ffffff')

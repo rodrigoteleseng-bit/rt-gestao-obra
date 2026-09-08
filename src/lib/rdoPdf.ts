@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf'
 import { supabase } from './supabase'
 import type { Rdo, RdoAtividade, RdoEfetivo, RdoFoto, RdoAudio, Unidade, AvancoFisico } from './supabase'
 import { fmtCoord, fmtDuracao } from './rdo'
+import { carregarIdentidadeObra, larguraProporcional, type IdentidadeMarca } from './pdfBranding'
 
 const NAVY = '#1A3248'
 const TERRACOTA = '#C49A7A'
@@ -15,6 +16,7 @@ const RESULTADO_FVS: Record<string, string> = { aprovada: 'Aprovada', aprovada_r
 export interface DadosPdfRdo {
   rdo: Rdo
   obraNome: string
+  identidade: IdentidadeMarca
   atividades: RdoAtividade[]
   efetivo: RdoEfetivo[]
   fotos: RdoFoto[]
@@ -56,7 +58,7 @@ export async function gerarPdfRdo(d: DadosPdfRdo): Promise<void> {
       pdf.setFontSize(7.5)
       pdf.setTextColor(CINZA)
       pdf.setFont('helvetica', 'normal')
-      pdf.text('RT Engenharia — Rodrigo Teles Silva · CREA 1018712895 D/GO · Inteligência Aplicada', ML, 290)
+      pdf.text(d.identidade.rodapeTexto, ML, 290)
       pdf.text(`Página ${i} de ${total}`, W - MR, 290, { align: 'right' })
       if (d.rdo.status === 'rascunho') {
         pdf.setFontSize(60)
@@ -103,13 +105,19 @@ export async function gerarPdfRdo(d: DadosPdfRdo): Promise<void> {
   pdf.setFillColor(TERRACOTA)
   pdf.rect(0, 30, W, 1.4, 'F')
   pdf.setTextColor('#ffffff')
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(17)
-  pdf.text('RT ENGENHARIA', ML, 13)
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8.5)
-  pdf.setTextColor('#B8D4E8')
-  pdf.text('Inteligência Aplicada', ML, 18.5)
+  if (d.identidade.logoBase64) {
+    const alturaLogo = 22
+    const larguraLogo = larguraProporcional(pdf, d.identidade.logoBase64, alturaLogo)
+    pdf.addImage(d.identidade.logoBase64, 'PNG', ML, 4, larguraLogo, alturaLogo)
+  } else {
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(17)
+    pdf.text('RT ENGENHARIA', ML, 13)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8.5)
+    pdf.setTextColor('#B8D4E8')
+    pdf.text('Inteligência Aplicada', ML, 18.5)
+  }
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(12)
   pdf.setTextColor('#ffffff')

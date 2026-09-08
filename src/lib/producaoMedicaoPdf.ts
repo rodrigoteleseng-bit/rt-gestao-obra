@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import type { ProducaoMedicao } from './supabase'
 import { formatarMoeda } from './formato'
+import { carregarIdentidadeObra, larguraProporcional, type IdentidadeMarca } from './pdfBranding'
 
 export interface LinhaProducaoPdf {
   data_producao: string
@@ -23,6 +24,7 @@ export interface LinhaDiaPdf {
 export interface DadosProducaoPdf {
   medicao: ProducaoMedicao
   obraNome: string
+  identidade: IdentidadeMarca
   profissionalNome: string
   funcao: string
   producao: LinhaProducaoPdf[]
@@ -61,15 +63,29 @@ export function gerarPdfProducao(d: DadosProducaoPdf) {
   pdf.rect(0, 0, W, 30, 'F')
   pdf.setFillColor(TERRACOTA)
   pdf.rect(0, 30, W, 1.4, 'F')
+  if (d.identidade.logoBase64) {
+    const alturaLogo = 22
+    const larguraLogo = larguraProporcional(pdf, d.identidade.logoBase64, alturaLogo)
+    pdf.addImage(d.identidade.logoBase64, 'PNG', ML, 4, larguraLogo, alturaLogo)
+  } else {
+    pdf.setTextColor('#ffffff')
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(17)
+    pdf.text('RT ENGENHARIA', ML, 13)
+  }
   pdf.setTextColor('#ffffff')
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(17)
-  pdf.text('RT ENGENHARIA', ML, 13)
   pdf.setFontSize(10)
   pdf.text(`MEDIÇÃO MP-${String(d.medicao.numero).padStart(3, '0')}`, W - MR, 13, { align: 'right' })
+  if (!d.identidade.logoBase64) {
+    pdf.setTextColor('#ffffff')
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8.5)
+    pdf.text('Inteligência Aplicada', ML, 19)
+  }
+  pdf.setTextColor('#ffffff')
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8.5)
-  pdf.text('Inteligência Aplicada', ML, 19)
   pdf.text(d.medicao.status.toUpperCase(), W - MR, 19, { align: 'right' })
 
   pdf.setTextColor('#222222')
@@ -172,7 +188,7 @@ export function gerarPdfProducao(d: DadosProducaoPdf) {
     pdf.line(ML, 285, W - MR, 285)
     pdf.setFontSize(7.5)
     pdf.setTextColor(CINZA)
-    pdf.text('RT Engenharia · Rodrigo Teles Silva · CREA 1018712895 D/GO · Inteligência Aplicada', ML, 290)
+    pdf.text(d.identidade.rodapeTexto, ML, 290)
     pdf.text(`Página ${i} de ${n}`, W - MR, 290, { align: 'right' })
   }
 

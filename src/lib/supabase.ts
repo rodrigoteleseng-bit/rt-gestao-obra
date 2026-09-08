@@ -32,6 +32,8 @@ export interface Obra {
   data_inicio: string | null
   data_fim_prevista: string | null
   status: StatusObra
+  logo_url: string | null
+  rodape_pdf: string | null
 }
 
 export interface UsuarioObra {

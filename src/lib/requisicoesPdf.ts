@@ -2,6 +2,7 @@
 // com identidade RT Engenharia (jsPDF, client-side). Padrão do modelo físico do
 // Rodrigo (folha de requisição do almoxarifado), 2 fichas por página A4.
 import { jsPDF } from 'jspdf'
+import { type IdentidadeMarca } from './pdfBranding'
 
 const NAVY = '#1A3248'
 const TERRACOTA = '#C49A7A'
@@ -9,6 +10,7 @@ const CINZA = '#6c757d'
 
 export interface DadosPdfBlocoRequisicoes {
   obraNome: string
+  identidade: IdentidadeMarca
   numeroInicial: number
   numeroFinal: number
 }

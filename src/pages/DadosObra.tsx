@@ -23,6 +23,7 @@ export default function DadosObra() {
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [nome, setNome] = useState('')
   const [descricao, setDescricao] = useState('')
+  const [nomeEmpreendimento, setNomeEmpreendimento] = useState('')
   const [endereco, setEndereco] = useState('')
   const [cidade, setCidade] = useState('')
   const [estado, setEstado] = useState('')
@@ -46,7 +47,7 @@ export default function DadosObra() {
 
   function abrirNovo() {
     setEditandoId(null)
-    setNome(''); setDescricao(''); setEndereco(''); setCidade(''); setEstado('')
+    setNome(''); setDescricao(''); setNomeEmpreendimento(''); setEndereco(''); setCidade(''); setEstado('')
     setDataInicio(''); setDataFimPrevista(''); setStatus('ativa')
     setLogoUrl(null); setRodapePdf(''); setLogoArquivo(null)
     setMsg(null)
@@ -57,6 +58,7 @@ export default function DadosObra() {
     setEditandoId(o.id)
     setNome(o.nome)
     setDescricao(o.descricao ?? '')
+    setNomeEmpreendimento(o.nome_empreendimento ?? '')
     setEndereco(o.endereco ?? '')
     setCidade(o.cidade ?? '')
     setEstado(o.estado ?? '')
@@ -101,6 +103,7 @@ export default function DadosObra() {
     const dados = {
       nome: nome.trim(),
       descricao: descricao.trim() || null,
+      nome_empreendimento: nomeEmpreendimento.trim() || null,
       endereco: endereco.trim() || null,
       cidade: cidade.trim() || null,
       estado: estado.trim().toUpperCase() || null,
@@ -149,6 +152,14 @@ export default function DadosObra() {
             <label className={styles.campo}>
               Descrição
               <textarea value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Opcional" />
+            </label>
+            <label className={styles.campo}>
+              Nome do empreendimento (comercial, se diferente do nome da obra)
+              <input
+                value={nomeEmpreendimento}
+                onChange={e => setNomeEmpreendimento(e.target.value)}
+                placeholder="Ex.: Residencial Azaleia"
+              />
             </label>
             <label className={styles.campo}>
               Endereço

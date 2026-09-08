@@ -74,6 +74,7 @@ export default function Financeiro() {
   const [vencimento, setVencimento] = useState(hojeIso())
   const [servicoId, setServicoId] = useState<string | null>(null)
   const [observacao, setObservacao] = useState('')
+  const [nfNumero, setNfNumero] = useState('')
   const [salvando, setSalvando] = useState(false)
 
   const [baixando, setBaixando] = useState<LancamentoFinanceiro | null>(null)
@@ -88,6 +89,7 @@ export default function Financeiro() {
   const [editVencimento, setEditVencimento] = useState('')
   const [editServicoId, setEditServicoId] = useState<string | null>(null)
   const [editObservacao, setEditObservacao] = useState('')
+  const [editNfNumero, setEditNfNumero] = useState('')
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
 
   useEffect(() => {
@@ -173,6 +175,7 @@ export default function Financeiro() {
       valor: valorNumero,
       data_vencimento: vencimento,
       observacao: observacao.trim() || null,
+      nf_numero: nfNumero.trim() || null,
       criado_por: perfil.id,
     })
     setSalvando(false)
@@ -186,6 +189,7 @@ export default function Financeiro() {
     setVencimento(hojeIso())
     setServicoId(null)
     setObservacao('')
+    setNfNumero('')
     setMsg({ tipo: 'ok', texto: 'Lançamento avulso criado.' })
     carregarBase()
   }
@@ -207,6 +211,7 @@ export default function Financeiro() {
     setEditVencimento(l.data_vencimento ?? hojeIso())
     setEditServicoId(l.servico_id)
     setEditObservacao(l.observacao ?? '')
+    setEditNfNumero(l.nf_numero ?? '')
     setMsg(null)
   }
 
@@ -256,6 +261,7 @@ export default function Financeiro() {
       valor: valorNumero,
       data_vencimento: editVencimento || null,
       observacao: editObservacao.trim() || null,
+      nf_numero: editNfNumero.trim() || null,
     }).eq('id', editando.id)
     setSalvandoEdicao(false)
     if (error) {
@@ -307,6 +313,7 @@ export default function Financeiro() {
         </div>
         <AplicacaoCascata unidades={unidades} etapas={etapas} servicos={servicos} servicoId={servicoId} onSelecionar={setServicoId} />
         <label className={styles.campo}>Observação<input value={observacao} onChange={e => setObservacao(e.target.value)} /></label>
+        <label className={styles.campo}>Nº da NF<input value={nfNumero} onChange={e => setNfNumero(e.target.value)} /></label>
         <button className={styles.btnPrincipal} onClick={criarAvulso} disabled={salvando}>{salvando ? 'Salvando...' : 'Criar lançamento'}</button>
       </section>
 
@@ -338,6 +345,7 @@ export default function Financeiro() {
           </div>
           <AplicacaoCascata unidades={unidades} etapas={etapas} servicos={servicos} servicoId={editServicoId} onSelecionar={setEditServicoId} />
           <label className={styles.campo}>Observação<input value={editObservacao} onChange={e => setEditObservacao(e.target.value)} /></label>
+          <label className={styles.campo}>Nº da NF<input value={editNfNumero} onChange={e => setEditNfNumero(e.target.value)} /></label>
           <div className={styles.acoes}>
             <button className={styles.btnPrincipal} onClick={salvarEdicao} disabled={salvandoEdicao}>{salvandoEdicao ? 'Salvando...' : 'Salvar edição'}</button>
             <button className={styles.btnSecundario} onClick={() => setEditando(null)}>Cancelar</button>

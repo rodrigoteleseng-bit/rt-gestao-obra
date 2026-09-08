@@ -33,12 +33,16 @@ export async function carregarIdentidadeObra(
   if (!obra?.logo_url) return IDENTIDADE_PADRAO_RT
   const { data: blob, error } = await supabase.storage.from('obras-logos').download(obra.logo_url)
   if (error || !blob) return IDENTIDADE_PADRAO_RT
-  const logoBase64 = await blobParaDataUrl(blob)
-  return {
-    logoBase64,
-    nomeMarca: '',
-    tagline: '',
-    rodapeTexto: obra.rodape_pdf || IDENTIDADE_PADRAO_RT.rodapeTexto,
+  try {
+    const logoBase64 = await blobParaDataUrl(blob)
+    return {
+      logoBase64,
+      nomeMarca: '',
+      tagline: '',
+      rodapeTexto: obra.rodape_pdf || IDENTIDADE_PADRAO_RT.rodapeTexto,
+    }
+  } catch {
+    return IDENTIDADE_PADRAO_RT
   }
 }
 

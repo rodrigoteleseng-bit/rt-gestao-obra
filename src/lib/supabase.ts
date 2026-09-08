@@ -34,6 +34,7 @@ export interface Obra {
   status: StatusObra
   logo_url: string | null
   rodape_pdf: string | null
+  nome_empreendimento: string | null
 }
 
 export interface UsuarioObra {

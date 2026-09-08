@@ -14,7 +14,13 @@ export interface DadosPdfPedido {
   pedido: PedidoCompra
   itens: PedidoCompraItem[]
   obraNome: string
+  nomeEmpreendimento: string | null
+  enderecoObra: string | null
+  cidadeObra: string | null
+  estadoObra: string | null
   identidade: IdentidadeMarca
+  solicitanteNome: string
+  solicitanteEmail: string
   servicos: Servico[]
 }
 
@@ -27,6 +33,12 @@ function codigoAplicacao(servicoId: string | null, servicos: Servico[]): string 
 function fmtData(iso: string | null): string {
   if (!iso) return '—'
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+}
+
+function formatarEnderecoObra(endereco: string | null, cidade: string | null, estado: string | null): string | null {
+  const cidadeEstado = [cidade, estado].filter((v): v is string => Boolean(v)).join(' - ')
+  const partes = [endereco, cidadeEstado].filter((v): v is string => Boolean(v))
+  return partes.length > 0 ? partes.join(', ') : null
 }
 
 export function gerarPdfPedido(d: DadosPdfPedido): void {
@@ -85,10 +97,26 @@ export function gerarPdfPedido(d: DadosPdfPedido): void {
 
   // ---------- identificação ----------
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(11)
-  pdf.setTextColor('#222222')
-  pdf.text(`Obra: ${d.obraNome}`, ML, y)
-  y += 7
+  pdf.setFontSize(13)
+  pdf.setTextColor(NAVY)
+  const tituloObra = d.nomeEmpreendimento ? `${d.obraNome} — ${d.nomeEmpreendimento}` : d.obraNome
+  pdf.text(tituloObra, ML, y)
+  y += 6
+
+  const endereco = formatarEnderecoObra(d.enderecoObra, d.cidadeObra, d.estadoObra)
+  if (endereco) {
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9.5)
+    pdf.setTextColor(CINZA)
+    pdf.text(endereco, ML, y)
+    y += 5
+  }
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(8.5)
+  pdf.setTextColor(CINZA)
+  pdf.text(`Solicitante: ${d.solicitanteNome} · E-mail: ${d.solicitanteEmail}`, ML, y)
+  y += 6
 
   if (d.pedido.descricao) {
     pdf.setFont('helvetica', 'normal')

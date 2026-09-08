@@ -109,6 +109,25 @@ export function calcularLinhasOrcamentoMes(
   const somar = (lista: (LancamentoFinanceiro & { data_pagamento: string })[], filtro: (l: LancamentoFinanceiro & { data_pagamento: string }) => boolean) =>
     lista.filter(filtro).reduce((s, l) => s + l.valor, 0)
 
+  // Etapa alvo de cada lançamento: resolve por servico_id mesmo que o
+  // serviço esteja inativo (só a listagem de linhas por serviço usa
+  // apenas serviços ativos — a soma da etapa nunca pode perder um valor
+  // já pago), com fallback pra etapa_id direto. Só retorna um id que
+  // realmente existe em `etapas`; senão, o lançamento cai em "Não
+  // classificado" — nunca fica escondido somado a uma etapa que não é a
+  // dele nem descartado em silêncio.
+  function etapaAlvo(l: LancamentoFinanceiro): string | null {
+    let etapaId: string | null = null
+    if (l.servico_id) {
+      const servico = servicos.find(s => s.id === l.servico_id)
+      etapaId = servico ? servico.etapa_id : null
+    } else if (l.etapa_id) {
+      etapaId = l.etapa_id
+    }
+    if (!etapaId) return null
+    return etapas.some(e => e.id === etapaId) ? etapaId : null
+  }
+
   const unidadesOrdenadas = [...unidades].sort((a, b) => a.ordem - b.ordem)
   const linhas: LinhaOrcamentoMes[] = []
 
@@ -121,15 +140,16 @@ export function calcularLinhasOrcamentoMes(
     for (const etapa of etapasDaUnidade) {
       const servicosDaEtapa = servicos.filter(s => s.etapa_id === etapa.id && s.ativo)
         .sort((a, b) => (a.codigo ?? '').localeCompare(b.codigo ?? ''))
-      const lancamentosEtapaDireta = comData.filter(l => !l.servico_id && l.etapa_id === etapa.id)
-      if (servicosDaEtapa.length === 0 && lancamentosEtapaDireta.length === 0) continue
+      const lancamentosDaEtapa = comData.filter(l => etapaAlvo(l) === etapa.id)
+      if (servicosDaEtapa.length === 0 && lancamentosDaEtapa.length === 0) continue
       unidadeTemConteudo = true
 
       let orcadoEtapa = 0, gastoMesEtapa = 0, gastoAcumEtapa = 0
       const linhasServico: LinhaOrcamentoMes[] = []
+      const idsServicosAtivos = new Set(servicosDaEtapa.map(s => s.id))
 
       for (const servico of servicosDaEtapa) {
-        const lancDoServico = comData.filter(l => l.servico_id === servico.id)
+        const lancDoServico = lancamentosDaEtapa.filter(l => l.servico_id === servico.id)
         const orcado = servico.total ?? 0
         const gastoMes = somar(lancDoServico, noMes)
         const gastoAcum = somar(lancDoServico, ateFimMes)
@@ -137,8 +157,12 @@ export function calcularLinhasOrcamentoMes(
         linhasServico.push({ tipo: 'servico', nome: servico.nome, orcado, gastoMes, gastoAcumulado: gastoAcum })
       }
 
-      gastoMesEtapa += somar(lancamentosEtapaDireta, noMes)
-      gastoAcumEtapa += somar(lancamentosEtapaDireta, ateFimMes)
+      // Lançamentos vinculados à etapa sem linha de serviço própria: sem
+      // serviço (direto na etapa) ou vinculados a um serviço inativo —
+      // ambos somam no subtotal da etapa, nunca desaparecem.
+      const lancamentosSemLinhaPropria = lancamentosDaEtapa.filter(l => !l.servico_id || !idsServicosAtivos.has(l.servico_id))
+      gastoMesEtapa += somar(lancamentosSemLinhaPropria, noMes)
+      gastoAcumEtapa += somar(lancamentosSemLinhaPropria, ateFimMes)
 
       linhasEtapa.push({ tipo: 'etapa', nome: etapa.nome, orcado: orcadoEtapa, gastoMes: gastoMesEtapa, gastoAcumulado: gastoAcumEtapa })
       linhasEtapa.push(...linhasServico)
@@ -151,7 +175,7 @@ export function calcularLinhasOrcamentoMes(
     linhas.push(...linhasEtapa)
   }
 
-  const naoClassificado = comData.filter(l => !l.servico_id && !l.etapa_id)
+  const naoClassificado = comData.filter(l => etapaAlvo(l) === null)
   const gastoMesNC = somar(naoClassificado, noMes)
   const gastoAcumNC = somar(naoClassificado, ateFimMes)
   if (gastoMesNC > 0 || gastoAcumNC > 0) {

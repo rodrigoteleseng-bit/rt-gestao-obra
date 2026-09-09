@@ -12,6 +12,10 @@ import { formatarMoeda } from '../lib/formato'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import styles from './ContratoForm.module.css'
 
+function fmtData(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+}
+
 interface ItemNovo {
   chave: string
   servico_id: string | null
@@ -340,6 +344,13 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
       .then(({ data }) => { setMedicoes(data ?? []); setCarregandoMedicoes(false) })
   }, [contrato.id])
 
+  const medicoesAprovadas = medicoes.filter(m => m.status === 'aprovada')
+  const totalBruto = medicoesAprovadas.reduce((s, m) => s + m.valor_bruto, 0)
+  const totalRetido = medicoesAprovadas.reduce((s, m) => s + m.valor_retido, 0)
+  const totalLiquido = medicoesAprovadas.reduce((s, m) => s + m.valor_liquido, 0)
+  const saldoContrato = contrato.valor_total - totalBruto
+  const pctExecutado = contrato.valor_total > 0 ? (totalBruto / contrato.valor_total) * 100 : 0
+
   function abrirEdicaoItens() {
     setItensEdit(itens.map(it => {
       const s = nomeServico.get(it.servico_id)
@@ -565,23 +576,42 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
         )}
       </div>
 
-      {contrato.status === 'ativo' && (
+      {(contrato.status === 'ativo' || contrato.status === 'encerrado') && (
         <div className={styles.bloco}>
           <div className={styles.header} style={{ marginBottom: 10 }}>
             <h2 style={{ margin: 0 }}>Medições</h2>
-            {podeEditarMedicoes && (
+            {podeEditarMedicoes && contrato.status === 'ativo' && (
               <button className={styles.btnSecundario} onClick={() => navigate(`/contratos/${contrato.id}/medicoes/nova`)}>
                 + Nova medição
               </button>
             )}
           </div>
+
+          {!carregandoMedicoes && medicoes.length > 0 && (
+            <div className={styles.resumoAcompanhamento}>
+              <div className={styles.resumoLinha}><span>Total medido (bruto)</span><strong>R$ {formatarMoeda(totalBruto)}</strong></div>
+              <div className={styles.resumoLinha}><span>Retenção acumulada</span><strong>− R$ {formatarMoeda(totalRetido)}</strong></div>
+              <div className={styles.resumoLinha}><span>Total líquido (pago/a pagar)</span><strong>R$ {formatarMoeda(totalLiquido)}</strong></div>
+              <div className={styles.resumoLinha}><span>Saldo do contrato</span><strong>R$ {formatarMoeda(saldoContrato)}</strong></div>
+              <div className={styles.resumoLinha}><span>% executado</span><strong>{pctExecutado.toFixed(1)}%</strong></div>
+            </div>
+          )}
+
           {carregandoMedicoes && <p className={styles.vazio}>Carregando…</p>}
           {!carregandoMedicoes && medicoes.length === 0 && <p className={styles.vazio}>Nenhuma medição lançada.</p>}
           {medicoes.map(m => (
-            <button key={m.id} className={styles.btnSecundario}
-              style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 6 }}
+            <button key={m.id} className={styles.card}
               onClick={() => navigate(`/contratos/${contrato.id}/medicoes/${m.id}`)}>
-              {m.numero}ª medição — {STATUS_MEDICAO_LABEL[m.status]} — R$ {formatarMoeda(m.valor_liquido)}
+              <div className={styles.cardTopo}>
+                <span className={styles.cardNumero}>{m.numero}ª medição</span>
+                <span className={`${styles.chip} ${styles[`chip_${m.status}`]}`}>{STATUS_MEDICAO_LABEL[m.status]}</span>
+              </div>
+              <div className={styles.cardDesc}>{fmtData(m.data_inicio)} a {fmtData(m.data_fim)}</div>
+              <div className={styles.cardRodape}>
+                <span>Bruto: R$ {formatarMoeda(m.valor_bruto)}</span>
+                <span>Retenção: R$ {formatarMoeda(m.valor_retido)}</span>
+                <span>Líquido: R$ {formatarMoeda(m.valor_liquido)}</span>
+              </div>
             </button>
           ))}
         </div>

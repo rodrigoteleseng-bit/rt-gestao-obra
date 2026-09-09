@@ -1,7 +1,10 @@
 // Geração do PDF da medição de empreiteiro com identidade RT Engenharia
-// (jsPDF, client-side) — mesmo padrão visual de comprasPdf.ts. Mostra
-// quantidade contratada, já aprovada, medida neste período e saldo,
-// mais o resumo bruto/retido/líquido.
+// (jsPDF, client-side), paisagem. Cabeçalho em 3 colunas (Obra / Contrato /
+// Medição), tabela com quantidade e valor acumulados por item, resumo em
+// destaque (bruto/retenção/líquido) seguido do acumulado do contrato inteiro
+// (com % sobre o valor total) e assinatura de empreiteiro + fiscal RT. Esse
+// bloco final (assinaturas + resumo + acumulado) nunca quebra no meio: se não
+// sobrar espaço confortável na página, ele inteiro vai para a próxima.
 import { jsPDF } from 'jspdf'
 import type { Contrato, Medicao } from './supabase'
 import { formatarMoeda } from './formato'
@@ -10,11 +13,13 @@ import { carregarIdentidadeObra, larguraProporcional, type IdentidadeMarca } fro
 const NAVY = '#1A3248'
 const TERRACOTA = '#C49A7A'
 const CINZA = '#6c757d'
+const PRETO = '#222222'
 
 export interface ItemPdfMedicao {
   servicoCodigo: string
   servicoNome: string
   unidadeNome: string
+  und: string
   quantidadeContratada: number
   jaAprovado: number
   quantidadePeriodo: number
@@ -35,11 +40,22 @@ export interface DadosPdfMedicao {
   responsavelEmail: string
   responsavelTelefone: string | null
   itens: ItemPdfMedicao[]
+  // Acompanhamento do contrato inteiro (soma de todas as medições aprovadas,
+  // incluindo esta) — mesmo cálculo já usado no painel do Contrato e no final
+  // da tela de Medição, repetido aqui pra constar no documento impresso.
+  totalBrutoContrato: number
+  totalRetidoContrato: number
+  totalLiquidoContrato: number
 }
 
 function fmtData(iso: string | null): string {
   if (!iso) return '—'
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+}
+
+function fmtDataHora(iso: string | null): string {
+  if (!iso) return '—'
+  return fmtData(iso.slice(0, 10))
 }
 
 function formatarEnderecoObra(endereco: string | null, cidade: string | null, estado: string | null): string | null {
@@ -49,11 +65,16 @@ function formatarEnderecoObra(endereco: string | null, cidade: string | null, es
 }
 
 export function gerarPdfMedicao(d: DadosPdfMedicao): void {
-  const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
-  const W = 210
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' })
+  const W = 297
+  const H = 210
   const ML = 14
   const MR = 14
   const LARG = W - ML - MR
+  const LIMITE_CONTEUDO = 190 // abaixo disso, quebra a tabela pra próxima página
+  const LIMITE_RODAPE = 196   // onde a faixa de rodapé começa
+  const ALTURA_BLOCO_FINAL = 68 // assinaturas + resumo + acumulado — medido no bloco real (~58mm) + folga de ~10mm
+  const medXxx = `MED-${String(d.medicao.numero).padStart(3, '0')}`
   let y = 0
 
   function rodape() {
@@ -62,17 +83,31 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
       pdf.setPage(i)
       pdf.setDrawColor(TERRACOTA)
       pdf.setLineWidth(0.5)
-      pdf.line(ML, 285, W - MR, 285)
+      pdf.line(ML, LIMITE_RODAPE, W - MR, LIMITE_RODAPE)
       pdf.setFontSize(7.5)
       pdf.setTextColor(CINZA)
       pdf.setFont('helvetica', 'normal')
-      pdf.text(d.identidade.rodapeTexto, ML, 290)
-      pdf.text(`Página ${i} de ${total}`, W - MR, 290, { align: 'right' })
+      pdf.text(d.identidade.rodapeTexto, ML, LIMITE_RODAPE + 5)
+      pdf.text(`Página ${i} de ${total}`, W - MR, LIMITE_RODAPE + 5, { align: 'right' })
     }
   }
 
-  function novaPagina() { pdf.addPage(); y = 16 }
-  function precisa(mm: number) { if (y + mm > 280) novaPagina() }
+  function novaPagina() {
+    pdf.addPage()
+    y = 16
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8)
+    pdf.setTextColor(CINZA)
+    pdf.text(`${medXxx} — continuação`, ML, y)
+    y += 8
+  }
+
+  function precisaLinha(mm: number) {
+    if (y + mm > LIMITE_CONTEUDO) {
+      novaPagina()
+      cabecalhoTabela()
+    }
+  }
 
   // ---------- cabeçalho ----------
   pdf.setFillColor(NAVY)
@@ -94,71 +129,107 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     pdf.text('Inteligência Aplicada', ML, 18.5)
   }
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(11)
+  pdf.setFontSize(15)
   pdf.setTextColor('#ffffff')
-  pdf.text('MEDIÇÃO', W - MR, 12, { align: 'right' })
-  pdf.setFontSize(10)
+  pdf.text(medXxx, W - MR, 13, { align: 'right' })
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(9)
   pdf.setTextColor('#D0AE95')
-  pdf.text(`${d.contrato.numero} — ${d.medicao.numero}ª medição`, W - MR, 18.5, { align: 'right' })
+  pdf.text(`MEDIÇÃO · ${d.contrato.numero}`, W - MR, 19, { align: 'right' })
   y = 39
 
-  // ---------- identificação ----------
+  // ---------- título da obra — grande, centralizado ----------
   pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(13)
+  pdf.setFontSize(16)
   pdf.setTextColor(NAVY)
   const tituloObra = d.nomeEmpreendimento ? `${d.obraNome} — ${d.nomeEmpreendimento}` : d.obraNome
-  pdf.text(tituloObra, ML, y)
+  pdf.text(tituloObra, W / 2, y, { align: 'center' })
+  y += 6
+  pdf.setDrawColor('#ddd3c4')
+  pdf.setLineWidth(0.3)
+  pdf.line(ML, y, W - MR, y)
   y += 6
 
-  const endereco = formatarEnderecoObra(d.enderecoObra, d.cidadeObra, d.estadoObra)
-  if (endereco) {
+  // ---------- informações gerais — 3 colunas (Obra / Contrato / Medição) ----------
+  const yColunas = y
+  const colLarg = LARG / 3
+  const colunaX = [ML, ML + colLarg, ML + colLarg * 2]
+
+  function coluna(x: number, rotulo: string, linhas: string[]) {
+    let yc = yColunas
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(7)
+    pdf.setTextColor(TERRACOTA)
+    pdf.text(rotulo.toUpperCase(), x, yc)
+    yc += 5
     pdf.setFont('helvetica', 'normal')
-    pdf.setFontSize(9.5)
-    pdf.setTextColor(CINZA)
-    pdf.text(endereco, ML, y)
-    y += 5
+    pdf.setFontSize(9)
+    pdf.setTextColor('#333333')
+    for (const linha of linhas) {
+      pdf.text(linha, x, yc)
+      yc += 5
+    }
   }
 
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(8.5)
-  pdf.setTextColor(CINZA)
+  const endereco = formatarEnderecoObra(d.enderecoObra, d.cidadeObra, d.estadoObra)
   const linhaResponsavel = d.responsavelTelefone
-    ? `Lançado por: ${d.responsavelNome} · E-mail: ${d.responsavelEmail} · Tel.: ${d.responsavelTelefone}`
-    : `Lançado por: ${d.responsavelNome} · E-mail: ${d.responsavelEmail}`
-  pdf.text(linhaResponsavel, ML, y)
-  y += 6
+    ? `Lançado por: ${d.responsavelNome} · ${d.responsavelTelefone}`
+    : `Lançado por: ${d.responsavelNome}`
+  coluna(colunaX[0], 'Obra', [
+    ...(endereco ? [`Endereço: ${endereco}`] : []),
+    linhaResponsavel,
+  ])
+  coluna(colunaX[1], 'Contrato', [
+    `Empreiteiro: ${d.empreiteiroNome}`,
+    `Contrato: ${d.contrato.numero}`,
+    `Objeto: ${d.contrato.objeto}`,
+  ])
+  coluna(colunaX[2], 'Medição', [
+    `Medição Nº: ${medXxx}`,
+    `Período: ${fmtData(d.medicao.data_inicio)} a ${fmtData(d.medicao.data_fim)}`,
+    `Data: ${fmtDataHora(d.medicao.aprovada_em)}`,
+  ])
 
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(11)
-  pdf.setTextColor('#222222')
-  pdf.text(`Empreiteiro: ${d.empreiteiroNome}`, ML, y)
+  pdf.setDrawColor('#ddd3c4')
+  pdf.setLineWidth(0.3)
+  pdf.line(colunaX[1], yColunas - 4, colunaX[1], yColunas + 18)
+  pdf.line(colunaX[2], yColunas - 4, colunaX[2], yColunas + 18)
+
+  y = yColunas + 21
+  pdf.setDrawColor('#ddd3c4')
+  pdf.line(ML, y, W - MR, y)
   y += 6
-  pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(9.5)
-  pdf.setTextColor(CINZA)
-  pdf.text(`Objeto: ${d.contrato.objeto}`, ML, y)
-  y += 5.5
-  pdf.text(`Período: ${fmtData(d.medicao.data_inicio)} a ${fmtData(d.medicao.data_fim)}`, ML, y)
-  y += 8
 
   // ---------- tabela de itens ----------
-  const colX = { item: ML, und: ML + 58, contratada: ML + 74, antes: ML + 94, periodo: ML + 114, unit: ML + 134, total: ML + 157 }
-  const colW = { item: 56, und: 14, contratada: 18, antes: 18, periodo: 18, unit: 21, total: 22 }
+  const colX = {
+    item: ML, servico: ML + 16, unidade: ML + 87, und: ML + 109, precoUnit: ML + 121,
+    qtdContrat: ML + 143, qtdMedicao: ML + 161, qtdAcum: ML + 179,
+    valorPrevisto: ML + 197, valorMedicao: ML + 221, valorAcum: ML + 245,
+  }
+  const colW = {
+    item: 16, servico: 71, unidade: 22, und: 12, precoUnit: 22,
+    qtdContrat: 18, qtdMedicao: 18, qtdAcum: 18, valorPrevisto: 24, valorMedicao: 24, valorAcum: 24,
+  }
+
+  function centro(col: keyof typeof colX) { return colX[col] + colW[col] / 2 }
 
   function cabecalhoTabela() {
-    precisa(10)
     pdf.setFillColor('#F0EBE3')
     pdf.rect(ML, y, LARG, 7, 'F')
     pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(7.5)
+    pdf.setFontSize(7)
     pdf.setTextColor(NAVY)
-    pdf.text('SERVIÇO', colX.item + 1, y + 4.7)
-    pdf.text('UND.', colX.und + 1, y + 4.7)
-    pdf.text('CONTRAT.', colX.contratada + 1, y + 4.7)
-    pdf.text('ANTES', colX.antes + 1, y + 4.7)
-    pdf.text('PERÍODO', colX.periodo + 1, y + 4.7)
-    pdf.text('V. UNIT.', colX.unit + 1, y + 4.7)
-    pdf.text('V. TOTAL', colX.total + 1, y + 4.7)
+    pdf.text('ITEM', colX.item + 1, y + 4.7)
+    pdf.text('SERVIÇO', colX.servico + 1, y + 4.7)
+    pdf.text('UNIDADE', colX.unidade + 1, y + 4.7)
+    pdf.text('UND.', centro('und'), y + 4.7, { align: 'center' })
+    pdf.text('PREÇO UNIT.', centro('precoUnit'), y + 4.7, { align: 'center' })
+    pdf.text('QTD. CONTRAT.', centro('qtdContrat'), y + 4.7, { align: 'center' })
+    pdf.text('QTD. MEDIÇÃO', centro('qtdMedicao'), y + 4.7, { align: 'center' })
+    pdf.text('QTD. ACUM.', centro('qtdAcum'), y + 4.7, { align: 'center' })
+    pdf.text('VALOR PREVISTO', centro('valorPrevisto'), y + 4.7, { align: 'center' })
+    pdf.text('VALOR MEDIÇÃO', centro('valorMedicao'), y + 4.7, { align: 'center' })
+    pdf.text('VALOR ACUM.', centro('valorAcum'), y + 4.7, { align: 'center' })
     y += 7
   }
 
@@ -168,32 +239,66 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   for (const it of d.itens) {
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(8.5)
-    const nomeCompleto = it.servicoCodigo ? `${it.servicoCodigo} — ${it.servicoNome}` : it.servicoNome
-    const linhasItem = pdf.splitTextToSize(nomeCompleto, colW.item - 2) as string[]
-    const alturaLinha = Math.max(linhasItem.length, 1) * 4.2 + 2.5
-    const valorTotalItem = it.quantidadePeriodo * it.valorUnitario
-    brutoItens += valorTotalItem
+    const linhasServico = pdf.splitTextToSize(
+      it.servicoNome, colW.servico - 2
+    ) as string[]
+    const alturaLinha = Math.max(linhasServico.length, 1) * 4.2 + 2.5
+    const qtdAcumulada = it.jaAprovado + it.quantidadePeriodo
+    const valorMedicao = it.quantidadePeriodo * it.valorUnitario
+    const valorPrevisto = it.quantidadeContratada * it.valorUnitario
+    const valorAcum = qtdAcumulada * it.valorUnitario
+    brutoItens += valorMedicao
 
-    precisa(alturaLinha)
+    precisaLinha(alturaLinha)
     pdf.setDrawColor('#E0DAD0')
     pdf.setLineWidth(0.2)
     pdf.line(ML, y, W - MR, y)
 
-    pdf.setTextColor('#222222')
-    pdf.text(linhasItem, colX.item + 1, y + 4.2)
-    pdf.text(it.unidadeNome, colX.und + 1, y + 4.2)
-    pdf.text(`${it.quantidadeContratada}`, colX.contratada + 1, y + 4.2)
-    pdf.text(`${it.jaAprovado}`, colX.antes + 1, y + 4.2)
-    pdf.text(`${it.quantidadePeriodo}`, colX.periodo + 1, y + 4.2)
-    pdf.text(`R$ ${formatarMoeda(it.valorUnitario)}`, colX.unit + 1, y + 4.2)
-    pdf.text(`R$ ${formatarMoeda(valorTotalItem)}`, colX.total + 1, y + 4.2)
+    pdf.setTextColor(PRETO)
+    pdf.text(it.servicoCodigo || '—', colX.item + 1, y + 4.2)
+    pdf.text(linhasServico, colX.servico + 1, y + 4.2)
+    pdf.text(it.unidadeNome, colX.unidade + 1, y + 4.2)
+    pdf.setTextColor(CINZA)
+    pdf.text(it.und || '—', centro('und'), y + 4.2, { align: 'center' })
+    pdf.setTextColor(PRETO)
+    pdf.text(`R$ ${formatarMoeda(it.valorUnitario)}`, centro('precoUnit'), y + 4.2, { align: 'center' })
+    pdf.text(`${it.quantidadeContratada}`, centro('qtdContrat'), y + 4.2, { align: 'center' })
+    pdf.text(`${it.quantidadePeriodo}`, centro('qtdMedicao'), y + 4.2, { align: 'center' })
+    pdf.text(`${qtdAcumulada}`, centro('qtdAcum'), y + 4.2, { align: 'center' })
+    pdf.text(`R$ ${formatarMoeda(valorPrevisto)}`, centro('valorPrevisto'), y + 4.2, { align: 'center' })
+    pdf.text(`R$ ${formatarMoeda(valorMedicao)}`, centro('valorMedicao'), y + 4.2, { align: 'center' })
+    pdf.text(`R$ ${formatarMoeda(valorAcum)}`, centro('valorAcum'), y + 4.2, { align: 'center' })
     y += alturaLinha
   }
   pdf.setDrawColor('#E0DAD0')
   pdf.line(ML, y, W - MR, y)
-  y += 10
+  y += 8
 
-  // ---------- resumo financeiro ----------
+  // ---------- bloco final: assinaturas + resumo + acumulado (atômico) ----------
+  if (y + ALTURA_BLOCO_FINAL > LIMITE_RODAPE) novaPagina()
+
+  // assinaturas
+  const meioAssinatura = ML + LARG / 2
+  const largAssinatura = LARG / 2 - 20
+  pdf.setDrawColor('#999999')
+  pdf.setLineWidth(0.3)
+  pdf.line(ML + 10, y, ML + 10 + largAssinatura, y)
+  pdf.line(meioAssinatura + 10, y, meioAssinatura + 10 + largAssinatura, y)
+  y += 4.5
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(8.5)
+  pdf.setTextColor(NAVY)
+  pdf.text(d.empreiteiroNome, ML + 10 + largAssinatura / 2, y, { align: 'center' })
+  pdf.text(d.responsavelNome, meioAssinatura + 10 + largAssinatura / 2, y, { align: 'center' })
+  y += 4
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(7.5)
+  pdf.setTextColor(CINZA)
+  pdf.text('Empreiteiro', ML + 10 + largAssinatura / 2, y, { align: 'center' })
+  pdf.text('Fiscal RT Engenharia', meioAssinatura + 10 + largAssinatura / 2, y, { align: 'center' })
+  y += 9
+
+  // resumo desta medição, em destaque
   // Medição aprovada é registro permanente: o resumo impresso usa
   // sempre o valor persistido (valor_bruto/retido/liquido), mantido
   // pelo trigger recalcular_valor_medicao — nunca o recomputo a partir
@@ -208,20 +313,69 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const retido = aprovada ? d.medicao.valor_retido : Math.round(brutoItens * retencaoPct) / 100
   const liquido = aprovada ? d.medicao.valor_liquido : bruto - retido
 
-  precisa(24)
+  const alturaDestaque = 18
+  pdf.setFillColor(NAVY)
+  pdf.rect(ML, y, LARG, alturaDestaque, 'F')
+  const largTile = LARG / 3
+  const tiles: [string, string, string][] = [
+    ['VALOR BRUTO', `R$ ${formatarMoeda(bruto)}`, '#ffffff'],
+    [`RETENÇÃO (${retencaoPct}%)`, `− R$ ${formatarMoeda(retido)}`, '#ffffff'],
+    ['VALOR LÍQUIDO', `R$ ${formatarMoeda(liquido)}`, '#cfe8d6'],
+  ]
+  tiles.forEach(([rotulo, valor, cor], i) => {
+    const xTile = ML + largTile * i + 8
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(7.5)
+    pdf.setTextColor('#D0AE95')
+    pdf.text(rotulo, xTile, y + 7)
+    pdf.setFontSize(13)
+    pdf.setTextColor(cor)
+    pdf.text(valor, xTile, y + 14)
+    if (i > 0) {
+      pdf.setDrawColor(255, 255, 255)
+      pdf.setLineWidth(0.15)
+      pdf.line(ML + largTile * i, y + 3, ML + largTile * i, y + alturaDestaque - 3)
+    }
+  })
+  y += alturaDestaque + 5
+
+  // acumulado do contrato inteiro
+  const valorTotalContrato = d.contrato.valor_total
+  const pctBruto = valorTotalContrato > 0 ? (d.totalBrutoContrato / valorTotalContrato) * 100 : 0
+  const pctRetido = valorTotalContrato > 0 ? (d.totalRetidoContrato / valorTotalContrato) * 100 : 0
+  const pctLiquido = valorTotalContrato > 0 ? (d.totalLiquidoContrato / valorTotalContrato) * 100 : 0
+
+  function linhaAcumulada(rotulo: string, valor: number, pct: number, destaque: boolean) {
+    pdf.setFont('helvetica', destaque ? 'bold' : 'normal')
+    pdf.setFontSize(destaque ? 10 : 9.5)
+    pdf.setTextColor(destaque ? NAVY : '#333333')
+    pdf.text(rotulo, ML, y)
+    pdf.text(`R$ ${formatarMoeda(valor)}`, W - MR - 32, y, { align: 'right' })
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8.5)
+    pdf.setTextColor(CINZA)
+    pdf.text(`${pct.toFixed(1)}% do contrato`, W - MR, y, { align: 'right' })
+    y += destaque ? 6.5 : 5.5
+    if (destaque) {
+      pdf.setDrawColor('#E0DAD0')
+      pdf.setLineWidth(0.2)
+      pdf.line(ML, y - 2, W - MR, y - 2)
+    }
+  }
+
+  linhaAcumulada('Valor total medido (líquido + retenção), com esta medição', d.totalBrutoContrato, pctBruto, true)
+  linhaAcumulada('Retenção acumulada do contrato', d.totalRetidoContrato, pctRetido, false)
+  linhaAcumulada('Valor líquido pago acumulado do contrato', d.totalLiquidoContrato, pctLiquido, false)
+
   pdf.setFont('helvetica', 'normal')
-  pdf.setFontSize(10)
-  pdf.setTextColor('#222222')
-  pdf.text('Valor bruto:', ML, y)
-  pdf.text(`R$ ${formatarMoeda(bruto)}`, W - MR, y, { align: 'right' })
-  y += 6
-  pdf.text(`Retenção (${retencaoPct}%):`, ML, y)
-  pdf.text(`- R$ ${formatarMoeda(retido)}`, W - MR, y, { align: 'right' })
-  y += 6
-  pdf.setFont('helvetica', 'bold')
-  pdf.text('Valor líquido:', ML, y)
-  pdf.text(`R$ ${formatarMoeda(liquido)}`, W - MR, y, { align: 'right' })
+  pdf.setFontSize(7)
+  pdf.setTextColor('#8a8a8a')
+  const nota = pdf.splitTextToSize(
+    `% em relação ao valor total do contrato (R$ ${formatarMoeda(valorTotalContrato)}). Soma de todas as medições aprovadas deste contrato, incluindo esta.`,
+    LARG
+  ) as string[]
+  pdf.text(nota, ML, y)
 
   rodape()
-  pdf.save(`${d.contrato.numero} - MEDICAO ${d.medicao.numero} - ${d.empreiteiroNome}.pdf`)
+  pdf.save(`${d.contrato.numero} - ${medXxx} - ${d.empreiteiroNome}.pdf`)
 }

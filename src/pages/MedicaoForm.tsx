@@ -22,6 +22,7 @@ interface ItemLinha {
   contratoItemId: string
   servicoNome: string
   servicoCodigo: string
+  und: string
   unidadeNome: string
   quantidadeContratada: number
   valorUnitario: number
@@ -132,6 +133,7 @@ export default function MedicaoForm() {
         contratoItemId: ci.id,
         servicoNome: s?.nome ?? '—',
         servicoCodigo: s?.codigo ?? '',
+        und: s?.und ?? '',
         unidadeNome: nomeUnidade.get(ci.unidade_id) ?? '—',
         quantidadeContratada: ci.quantidade,
         valorUnitario: ci.valor_unitario,
@@ -259,9 +261,13 @@ export default function MedicaoForm() {
       responsavelNome: responsavelRow?.nome ?? '—',
       responsavelEmail: responsavelRow?.email ?? '—',
       responsavelTelefone: responsavelRow?.telefone ?? null,
+      totalBrutoContrato,
+      totalRetidoContrato,
+      totalLiquidoContrato,
       itens: linhas.map(l => ({
         servicoCodigo: l.servicoCodigo,
         servicoNome: l.servicoNome,
+        und: l.und,
         unidadeNome: l.unidadeNome,
         quantidadeContratada: l.quantidadeContratada,
         jaAprovado: l.jaAprovado,

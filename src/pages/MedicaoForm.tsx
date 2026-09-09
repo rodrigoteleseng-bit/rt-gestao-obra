@@ -47,6 +47,7 @@ export default function MedicaoForm() {
   const [servicos, setServicos] = useState<Servico[]>([])
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [medicao, setMedicao] = useState<Medicao | null>(null)
+  const [medicoesContrato, setMedicoesContrato] = useState<Medicao[]>([])
   const [itensExistentes, setItensExistentes] = useState<MedicaoItem[]>([])
   const [jaAprovadoPorItem, setJaAprovadoPorItem] = useState<Map<string, number>>(new Map())
 
@@ -67,6 +68,7 @@ export default function MedicaoForm() {
     ])
     setContrato(c ?? null)
     setContratoItens(itensContrato ?? [])
+    setMedicoesContrato(todasMedicoes ?? [])
 
     if (c) {
       const { data: emp } = await supabase.from('empreiteiros').select('nome').eq('id', c.empreiteiro_id).single()
@@ -303,6 +305,15 @@ export default function MedicaoForm() {
   const liquido = fechada ? medicao!.valor_liquido : liquidoCalc
   const podeEditarItens = podeEditar && (nova || medicao?.status === 'rascunho')
 
+  // Acompanhamento do contrato inteiro (mesmo cálculo do painel em ContratoForm.tsx),
+  // repetido aqui pra não obrigar ir e voltar até a tela do contrato pra ver o acumulado.
+  const medicoesAprovadas = medicoesContrato.filter(m => m.status === 'aprovada')
+  const totalBrutoContrato = medicoesAprovadas.reduce((s, m) => s + m.valor_bruto, 0)
+  const totalRetidoContrato = medicoesAprovadas.reduce((s, m) => s + m.valor_retido, 0)
+  const totalLiquidoContrato = medicoesAprovadas.reduce((s, m) => s + m.valor_liquido, 0)
+  const saldoContrato = contrato.valor_total - totalBrutoContrato
+  const pctExecutadoContrato = contrato.valor_total > 0 ? (totalBrutoContrato / contrato.valor_total) * 100 : 0
+
   return (
     <div className={styles.page}>
       <button className={styles.voltar} onClick={() => navigate(`/contratos/${contrato.id}`)}>← {contrato.numero}</button>
@@ -370,6 +381,17 @@ export default function MedicaoForm() {
         <div className={styles.resumoLinha}><span>Retenção ({retencaoPct}%)</span><strong>− R$ {formatarMoeda(retido)}</strong></div>
         <div className={styles.resumoLinha}><span>Valor líquido</span><strong>R$ {formatarMoeda(liquido)}</strong></div>
       </div>
+
+      {medicoesContrato.length > 0 && (
+        <div className={styles.bloco}>
+          <h2>Acompanhamento do contrato</h2>
+          <div className={styles.resumoLinha}><span>Total medido (bruto)</span><strong>R$ {formatarMoeda(totalBrutoContrato)}</strong></div>
+          <div className={styles.resumoLinha}><span>Retenção acumulada</span><strong>− R$ {formatarMoeda(totalRetidoContrato)}</strong></div>
+          <div className={styles.resumoLinha}><span>Total líquido (pago/a pagar)</span><strong>R$ {formatarMoeda(totalLiquidoContrato)}</strong></div>
+          <div className={styles.resumoLinha}><span>Saldo do contrato</span><strong>R$ {formatarMoeda(saldoContrato)}</strong></div>
+          <div className={styles.resumoLinha}><span>% executado</span><strong>{pctExecutadoContrato.toFixed(1)}%</strong></div>
+        </div>
+      )}
 
       {medicao?.status === 'cancelada' && (
         <div className={styles.blocoCancelada}>

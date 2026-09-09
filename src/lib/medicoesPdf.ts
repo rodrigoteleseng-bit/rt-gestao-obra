@@ -74,6 +74,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const LIMITE_CONTEUDO = 190 // abaixo disso, quebra a tabela pra próxima página
   const LIMITE_RODAPE = 196   // onde a faixa de rodapé começa
   const ALTURA_BLOCO_FINAL = 68 // assinaturas + resumo + acumulado — medido no bloco real (~58mm) + folga de ~10mm
+  const BLOCO_FINAL_Y = LIMITE_RODAPE - ALTURA_BLOCO_FINAL // posição fixa — o bloco final sempre começa aqui, travado no rodapé
   const medXxx = `MED-${String(d.medicao.numero).padStart(3, '0')}`
   let y = 0
 
@@ -155,7 +156,12 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const colLarg = LARG / 3
   const colunaX = [ML, ML + colLarg, ML + colLarg * 2]
 
-  function coluna(x: number, rotulo: string, linhas: string[]) {
+  const largColuna = colLarg - 8
+
+  // Quebra cada linha dentro da largura da coluna (empreiteiro/objeto podem
+  // ser longos) e devolve a altura final ocupada, pra dimensionar as
+  // divisórias e o y seguinte pela coluna mais alta das 3.
+  function coluna(x: number, rotulo: string, linhas: string[]): number {
     let yc = yColunas
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(7)
@@ -166,36 +172,39 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     pdf.setFontSize(9)
     pdf.setTextColor('#333333')
     for (const linha of linhas) {
-      pdf.text(linha, x, yc)
-      yc += 5
+      const quebradas = pdf.splitTextToSize(linha, largColuna) as string[]
+      pdf.text(quebradas, x, yc)
+      yc += quebradas.length * 4.3
     }
+    return yc
   }
 
   const endereco = formatarEnderecoObra(d.enderecoObra, d.cidadeObra, d.estadoObra)
   const linhaResponsavel = d.responsavelTelefone
     ? `Lançado por: ${d.responsavelNome} · ${d.responsavelTelefone}`
     : `Lançado por: ${d.responsavelNome}`
-  coluna(colunaX[0], 'Obra', [
+  const fimCol0 = coluna(colunaX[0], 'Obra', [
     ...(endereco ? [`Endereço: ${endereco}`] : []),
     linhaResponsavel,
   ])
-  coluna(colunaX[1], 'Contrato', [
+  const fimCol1 = coluna(colunaX[1], 'Contrato', [
     `Empreiteiro: ${d.empreiteiroNome}`,
     `Contrato: ${d.contrato.numero}`,
     `Objeto: ${d.contrato.objeto}`,
   ])
-  coluna(colunaX[2], 'Medição', [
+  const fimCol2 = coluna(colunaX[2], 'Medição', [
     `Medição Nº: ${medXxx}`,
     `Período: ${fmtData(d.medicao.data_inicio)} a ${fmtData(d.medicao.data_fim)}`,
     `Data: ${fmtDataHora(d.medicao.aprovada_em)}`,
   ])
+  const fimColunas = Math.max(fimCol0, fimCol1, fimCol2)
 
   pdf.setDrawColor('#ddd3c4')
   pdf.setLineWidth(0.3)
-  pdf.line(colunaX[1], yColunas - 4, colunaX[1], yColunas + 18)
-  pdf.line(colunaX[2], yColunas - 4, colunaX[2], yColunas + 18)
+  pdf.line(colunaX[1], yColunas - 4, colunaX[1], fimColunas + 1)
+  pdf.line(colunaX[2], yColunas - 4, colunaX[2], fimColunas + 1)
 
-  y = yColunas + 21
+  y = fimColunas + 4
   pdf.setDrawColor('#ddd3c4')
   pdf.line(ML, y, W - MR, y)
   y += 6
@@ -275,7 +284,11 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   y += 8
 
   // ---------- bloco final: assinaturas + resumo + acumulado (atômico) ----------
-  if (y + ALTURA_BLOCO_FINAL > LIMITE_RODAPE) novaPagina()
+  // Sempre travado no rodapé (mesma posição em qualquer página) — se a
+  // tabela já passou desse ponto, o bloco inteiro vai pra próxima página;
+  // senão, "sobe" pro y fixo mesmo com a tabela terminando bem antes.
+  if (y > BLOCO_FINAL_Y) novaPagina()
+  y = BLOCO_FINAL_Y
 
   // assinaturas
   const meioAssinatura = ML + LARG / 2
@@ -319,7 +332,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const largTile = LARG / 3
   const tiles: [string, string, string][] = [
     ['VALOR BRUTO', `R$ ${formatarMoeda(bruto)}`, '#ffffff'],
-    [`RETENÇÃO (${retencaoPct}%)`, `− R$ ${formatarMoeda(retido)}`, '#ffffff'],
+    [`RETENÇÃO (${retencaoPct}%)`, `- R$ ${formatarMoeda(retido)}`, '#ffffff'],
     ['VALOR LÍQUIDO', `R$ ${formatarMoeda(liquido)}`, '#cfe8d6'],
   ]
   tiles.forEach(([rotulo, valor, cor], i) => {
@@ -356,11 +369,6 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     pdf.setTextColor(CINZA)
     pdf.text(`${pct.toFixed(1)}% do contrato`, W - MR, y, { align: 'right' })
     y += destaque ? 6.5 : 5.5
-    if (destaque) {
-      pdf.setDrawColor('#E0DAD0')
-      pdf.setLineWidth(0.2)
-      pdf.line(ML, y - 2, W - MR, y - 2)
-    }
   }
 
   linhaAcumulada('Valor total medido (líquido + retenção), com esta medição', d.totalBrutoContrato, pctBruto, true)

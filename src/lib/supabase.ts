@@ -707,6 +707,19 @@ export interface ContratoItem {
   criado_por: string
 }
 
+export interface ContratoAnexo {
+  id: string
+  contrato_id: string
+  arquivo_url: string
+  nome_original: string
+  descricao: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+  removido_por: string | null
+  removido_em: string | null
+}
+
 export type StatusMedicao = 'rascunho' | 'aprovada' | 'cancelada'
 
 export interface Medicao {

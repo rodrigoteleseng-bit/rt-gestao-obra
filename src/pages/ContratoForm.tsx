@@ -4,7 +4,7 @@ import { useObra } from '../contexts/ObraContext'
 import { useAuth } from '../contexts/AuthContext'
 import {
   supabase, type Servico, type Unidade, type Empreiteiro,
-  type Contrato, type ContratoItem, type Medicao,
+  type Contrato, type ContratoItem, type Medicao, type ContratoAnexo,
 } from '../lib/supabase'
 import { STATUS_LABEL } from './Contratos'
 import { STATUS_MEDICAO_LABEL } from './MedicaoForm'
@@ -14,6 +14,24 @@ import styles from './ContratoForm.module.css'
 
 function fmtData(iso: string): string {
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+}
+
+function nomeArquivoStorage(nome: string): string {
+  const partes = nome.split('.')
+  const extensao = partes.length > 1 ? `.${partes.pop()}` : ''
+  const base = (partes.join('.') || 'arquivo')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '')
+    .slice(0, 80) || 'arquivo'
+  const extLimpa = extensao
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9.]/g, '')
+    .slice(0, 16)
+  return `${base}${extLimpa}`.toLowerCase()
 }
 
 interface ItemNovo {
@@ -344,6 +362,47 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
       .then(({ data }) => { setMedicoes(data ?? []); setCarregandoMedicoes(false) })
   }, [contrato.id])
 
+  const [anexos, setAnexos] = useState<ContratoAnexo[]>([])
+  const [carregandoAnexos, setCarregandoAnexos] = useState(true)
+  const [urlsAnexos, setUrlsAnexos] = useState<Map<string, string>>(new Map())
+  const [nomesAutores, setNomesAutores] = useState<Map<string, string>>(new Map())
+  const [mostrarFormAnexo, setMostrarFormAnexo] = useState(false)
+  const [arquivoAnexo, setArquivoAnexo] = useState<File | null>(null)
+  const [descricaoAnexo, setDescricaoAnexo] = useState('')
+  const [enviandoAnexo, setEnviandoAnexo] = useState(false)
+  const [msgAnexo, setMsgAnexo] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function carregarAnexos() {
+    const { data } = await supabase.from('contratos_anexos').select('*')
+      .eq('contrato_id', contrato.id).eq('ativo', true)
+      .order('criado_em', { ascending: false })
+    setAnexos(data ?? [])
+    setCarregandoAnexos(false)
+  }
+
+  useEffect(() => { carregarAnexos() }, [contrato.id])
+
+  useEffect(() => {
+    let cancelado = false
+    async function carregarUrls() {
+      const novasUrls = new Map<string, string>()
+      await Promise.all(anexos.map(async a => {
+        const { data } = await supabase.storage.from('contratos-assinados').createSignedUrl(a.arquivo_url, 3600)
+        if (data) novasUrls.set(a.arquivo_url, data.signedUrl)
+      }))
+      if (!cancelado) setUrlsAnexos(novasUrls)
+    }
+    carregarUrls()
+    return () => { cancelado = true }
+  }, [anexos])
+
+  useEffect(() => {
+    const ids = [...new Set(anexos.map(a => a.criado_por))]
+    if (ids.length === 0) return
+    supabase.from('perfis_usuario').select('id, nome').in('id', ids)
+      .then(({ data }) => setNomesAutores(new Map((data ?? []).map(p => [p.id, p.nome]))))
+  }, [anexos])
+
   const medicoesAprovadas = medicoes.filter(m => m.status === 'aprovada')
   const totalBruto = medicoesAprovadas.reduce((s, m) => s + m.valor_bruto, 0)
   const totalRetido = medicoesAprovadas.reduce((s, m) => s + m.valor_retido, 0)
@@ -443,6 +502,54 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
     onRecarregar()
   }
 
+  async function enviarAnexo() {
+    if (!arquivoAnexo) {
+      setMsgAnexo({ tipo: 'erro', texto: 'Escolha um arquivo.' })
+      return
+    }
+    setEnviandoAnexo(true)
+    setMsgAnexo(null)
+    const path = `${contrato.obra_id}/${contrato.id}/${crypto.randomUUID()}-${nomeArquivoStorage(arquivoAnexo.name)}`
+    const { error: eUp } = await supabase.storage.from('contratos-assinados').upload(path, arquivoAnexo)
+    if (eUp) {
+      setEnviandoAnexo(false)
+      setMsgAnexo({ tipo: 'erro', texto: `Falha no envio do arquivo: ${eUp.message}` })
+      return
+    }
+    const { error } = await supabase.from('contratos_anexos').insert({
+      contrato_id: contrato.id,
+      arquivo_url: path,
+      nome_original: arquivoAnexo.name,
+      descricao: descricaoAnexo.trim() || null,
+    })
+    setEnviandoAnexo(false)
+    if (error) {
+      setMsgAnexo({ tipo: 'erro', texto: `Falha ao registrar o anexo: ${error.message}` })
+      return
+    }
+    setArquivoAnexo(null)
+    setDescricaoAnexo('')
+    setMostrarFormAnexo(false)
+    carregarAnexos()
+  }
+
+  async function removerAnexo(anexo: ContratoAnexo) {
+    if (!await confirmar({
+      titulo: 'Remover anexo',
+      mensagem: `Remover "${anexo.nome_original}"? O arquivo continua salvo, só sai da lista.`,
+      confirmarTexto: 'Remover anexo',
+      perigoso: true,
+    })) return
+    const { error } = await supabase.from('contratos_anexos').update({
+      ativo: false, removido_por: perfilId, removido_em: new Date().toISOString(),
+    }).eq('id', anexo.id)
+    if (error) {
+      setMsgAnexo({ tipo: 'erro', texto: `Erro ao remover: ${error.message}` })
+      return
+    }
+    carregarAnexos()
+  }
+
   return (
     <div className={styles.page}>
       <button className={styles.voltar} onClick={() => navigate('/contratos')}>← Contratos</button>
@@ -475,6 +582,57 @@ function DetalheContrato({ contrato, itens, servicos, unidades, empreiteiros, po
           </button>
         </div>
       )}
+
+      <div className={styles.bloco}>
+        <div className={styles.header} style={{ marginBottom: 10 }}>
+          <h2 style={{ margin: 0 }}>Documentos assinados</h2>
+          {podeEditar && (
+            <button className={styles.btnSecundario} onClick={() => setMostrarFormAnexo(v => !v)}>
+              {mostrarFormAnexo ? 'Cancelar' : '+ Anexar documento'}
+            </button>
+          )}
+        </div>
+
+        {mostrarFormAnexo && (
+          <div className={styles.itemLinha}>
+            <label className={styles.campo}>
+              Arquivo (PDF ou foto) *
+              <input type="file" accept="application/pdf,image/*" onChange={e => setArquivoAnexo(e.target.files?.[0] ?? null)} />
+            </label>
+            <label className={styles.campo}>
+              Descrição (opcional)
+              <input value={descricaoAnexo} onChange={e => setDescricaoAnexo(e.target.value)}
+                placeholder="Ex.: Contrato original, Aditivo 1..." />
+            </label>
+            {msgAnexo && <p className={msgAnexo.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgAnexo.texto}</p>}
+            <button className={styles.btnPrincipal} onClick={enviarAnexo} disabled={enviandoAnexo}>
+              {enviandoAnexo ? 'Enviando…' : 'Enviar'}
+            </button>
+          </div>
+        )}
+
+        {carregandoAnexos && <p className={styles.vazio}>Carregando…</p>}
+        {!carregandoAnexos && anexos.length === 0 && !mostrarFormAnexo && (
+          <p className={styles.vazio}>Nenhum documento anexado.</p>
+        )}
+        {anexos.map(a => (
+          <div key={a.id} className={styles.anexoItem}>
+            <div className={styles.anexoInfo}>
+              <span className={styles.anexoNome}>{a.nome_original}</span>
+              {a.descricao && <span className={styles.anexoDescricao}> — {a.descricao}</span>}
+              <div className={styles.anexoMeta}>{nomesAutores.get(a.criado_por) ?? '—'} · {fmtData(a.criado_em)}</div>
+            </div>
+            <div className={styles.anexoAcoes}>
+              {urlsAnexos.get(a.arquivo_url) && (
+                <a className={styles.anexoLink} href={urlsAnexos.get(a.arquivo_url)} target="_blank" rel="noreferrer">📎 abrir</a>
+              )}
+              {podeEditar && (
+                <button className={styles.btnRemoverAnexo} onClick={() => removerAnexo(a)}>Remover</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
 
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
 

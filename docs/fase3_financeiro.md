@@ -42,6 +42,20 @@
 - **Verificação:** todos os cálculos (cobertura, soma do realizado, resolução de etapa, ritmo mensal) foram conferidos contra os dados reais da obra piloto via SQL, impersonando o `auth.uid()` de um admin real — não só contra dados de teste. Essa verificação encontrou e corrigiu um bug antes do commit: `calcularRitmoMensal` pulava meses sem lançamento em vez de contá-los como R$ 0, inflando a projeção.
 - **Pendente:** teste guiado em navegador real (admin + usuário `cliente` temporário) — não executado nesta entrega por falta de ferramenta de browser na sessão que implementou. Ver Task 6 Step 6 do plano.
 
+## Fase 3c — Exportação Excel do Financeiro (formato ENGEFER)
+
+> Entregue e testada em produção em 09/09/2026. Origem: a planilha real da ENGEFER (`Financeiro Realizado - Residencial Azaleia.xlsx`, analisada no início desta sessão) é o formato que o cliente da obra ENGEFER Sudoeste já está acostumado a receber semanalmente. Rodrigo vai passar a lançar o financeiro dessa obra pelo app em vez da planilha manual, mas precisa continuar apresentando ao cliente no mesmo formato. Spec: `docs/superpowers/specs/2026-09-08-exportacao-excel-financeiro-design.md`. Plano: `docs/superpowers/plans/2026-09-08-exportacao-excel-financeiro.md`. Implementado via subagent-driven-development (4 tasks + revisão final de branch inteiro).
+
+- **Campo novo `lancamentos_financeiros.nf_numero`** (nullable, sem invenção de dado quando vazio) — editável na criação e na edição do lançamento avulso, mesmo padrão do campo `observacao` já existente.
+- **Biblioteca `exceljs`**, client-side, carregada sob demanda (`import()` dinâmico no clique do botão, mesmo padrão de code-splitting já usado pelos geradores de PDF) — escolhida no lugar de `xlsx`/SheetJS porque a versão gratuita do SheetJS não estiliza célula (negrito, formato de moeda/percentual), e o arquivo vai direto pro cliente.
+- **Botão "Exportar Excel" em `/financeiro`**, mesma régua de acesso da tela (admin/equipe com módulo `financeiro`; `cliente` não vê). Busca todos os lançamentos pagos da obra ativa e monta o arquivo na hora — nunca um snapshot guardado.
+- **Estrutura do arquivo:** um par de abas por mês, do mês do primeiro lançamento pago da obra até o mês atual, **nunca pulando um mês vazio**. Aba "RF MM-YY": uma linha por lançamento pago daquele mês (data, Nº NF, fornecedor, aplicação, valor, total acumulado desde o início da obra, % sobre o orçamento total). Aba "MM-YY": orçamento agrupado por **unidade → etapa → serviço** (orçado/gasto no mês/gasto acumulado/saldo) — o agrupamento por unidade foi um acréscimo feito no plano além do que a spec original pedia, necessário porque `etapas.ordem` é escopado por unidade (recomeça em cada sobrado); agrupar só por etapa intercalaria etapas de unidades diferentes numa obra com várias unidades, como o Tharsos Imperial (13 sobrados).
+- **Dois bugs de reconciliação entre as duas abas, encontrados só na revisão final de branch inteiro** (depois de cada task já ter sido aprovada individualmente — nenhum dos dois aparecia isolado numa única task):
+  1. Lançamento vinculado a um serviço que foi inativado depois (ou com `etapa_id` órfão) sumia silenciosamente de toda soma da aba de orçamento, enquanto seguia aparecendo normalmente na aba do ledger — as duas abas discordavam entre si. Corrigido com um resolvedor `etapaAlvo()` dedicado em `src/lib/financeiroExcel.ts`, que garante que todo lançamento pago cai em exatamente um balde (serviço, etapa, ou "Não classificado"), nunca em nenhum.
+  2. O denominador do "% Acum." somava serviços de **todas as obras que o usuário logado acessa**, não só a obra ativa — a RLS de `servicos` libera todas as obras pra um `admin`, e a consulta que carrega os serviços em `/financeiro` não tinha filtro de obra (o filtro real vem da hierarquia unidade→etapa→serviço, usada corretamente no resto do arquivo). Pra um admin com acesso a mais de uma obra (caso real do Rodrigo), o percentual saía sistematicamente subestimado. Corrigido escopando a soma pelas etapas da obra ativa.
+- **Teste com dados reais:** 7 lançamentos de teste criados no Tharsos Imperial (única obra com orçamento completo — a ENGEFER Sudoeste ainda não tem orçamento importado no app), cobrindo Sobrado 01 e 02, 3 meses, com e sem Nº de NF, vinculado a serviço/direto na etapa/sem vínculo nenhum. Rodrigo testou pelo servidor local (`npm run dev`, mesmo Supabase de produção — não há banco de teste separado) e confirmou que o formato saiu correto. Lançamentos de teste inativados (soft delete) depois da validação.
+- **Fora de escopo:** envio automático (e-mail/WhatsApp) — o arquivo só é gerado e baixado; abas "Orçamento"/"Orçamento Editado" da planilha original (o app já tem o orçamento em `/orcamento`); documento vivo/editável depois de exportado.
+
 ## Evolução em análise — documentos fiscais
 
 Rodrigo propôs usar as notas fiscais que já estão no Drive para anexar documentos ao Financeiro e, futuramente, extrair dados automaticamente.
@@ -55,9 +69,9 @@ Decisão atual: não implementar ainda. O próximo passo é Rodrigo revisar a pr
 
 ## Arquivos principais
 
-- Banco: `supabase/migrations/20260721_fase3a_financeiro.sql`, `20260721_fase3a_financeiro_medicoes.sql`, `20260721_fase3a_financeiro_compras.sql`, `20260904_financeiro_curva_s_agregado.sql` e correções posteriores.
+- Banco: `supabase/migrations/20260721_fase3a_financeiro.sql`, `20260721_fase3a_financeiro_medicoes.sql`, `20260721_fase3a_financeiro_compras.sql`, `20260904_financeiro_curva_s_agregado.sql`, `20260908_financeiro_nf_numero.sql` e correções posteriores.
 - Frontend: `src/pages/Financeiro.tsx`, `src/pages/Financeiro.module.css`, `src/pages/CompraForm.tsx`, `src/pages/Cronograma.tsx` (aba Financeiro).
-- Cálculos: `src/lib/financeiro-curva.ts`, `src/lib/cronograma.ts` (`calcularPesoFinanceiro`, `montarArvore`, `folhasComPrevisto`).
+- Cálculos: `src/lib/financeiro-curva.ts`, `src/lib/cronograma.ts` (`calcularPesoFinanceiro`, `montarArvore`, `folhasComPrevisto`), `src/lib/financeiroExcel.ts` (exportação Excel, Fase 3c).
 - Tipos: `src/lib/supabase.ts`.
 - Script: `scripts/importar-historico-financeiro.cjs`.
 

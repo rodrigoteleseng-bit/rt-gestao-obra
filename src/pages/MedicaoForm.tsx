@@ -236,13 +236,24 @@ export default function MedicaoForm() {
 
   async function imprimir() {
     if (!contrato || !medicao) return
-    const { data: obraRow } = await supabase.from('obras').select('logo_url, rodape_pdf').eq('id', contrato.obra_id).maybeSingle()
+    const [{ data: obraRow }, { data: responsavelRow }] = await Promise.all([
+      supabase.from('obras').select('nome, logo_url, rodape_pdf, nome_empreendimento, endereco, cidade, estado').eq('id', contrato.obra_id).maybeSingle(),
+      supabase.from('perfis_usuario').select('nome, email, telefone').eq('id', medicao.criado_por).maybeSingle(),
+    ])
     const identidade = await carregarIdentidadeObra(obraRow)
     gerarPdfMedicao({
       contrato,
       medicao,
       identidade,
       empreiteiroNome,
+      obraNome: obraRow?.nome ?? '—',
+      nomeEmpreendimento: obraRow?.nome_empreendimento ?? null,
+      enderecoObra: obraRow?.endereco ?? null,
+      cidadeObra: obraRow?.cidade ?? null,
+      estadoObra: obraRow?.estado ?? null,
+      responsavelNome: responsavelRow?.nome ?? '—',
+      responsavelEmail: responsavelRow?.email ?? '—',
+      responsavelTelefone: responsavelRow?.telefone ?? null,
       itens: linhas.map(l => ({
         servicoCodigo: l.servicoCodigo,
         servicoNome: l.servicoNome,

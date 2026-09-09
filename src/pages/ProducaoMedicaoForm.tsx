@@ -237,12 +237,20 @@ export default function ProducaoMedicaoForm() {
     const t = trabalhadores.find((x) => x.id === trab)
     const { gerarPdfProducao } = await import('../lib/producaoMedicaoPdf')
     const identidade = await carregarIdentidadeObra(obraAtiva)
+    const { data: responsavelRow } = await supabase.from('perfis_usuario').select('nome, email, telefone').eq('id', medicao.criado_por).maybeSingle()
     gerarPdfProducao({
       medicao,
       obraNome: obraAtiva.nome,
+      nomeEmpreendimento: obraAtiva.nome_empreendimento,
+      enderecoObra: obraAtiva.endereco,
+      cidadeObra: obraAtiva.cidade,
+      estadoObra: obraAtiva.estado,
       identidade,
       profissionalNome: t?.nome ?? 'Profissional',
       funcao: t?.funcao ?? '',
+      responsavelNome: responsavelRow?.nome ?? '—',
+      responsavelEmail: responsavelRow?.email ?? '—',
+      responsavelTelefone: responsavelRow?.telefone ?? null,
       producao: prod,
       dias,
     })

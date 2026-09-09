@@ -24,9 +24,16 @@ export interface LinhaDiaPdf {
 export interface DadosProducaoPdf {
   medicao: ProducaoMedicao
   obraNome: string
+  nomeEmpreendimento: string | null
+  enderecoObra: string | null
+  cidadeObra: string | null
+  estadoObra: string | null
   identidade: IdentidadeMarca
   profissionalNome: string
   funcao: string
+  responsavelNome: string
+  responsavelEmail: string
+  responsavelTelefone: string | null
   producao: LinhaProducaoPdf[]
   dias: LinhaDiaPdf[]
 }
@@ -36,6 +43,12 @@ const TERRACOTA = '#C49A7A'
 const CINZA = '#6c757d'
 const SERVICO_LABEL: Record<string, string> = { alvenaria: 'Alvenaria', reboco: 'Reboco' }
 const fmt = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
+
+function formatarEnderecoObra(endereco: string | null, cidade: string | null, estado: string | null): string | null {
+  const cidadeEstado = [cidade, estado].filter((v): v is string => Boolean(v)).join(' - ')
+  const partes = [endereco, cidadeEstado].filter((v): v is string => Boolean(v))
+  return partes.length > 0 ? partes.join(', ') : null
+}
 
 export function gerarPdfProducao(d: DadosProducaoPdf) {
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
@@ -88,6 +101,31 @@ export function gerarPdfProducao(d: DadosProducaoPdf) {
   pdf.setFontSize(8.5)
   pdf.text(d.medicao.status.toUpperCase(), W - MR, 19, { align: 'right' })
 
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(13)
+  pdf.setTextColor(NAVY)
+  const tituloObra = d.nomeEmpreendimento ? `${d.obraNome} — ${d.nomeEmpreendimento}` : d.obraNome
+  pdf.text(tituloObra, ML, y)
+  y += 6
+
+  const endereco = formatarEnderecoObra(d.enderecoObra, d.cidadeObra, d.estadoObra)
+  if (endereco) {
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9.5)
+    pdf.setTextColor(CINZA)
+    pdf.text(endereco, ML, y)
+    y += 5
+  }
+
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(8.5)
+  pdf.setTextColor(CINZA)
+  const linhaResponsavel = d.responsavelTelefone
+    ? `Lançado por: ${d.responsavelNome} · E-mail: ${d.responsavelEmail} · Tel.: ${d.responsavelTelefone}`
+    : `Lançado por: ${d.responsavelNome} · E-mail: ${d.responsavelEmail}`
+  pdf.text(linhaResponsavel, ML, y)
+  y += 6
+
   pdf.setTextColor('#222222')
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(11)
@@ -95,7 +133,8 @@ export function gerarPdfProducao(d: DadosProducaoPdf) {
   y += 6
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(9)
-  pdf.text(`${d.funcao} · ${d.obraNome} · ${fmt(d.medicao.data_inicio)} a ${fmt(d.medicao.data_fim)}`, ML, y)
+  pdf.setTextColor('#222222')
+  pdf.text(`${d.funcao} · ${fmt(d.medicao.data_inicio)} a ${fmt(d.medicao.data_fim)}`, ML, y)
   y += 10
 
   pdf.setFont('helvetica', 'bold')

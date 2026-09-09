@@ -713,7 +713,8 @@ export interface Medicao {
   id: string
   contrato_id: string
   numero: number
-  data_referencia: string
+  data_inicio: string
+  data_fim: string
   status: StatusMedicao
   valor_bruto: number
   valor_retido: number

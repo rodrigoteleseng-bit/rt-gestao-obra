@@ -6,6 +6,7 @@ import {
   type Medicao, type MedicaoItem, type StatusMedicao,
 } from '../lib/supabase'
 import { gerarPdfMedicao } from '../lib/medicoesPdf'
+import { hojeISO } from '../lib/cronograma'
 import { carregarIdentidadeObra } from '../lib/pdfBranding'
 import { formatarMoeda } from '../lib/formato'
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
@@ -49,7 +50,8 @@ export default function MedicaoForm() {
   const [itensExistentes, setItensExistentes] = useState<MedicaoItem[]>([])
   const [jaAprovadoPorItem, setJaAprovadoPorItem] = useState<Map<string, number>>(new Map())
 
-  const [dataReferencia, setDataReferencia] = useState(() => new Date().toISOString().slice(0, 10))
+  const [dataInicio, setDataInicio] = useState(() => hojeISO().slice(0, 8) + '01')
+  const [dataFim, setDataFim] = useState(() => hojeISO())
   const [linhas, setLinhas] = useState<ItemLinha[]>([])
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
@@ -100,7 +102,7 @@ export default function MedicaoForm() {
     if (!nova && medicaoId) {
       const atual = (todasMedicoes ?? []).find(m => m.id === medicaoId) ?? null
       setMedicao(atual)
-      if (atual) setDataReferencia(atual.data_referencia)
+      if (atual) { setDataInicio(atual.data_inicio); setDataFim(atual.data_fim) }
       if (atual?.cancelada_por) {
         const { data: cancelador } = await supabase.from('perfis_usuario').select('nome').eq('id', atual.cancelada_por).single()
         setCanceladorNome(cancelador?.nome ?? atual.cancelada_por)
@@ -148,7 +150,8 @@ export default function MedicaoForm() {
     setMsg(null)
     const { data: novaMedicaoId, error } = await supabase.rpc('criar_medicao_com_itens', {
       p_contrato: contrato.id,
-      p_data_referencia: dataReferencia,
+      p_data_inicio: dataInicio,
+      p_data_fim: dataFim,
       p_itens: linhas.map(l => ({
         contrato_item_id: l.contratoItemId,
         quantidade_periodo: Number(l.quantidadePeriodo) || 0,
@@ -311,11 +314,18 @@ export default function MedicaoForm() {
       </div>
 
       <div className={styles.bloco}>
-        <label className={styles.campo}>
-          Data de referência *
-          <input type="date" value={dataReferencia} onChange={e => setDataReferencia(e.target.value)}
-            disabled={!nova} />
-        </label>
+        <div className={styles.linha2}>
+          <label className={styles.campo}>
+            Data início *
+            <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
+              disabled={!nova} />
+          </label>
+          <label className={styles.campo}>
+            Data fim *
+            <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)}
+              disabled={!nova} />
+          </label>
+        </div>
       </div>
 
       <div className={styles.bloco}>

@@ -138,7 +138,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   pdf.setTextColor(CINZA)
   pdf.text(`Objeto: ${d.contrato.objeto}`, ML, y)
   y += 5.5
-  pdf.text(`Data de referência: ${fmtData(d.medicao.data_referencia)}`, ML, y)
+  pdf.text(`Período: ${fmtData(d.medicao.data_inicio)} a ${fmtData(d.medicao.data_fim)}`, ML, y)
   y += 8
 
   // ---------- tabela de itens ----------

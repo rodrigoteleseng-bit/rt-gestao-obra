@@ -194,3 +194,6 @@
   }
   .inputQtd { width: 100%; min-width: 0; }
 }
+
+.linha2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.linha2 .campo { margin-bottom: 0; }

@@ -27,6 +27,10 @@ export default function DadosObra() {
   const [endereco, setEndereco] = useState('')
   const [cidade, setCidade] = useState('')
   const [estado, setEstado] = useState('')
+  const [cnpj, setCnpj] = useState('')
+  const [cnoObra, setCnoObra] = useState('')
+  const [enderecoEscritorio, setEnderecoEscritorio] = useState('')
+  const [email, setEmail] = useState('')
   const [dataInicio, setDataInicio] = useState('')
   const [dataFimPrevista, setDataFimPrevista] = useState('')
   const [status, setStatus] = useState<StatusObra>('ativa')
@@ -48,6 +52,7 @@ export default function DadosObra() {
   function abrirNovo() {
     setEditandoId(null)
     setNome(''); setDescricao(''); setNomeEmpreendimento(''); setEndereco(''); setCidade(''); setEstado('')
+    setCnpj(''); setCnoObra(''); setEnderecoEscritorio(''); setEmail('')
     setDataInicio(''); setDataFimPrevista(''); setStatus('ativa')
     setLogoUrl(null); setRodapePdf(''); setLogoArquivo(null)
     setMsg(null)
@@ -62,6 +67,10 @@ export default function DadosObra() {
     setEndereco(o.endereco ?? '')
     setCidade(o.cidade ?? '')
     setEstado(o.estado ?? '')
+    setCnpj(o.cnpj ?? '')
+    setCnoObra(o.cno_obra ?? '')
+    setEnderecoEscritorio(o.endereco_escritorio ?? '')
+    setEmail(o.email ?? '')
     setDataInicio(o.data_inicio ?? '')
     setDataFimPrevista(o.data_fim_prevista ?? '')
     setStatus(o.status)
@@ -107,6 +116,10 @@ export default function DadosObra() {
       endereco: endereco.trim() || null,
       cidade: cidade.trim() || null,
       estado: estado.trim().toUpperCase() || null,
+      cnpj: cnpj.trim() || null,
+      cno_obra: cnoObra.trim() || null,
+      endereco_escritorio: enderecoEscritorio.trim() || null,
+      email: email.trim() || null,
       data_inicio: dataInicio || null,
       data_fim_prevista: dataFimPrevista || null,
       status,
@@ -162,7 +175,7 @@ export default function DadosObra() {
               />
             </label>
             <label className={styles.campo}>
-              Endereço
+              Endereço Obra
               <input value={endereco} onChange={e => setEndereco(e.target.value)} placeholder="Opcional" />
             </label>
             <div className={styles.linha}>
@@ -175,6 +188,24 @@ export default function DadosObra() {
                 <input value={estado} onChange={e => setEstado(e.target.value)} maxLength={2} placeholder="GO" />
               </label>
             </div>
+            <div className={styles.linha}>
+              <label className={styles.campo}>
+                CNPJ
+                <input value={cnpj} onChange={e => setCnpj(e.target.value)} placeholder="Opcional" />
+              </label>
+              <label className={styles.campo}>
+                CNO Obra
+                <input value={cnoObra} onChange={e => setCnoObra(e.target.value)} placeholder="Opcional" />
+              </label>
+            </div>
+            <label className={styles.campo}>
+              Endereço Escritório
+              <input value={enderecoEscritorio} onChange={e => setEnderecoEscritorio(e.target.value)} placeholder="Opcional" />
+            </label>
+            <label className={styles.campo}>
+              Email
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Opcional" />
+            </label>
             <div className={styles.linha}>
               <label className={styles.campo}>
                 Data de início

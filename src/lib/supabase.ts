@@ -37,6 +37,10 @@ export interface Obra {
   logo_url: string | null
   rodape_pdf: string | null
   nome_empreendimento: string | null
+  cnpj: string | null
+  cno_obra: string | null
+  endereco_escritorio: string | null
+  email: string | null
 }
 
 export interface UsuarioObra {

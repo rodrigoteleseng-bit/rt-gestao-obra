@@ -197,8 +197,26 @@ export default function MedicaoForm() {
       }))
   }
 
+  // Valida antes de chamar a RPC — sem isso, uma linha de dedução em
+  // branco (descrição vazia ou quantidade zero) só falha depois de criar
+  // a medição/salvar os itens, com uma mensagem de erro do banco pouco
+  // clara ("Deducao invalida.").
+  function validarDeducoes(): string | null {
+    for (const d of deducoes) {
+      if (d.removido) continue
+      if (!d.descricao.trim()) return 'Preencha a descrição de todas as deduções (ou remova a linha vazia).'
+      if ((Number(d.quantidade) || 0) <= 0) return 'A quantidade de cada dedução deve ser maior que zero.'
+    }
+    return null
+  }
+
   async function salvarNova() {
     if (!contrato) return
+    const erroValidacao = validarDeducoes()
+    if (erroValidacao) {
+      setMsg({ tipo: 'erro', texto: erroValidacao })
+      return
+    }
     setSalvando(true)
     setMsg(null)
     const { data: novaMedicaoId, error } = await supabase.rpc('criar_medicao_com_itens', {
@@ -234,6 +252,11 @@ export default function MedicaoForm() {
 
   async function salvarEdicao() {
     if (!medicao) return
+    const erroValidacao = validarDeducoes()
+    if (erroValidacao) {
+      setMsg({ tipo: 'erro', texto: erroValidacao })
+      return
+    }
     setSalvando(true)
     setMsg(null)
     const { error } = await supabase.rpc('salvar_itens_medicao', {

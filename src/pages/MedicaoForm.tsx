@@ -3,9 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
   supabase, type Contrato, type ContratoItem, type Servico, type Unidade,
-  type Medicao, type MedicaoItem, type StatusMedicao,
+  type Medicao, type MedicaoItem, type MedicaoDeducao, type StatusMedicao,
 } from '../lib/supabase'
-import { gerarPdfMedicao } from '../lib/medicoesPdf'
+import { gerarPdfMedicao, type DeducaoPdfMedicao } from '../lib/medicoesPdf'
 import { hojeISO } from '../lib/cronograma'
 import { carregarIdentidadeObra } from '../lib/pdfBranding'
 import { formatarMoeda } from '../lib/formato'
@@ -31,6 +31,14 @@ interface ItemLinha {
   medicaoItemId: string | null
 }
 
+interface DeducaoLinha {
+  id: string | null
+  descricao: string
+  quantidade: string
+  valorUnitario: string
+  removido: boolean
+}
+
 export default function MedicaoForm() {
   const { confirmar, solicitarTexto } = useConfirmDialog()
   const { contratoId, medicaoId } = useParams()
@@ -50,11 +58,13 @@ export default function MedicaoForm() {
   const [medicao, setMedicao] = useState<Medicao | null>(null)
   const [medicoesContrato, setMedicoesContrato] = useState<Medicao[]>([])
   const [itensExistentes, setItensExistentes] = useState<MedicaoItem[]>([])
+  const [deducoesExistentes, setDeducoesExistentes] = useState<MedicaoDeducao[]>([])
   const [jaAprovadoPorItem, setJaAprovadoPorItem] = useState<Map<string, number>>(new Map())
 
   const [dataInicio, setDataInicio] = useState(() => hojeISO().slice(0, 8) + '01')
   const [dataFim, setDataFim] = useState(() => hojeISO())
   const [linhas, setLinhas] = useState<ItemLinha[]>([])
+  const [deducoes, setDeducoes] = useState<DeducaoLinha[]>([])
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
@@ -115,6 +125,9 @@ export default function MedicaoForm() {
       const { data: itensAtual } = await supabase.from('medicoes_itens').select('*')
         .eq('medicao_id', medicaoId).eq('ativo', true)
       setItensExistentes(itensAtual ?? [])
+      const { data: deducoesAtual } = await supabase.from('medicoes_deducoes').select('*')
+        .eq('medicao_id', medicaoId).eq('ativo', true).order('criado_em')
+      setDeducoesExistentes(deducoesAtual ?? [])
     }
 
     setCarregando(false)
@@ -142,10 +155,46 @@ export default function MedicaoForm() {
         medicaoItemId: existente?.id ?? null,
       }
     }))
-  }, [carregando, contratoItens, servicos, unidades, itensExistentes, jaAprovadoPorItem])
+
+    setDeducoes(deducoesExistentes.map(ded => ({
+      id: ded.id,
+      descricao: ded.descricao,
+      quantidade: String(ded.quantidade),
+      valorUnitario: String(ded.valor_unitario),
+      removido: false,
+    })))
+  }, [carregando, contratoItens, servicos, unidades, itensExistentes, jaAprovadoPorItem, deducoesExistentes])
 
   function atualizarLinha(contratoItemId: string, valor: string) {
     setLinhas(prev => prev.map(l => l.contratoItemId === contratoItemId ? { ...l, quantidadePeriodo: valor } : l))
+  }
+
+  function adicionarDeducao() {
+    setDeducoes(prev => [...prev, { id: null, descricao: '', quantidade: '1', valorUnitario: '0', removido: false }])
+  }
+
+  function atualizarDeducao(index: number, campo: 'descricao' | 'quantidade' | 'valorUnitario', valor: string) {
+    setDeducoes(prev => prev.map((d, i) => i === index ? { ...d, [campo]: valor } : d))
+  }
+
+  function removerDeducao(index: number) {
+    setDeducoes(prev => {
+      const linha = prev[index]
+      if (linha.id === null) return prev.filter((_, i) => i !== index)
+      return prev.map((d, i) => i === index ? { ...d, removido: true } : d)
+    })
+  }
+
+  function payloadDeducoes() {
+    return deducoes
+      .filter(d => d.id !== null || !d.removido)
+      .map(d => ({
+        id: d.id,
+        descricao: d.descricao.trim(),
+        quantidade: Number(d.quantidade) || 0,
+        valor_unitario: Number(d.valorUnitario) || 0,
+        removido: d.removido,
+      }))
   }
 
   async function salvarNova() {
@@ -165,6 +214,19 @@ export default function MedicaoForm() {
       setSalvando(false)
       setMsg({ tipo: 'erro', texto: `Erro ao criar medição: ${error?.message}` })
       return
+    }
+    const payload = payloadDeducoes()
+    if (payload.length > 0) {
+      const { error: erroDeducoes } = await supabase.rpc('salvar_deducoes_medicao', {
+        p_medicao: novaMedicaoId,
+        p_deducoes: payload,
+      })
+      if (erroDeducoes) {
+        setSalvando(false)
+        setMsg({ tipo: 'erro', texto: `Medição criada, mas houve erro ao salvar as deduções: ${erroDeducoes.message}` })
+        navigate(`/contratos/${contrato.id}/medicoes/${novaMedicaoId}`, { replace: true })
+        return
+      }
     }
     setSalvando(false)
     navigate(`/contratos/${contrato.id}/medicoes/${novaMedicaoId}`, { replace: true })
@@ -187,8 +249,18 @@ export default function MedicaoForm() {
       if (contratoId) carregar(contratoId)
       return
     }
+    const { error: erroDeducoes } = await supabase.rpc('salvar_deducoes_medicao', {
+      p_medicao: medicao.id,
+      p_deducoes: payloadDeducoes(),
+    })
+    if (erroDeducoes) {
+      setSalvando(false)
+      setMsg({ tipo: 'erro', texto: `Itens salvos, mas houve erro ao salvar as deduções: ${erroDeducoes.message}` })
+      if (contratoId) carregar(contratoId)
+      return
+    }
     setSalvando(false)
-    setMsg({ tipo: 'ok', texto: 'Itens atualizados.' })
+    setMsg({ tipo: 'ok', texto: 'Itens e deduções atualizados.' })
     if (contratoId) carregar(contratoId)
   }
 
@@ -243,11 +315,20 @@ export default function MedicaoForm() {
 
   async function imprimir() {
     if (!contrato || !medicao) return
-    const [{ data: obraRow }, { data: responsavelRow }] = await Promise.all([
-      supabase.from('obras').select('nome, logo_url, rodape_pdf, nome_empreendimento, endereco, cidade, estado').eq('id', contrato.obra_id).maybeSingle(),
+    const [{ data: obraRow }, { data: responsavelRow }, { data: deducoesAtual }] = await Promise.all([
+      supabase.from('obras')
+        .select('nome, logo_url, rodape_pdf, nome_empreendimento, endereco, cidade, estado, cnpj, cno_obra, endereco_escritorio, cep, email')
+        .eq('id', contrato.obra_id).maybeSingle(),
       supabase.from('perfis_usuario').select('nome, email, telefone').eq('id', medicao.criado_por).maybeSingle(),
+      supabase.from('medicoes_deducoes').select('*').eq('medicao_id', medicao.id).eq('ativo', true).order('criado_em'),
     ])
     const identidade = await carregarIdentidadeObra(obraRow)
+    const deducoesPdf: DeducaoPdfMedicao[] = (deducoesAtual ?? []).map(ded => ({
+      descricao: ded.descricao,
+      quantidade: ded.quantidade,
+      valorUnitario: ded.valor_unitario,
+      valorTotal: ded.valor_total,
+    }))
     gerarPdfMedicao({
       contrato,
       medicao,
@@ -258,6 +339,11 @@ export default function MedicaoForm() {
       enderecoObra: obraRow?.endereco ?? null,
       cidadeObra: obraRow?.cidade ?? null,
       estadoObra: obraRow?.estado ?? null,
+      cnpjObra: obraRow?.cnpj ?? null,
+      cnoObra: obraRow?.cno_obra ?? null,
+      enderecoEscritorioObra: obraRow?.endereco_escritorio ?? null,
+      cepObra: obraRow?.cep ?? null,
+      emailObra: obraRow?.email ?? null,
       responsavelNome: responsavelRow?.nome ?? '—',
       responsavelEmail: responsavelRow?.email ?? '—',
       responsavelTelefone: responsavelRow?.telefone ?? null,
@@ -274,6 +360,7 @@ export default function MedicaoForm() {
         quantidadePeriodo: Number(l.quantidadePeriodo) || 0,
         valorUnitario: l.valorUnitario,
       })),
+      deducoes: deducoesPdf,
     })
   }
 
@@ -295,7 +382,8 @@ export default function MedicaoForm() {
   const brutoCalc = linhas.reduce((acc, l) => acc + (Number(l.quantidadePeriodo) || 0) * l.valorUnitario, 0)
   const retencaoPct = contrato.retencao_pct ?? 0
   const retidoCalc = Math.round(brutoCalc * retencaoPct) / 100
-  const liquidoCalc = brutoCalc - retidoCalc
+  const totalDeducoesCalc = deducoes.filter(d => !d.removido).reduce((acc, d) => acc + (Number(d.quantidade) || 0) * (Number(d.valorUnitario) || 0), 0)
+  const liquidoCalc = brutoCalc - retidoCalc - totalDeducoesCalc
 
   // Medição aprovada é registro permanente: o resumo mostra sempre o
   // valor persistido (valor_bruto/retido/liquido), mantido pelo
@@ -381,6 +469,64 @@ export default function MedicaoForm() {
         </table>
         </div>
       </div>
+
+      {(deducoes.length > 0 || podeEditarItens) && (
+        <div className={styles.bloco}>
+          <h2>Deduções</h2>
+          {deducoes.filter(d => !d.removido).length === 0 && !podeEditarItens && (
+            <p className={styles.vazio}>Nenhuma dedução nesta medição.</p>
+          )}
+          {deducoes.filter(d => !d.removido).length > 0 && (
+            <div className={styles.tabelaWrap}>
+              <table className={styles.tabela}>
+                <thead>
+                  <tr>
+                    <th>Descrição</th><th>Quantidade</th><th>Valor unit.</th><th>Valor total</th>
+                    {podeEditarItens && <th></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {deducoes.map((d, index) => {
+                    if (d.removido) return null
+                    const valorTotal = (Number(d.quantidade) || 0) * (Number(d.valorUnitario) || 0)
+                    return (
+                      <tr key={d.id ?? `nova-${index}`}>
+                        <td data-label="Descrição">
+                          {podeEditarItens
+                            ? <input type="text" value={d.descricao}
+                                onChange={e => atualizarDeducao(index, 'descricao', e.target.value)} />
+                            : d.descricao}
+                        </td>
+                        <td data-label="Quantidade">
+                          {podeEditarItens
+                            ? <input type="number" min="0" step="0.0001" value={d.quantidade} className={styles.inputQtd}
+                                onChange={e => atualizarDeducao(index, 'quantidade', e.target.value)} />
+                            : d.quantidade}
+                        </td>
+                        <td data-label="Valor unitário">
+                          {podeEditarItens
+                            ? <input type="number" min="0" step="0.01" value={d.valorUnitario} className={styles.inputQtd}
+                                onChange={e => atualizarDeducao(index, 'valorUnitario', e.target.value)} />
+                            : `R$ ${formatarMoeda(Number(d.valorUnitario) || 0)}`}
+                        </td>
+                        <td data-label="Valor total">R$ {formatarMoeda(valorTotal)}</td>
+                        {podeEditarItens && (
+                          <td><button type="button" className={styles.btnSecundario} onClick={() => removerDeducao(index)}>Remover</button></td>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {podeEditarItens && (
+            <button type="button" className={styles.btnSecundario} onClick={adicionarDeducao} style={{ marginTop: 10 }}>
+              + Adicionar dedução
+            </button>
+          )}
+        </div>
+      )}
 
       <div className={styles.bloco}>
         <div className={styles.resumoLinha}><span>Valor bruto</span><strong>R$ {formatarMoeda(bruto)}</strong></div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
-import { supabase, type CtCaminhao, type CtConcretagem, type Unidade } from '../lib/supabase'
+import { supabase, type CtCaminhao, type CtConcretagem, type CtPlanta, type Unidade } from '../lib/supabase'
 import { STATUS_CONCRETAGEM_LABEL } from './ControleTecnologico'
 import styles from './ControleTecnologicoForm.module.css'
 
@@ -45,7 +45,11 @@ export default function ControleTecnologicoForm() {
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [unidadeId, setUnidadeId] = useState('')
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10))
+  const [tipoMapa, setTipoMapa] = useState<'anexo' | 'planta'>('anexo')
   const [arquivo, setArquivo] = useState<File | null>(null)
+  const [plantasCatalogo, setPlantasCatalogo] = useState<CtPlanta[]>([])
+  const [plantaId, setPlantaId] = useState('')
+  const [pavimento, setPavimento] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
@@ -82,6 +86,12 @@ export default function ControleTecnologicoForm() {
     supabase.from('unidades').select('*').eq('obra_id', obraAtiva.id).order('ordem')
       .then(({ data }) => setUnidades(data ?? []))
   }, [obraAtiva])
+
+  useEffect(() => {
+    if (!obraAtiva || !nova) return
+    supabase.from('ct_plantas').select('*').eq('obra_id', obraAtiva.id).eq('ativo', true).order('nome')
+      .then(({ data }) => setPlantasCatalogo(data ?? []))
+  }, [obraAtiva, nova])
 
   useEffect(() => {
     if (nova || !id) return
@@ -229,20 +239,44 @@ export default function ControleTecnologicoForm() {
   async function criar() {
     if (!obraAtiva) return
     if (!unidadeId) { setMsg({ tipo: 'erro', texto: 'Selecione a Unidade.' }); return }
-    if (!arquivo) { setMsg({ tipo: 'erro', texto: 'Anexe a foto ou o PDF do mapa de concretagem.' }); return }
-    setSalvando(true)
-    setMsg(null)
-    const path = `${obraAtiva.id}/${crypto.randomUUID()}-${nomeArquivoStorage(arquivo.name)}`
-    const { error: eUp } = await supabase.storage.from('controle-tecnologico').upload(path, arquivo)
-    if (eUp) {
+
+    const plantaSelecionada = plantasCatalogo.find(p => p.id === plantaId)
+
+    if (tipoMapa === 'anexo') {
+      if (!arquivo) { setMsg({ tipo: 'erro', texto: 'Anexe a foto ou o PDF do mapa de concretagem.' }); return }
+      setSalvando(true)
+      setMsg(null)
+      const path = `${obraAtiva.id}/${crypto.randomUUID()}-${nomeArquivoStorage(arquivo.name)}`
+      const { error: eUp } = await supabase.storage.from('controle-tecnologico').upload(path, arquivo)
+      if (eUp) {
+        setSalvando(false)
+        setMsg({ tipo: 'erro', texto: `Falha no envio do arquivo: ${eUp.message}` })
+        return
+      }
+      const { data: nova_, error } = await supabase.from('ct_concretagens').insert({
+        obra_id: obraAtiva.id, unidade_id: unidadeId, anexo_url: path, data,
+      }).select().single()
       setSalvando(false)
-      setMsg({ tipo: 'erro', texto: `Falha no envio do arquivo: ${eUp.message}` })
+      if (error || !nova_) {
+        setMsg({ tipo: 'erro', texto: `Erro ao criar concretagem: ${error?.message}` })
+        return
+      }
+      navigate(`/controle-tecnologico/${nova_.id}`, { replace: true })
       return
     }
+
+    if (!plantaId) { setMsg({ tipo: 'erro', texto: 'Selecione a planta do catálogo.' }); return }
+    if (plantaSelecionada?.reutilizavel && !pavimento.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe o pavimento.' })
+      return
+    }
+    setSalvando(true)
+    setMsg(null)
     const { data: nova_, error } = await supabase.from('ct_concretagens').insert({
       obra_id: obraAtiva.id,
       unidade_id: unidadeId,
-      anexo_url: path,
+      planta_id: plantaId,
+      pavimento_identificacao: plantaSelecionada?.reutilizavel ? pavimento.trim() : null,
       data,
     }).select().single()
     setSalvando(false)
@@ -277,10 +311,41 @@ export default function ControleTecnologicoForm() {
             Data *
             <input type="date" value={data} onChange={e => setData(e.target.value)} />
           </label>
-          <label className={styles.campo}>
-            Mapa de concretagem — foto ou PDF já marcado *
-            <input type="file" accept="application/pdf,image/*" onChange={e => setArquivo(e.target.files?.[0] ?? null)} />
-          </label>
+          <div className={styles.escolhaMapa}>
+            <label className={styles.opcaoMapa}>
+              <input type="radio" name="tipoMapa" checked={tipoMapa === 'anexo'} onChange={() => setTipoMapa('anexo')} />
+              Anexar foto/PDF já marcado
+            </label>
+            <label className={styles.opcaoMapa}>
+              <input type="radio" name="tipoMapa" checked={tipoMapa === 'planta'} onChange={() => setTipoMapa('planta')} />
+              Usar planta do catálogo (pintar no app)
+            </label>
+          </div>
+          {tipoMapa === 'anexo' ? (
+            <label className={styles.campo}>
+              Mapa de concretagem — foto ou PDF já marcado *
+              <input type="file" accept="application/pdf,image/*" onChange={e => setArquivo(e.target.files?.[0] ?? null)} />
+            </label>
+          ) : (
+            <>
+              <label className={styles.campo}>
+                Planta *
+                <select value={plantaId} onChange={e => setPlantaId(e.target.value)}>
+                  <option value="">Selecione…</option>
+                  {plantasCatalogo.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+              </label>
+              {plantasCatalogo.find(p => p.id === plantaId)?.reutilizavel && (
+                <label className={styles.campo}>
+                  Pavimento *
+                  <input value={pavimento} onChange={e => setPavimento(e.target.value)} placeholder="Ex.: Térreo" />
+                </label>
+              )}
+              {plantasCatalogo.length === 0 && (
+                <p className={styles.vazio}>Nenhuma planta cadastrada — <a href="/controle-tecnologico/plantas">cadastre uma primeiro</a>.</p>
+              )}
+            </>
+          )}
         </div>
         {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
         <button className={styles.btnPrincipal} onClick={criar} disabled={salvando}>

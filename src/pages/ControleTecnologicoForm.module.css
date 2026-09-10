@@ -54,6 +54,9 @@
 .parCampos { display: flex; gap: 10px; }
 .parCampos > label { flex: 1; }
 
+.escolhaMapa { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.opcaoMapa { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--cinza-800); cursor: pointer; }
+
 .caminhaoItem { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--cinza-200); }
 .caminhaoItem:last-child { border-bottom: none; }
 .caminhaoCor { width: 16px; height: 16px; border-radius: 4px; flex: none; margin-top: 2px; border: 1px solid rgba(0,0,0,0.15); }

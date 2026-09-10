@@ -61,9 +61,10 @@ export default function ControleTecnologicoPlantas() {
       setMsg({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Falha ao converter o PDF.' })
       return
     }
-    const base = `${obraAtiva.id}/${crypto.randomUUID()}-${nomeArquivoStorage(arquivo.name)}`
-    const pdfPath = `${base}.pdf`
-    const imagemPath = `${base}.png`
+    const nomeSanitizado = nomeArquivoStorage(arquivo.name) // já termina em .pdf (accept="application/pdf")
+    const prefixo = `${obraAtiva.id}/${crypto.randomUUID()}-`
+    const pdfPath = `${prefixo}${nomeSanitizado}`
+    const imagemPath = `${prefixo}${nomeSanitizado.replace(/\.pdf$/i, '.png')}`
     const [upPdf, upImg] = await Promise.all([
       supabase.storage.from('controle-tecnologico').upload(pdfPath, arquivo),
       supabase.storage.from('controle-tecnologico').upload(imagemPath, imagemBlob),

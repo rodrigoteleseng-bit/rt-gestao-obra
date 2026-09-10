@@ -39,7 +39,10 @@
   overflow: hidden;
   touch-action: none;
   background: var(--cinza-100, #f5f3f0);
+  cursor: crosshair;
 }
+.viewportMover { cursor: grab; }
+.viewportMover:active { cursor: grabbing; }
 
 .carregando { padding: 20px; color: var(--cinza-600); font-size: 14px; }
 

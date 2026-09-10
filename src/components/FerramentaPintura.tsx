@@ -26,8 +26,17 @@ interface EstadoPinch {
   contentY: number
 }
 
-const ZOOM_MIN = 1
-const ZOOM_MAX = 6
+interface EstadoPan {
+  panX: number
+  panY: number
+  pointerX: number
+  pointerY: number
+}
+
+// Opacidade do pincel — deixa o croqui visível por baixo da cor enquanto
+// pinta (confirmado com o Rodrigo: bem translúcido). A borracha continua
+// em opacidade 1 (apaga de verdade, não só "clareia").
+const OPACIDADE_PINCEL = 0.5
 
 function larguraPincel(espessura: Espessura, canvasWidth: number): number {
   const fracao = espessura === 'fino' ? 0.003 : espessura === 'medio' ? 0.008 : 0.015
@@ -44,6 +53,7 @@ export default function FerramentaPintura({
   const [pronto, setPronto] = useState(false)
   const [ferramenta, setFerramenta] = useState<FerramentaAtiva>('pincel')
   const [espessura, setEspessura] = useState<Espessura>('medio')
+  const [modo, setModo] = useState<'desenhar' | 'mover'>('desenhar')
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
 
@@ -51,10 +61,17 @@ export default function FerramentaPintura({
   const desenhando = useRef(false)
   const ultimoPonto = useRef<{ x: number; y: number } | null>(null)
   const pinchInicioRef = useRef<EstadoPinch | null>(null)
+  const panInicioRef = useRef<EstadoPan | null>(null)
   const zoomRef = useRef(zoom)
   const panRef = useRef(pan)
   zoomRef.current = zoom
   panRef.current = pan
+
+  // Limites de zoom são dinâmicos: ZOOM_MIN é a escala que encaixa a planta
+  // inteira na janela (calculada quando a imagem carrega, ver efeito abaixo)
+  // — nunca um valor fixo, já que a resolução da planta varia muito (PDF
+  // renderizado em escala 2 costuma ser bem maior que a tela).
+  const zoomLimitesRef = useRef({ min: 1, max: 6 })
 
   // Mede a imagem da planta separado do <img> visível — evita depender de
   // onLoad num elemento que só existe depois que as dimensões já são conhecidas.
@@ -70,11 +87,25 @@ export default function FerramentaPintura({
   // para não apagar o canvas (canvas.width/height sempre limpa o desenho) se
   // pinturaExistenteUrl mudar sozinha num componente já montado (ex.: signed
   // URL reemitida apontando pro mesmo arquivo).
+  //
+  // No mesmo passo, calcula o zoom que encaixa a planta inteira na janela
+  // (nunca abre já cortada) e centraliza — o zoom mínimo passa a ser esse
+  // encaixe, não mais um valor fixo, e o zoom máximo é 8x a partir dele.
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !dimensoes) return
+    const container = containerRef.current
+    if (!canvas || !container || !dimensoes) return
     canvas.width = dimensoes.largura
     canvas.height = dimensoes.altura
+
+    const rect = container.getBoundingClientRect()
+    const escalaEncaixe = Math.min(rect.width / dimensoes.largura, rect.height / dimensoes.altura)
+    zoomLimitesRef.current = { min: escalaEncaixe, max: escalaEncaixe * 8 }
+    setZoom(escalaEncaixe)
+    setPan({
+      x: (rect.width - dimensoes.largura * escalaEncaixe) / 2,
+      y: (rect.height - dimensoes.altura * escalaEncaixe) / 2,
+    })
   }, [dimensoes])
 
   // Uma vez que o canvas existe com o tamanho certo, pré-carrega a pintura
@@ -109,6 +140,7 @@ export default function FerramentaPintura({
     const canvas = canvasRef.current!
     const ctx = canvas.getContext('2d')!
     ctx.globalCompositeOperation = ferramenta === 'borracha' ? 'destination-out' : 'source-over'
+    ctx.globalAlpha = ferramenta === 'borracha' ? 1 : OPACIDADE_PINCEL
     ctx.strokeStyle = corAtual
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
@@ -120,13 +152,13 @@ export default function FerramentaPintura({
   }
 
   function aoPressionar(e: React.PointerEvent) {
-    if (!pronto) return
     canvasRef.current?.setPointerCapture(e.pointerId)
     pointersAtivos.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
 
     if (pointersAtivos.current.size === 2) {
       desenhando.current = false
       ultimoPonto.current = null
+      panInicioRef.current = null
       const pontos = [...pointersAtivos.current.values()]
       const rect = containerRef.current!.getBoundingClientRect()
       const midX = (pontos[0].x + pontos[1].x) / 2 - rect.left
@@ -138,6 +170,14 @@ export default function FerramentaPintura({
         contentY: (midY - panRef.current.y) / zoomRef.current,
       }
     } else if (pointersAtivos.current.size === 1) {
+      if (modo === 'mover') {
+        panInicioRef.current = {
+          panX: panRef.current.x, panY: panRef.current.y,
+          pointerX: e.clientX, pointerY: e.clientY,
+        }
+        return
+      }
+      if (!pronto) return
       desenhando.current = true
       const p = paraCoordenadaCanvas(e.clientX, e.clientY)
       ultimoPonto.current = p
@@ -146,7 +186,6 @@ export default function FerramentaPintura({
   }
 
   function aoMover(e: React.PointerEvent) {
-    if (!pronto) return
     if (!pointersAtivos.current.has(e.pointerId)) return
     pointersAtivos.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
 
@@ -157,9 +196,15 @@ export default function FerramentaPintura({
       const midX = (pontos[0].x + pontos[1].x) / 2 - rect.left
       const midY = (pontos[0].y + pontos[1].y) / 2 - rect.top
       const { distancia, zoom: zoomInicial, contentX, contentY } = pinchInicioRef.current
-      const novoZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomInicial * (distAtual / distancia)))
+      const { min, max } = zoomLimitesRef.current
+      const novoZoom = Math.min(max, Math.max(min, zoomInicial * (distAtual / distancia)))
       setZoom(novoZoom)
       setPan({ x: midX - contentX * novoZoom, y: midY - contentY * novoZoom })
+      return
+    }
+    if (pointersAtivos.current.size === 1 && panInicioRef.current) {
+      const { panX, panY, pointerX, pointerY } = panInicioRef.current
+      setPan({ x: panX + (e.clientX - pointerX), y: panY + (e.clientY - pointerY) })
       return
     }
     if (pointersAtivos.current.size === 1 && desenhando.current && ultimoPonto.current) {
@@ -174,10 +219,16 @@ export default function FerramentaPintura({
     desenhando.current = false
     ultimoPonto.current = null
     pinchInicioRef.current = null
+    panInicioRef.current = null
   }
 
-  function aplicarZoomBotao(delta: number) {
-    const novoZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom + delta))
+  // Multiplicativo (não aditivo): o intervalo de zoom agora é dinâmico
+  // (calculado a partir do encaixe da planta), então um passo fixo em valor
+  // absoluto ficaria grande demais numa planta pequena e pequeno demais
+  // numa grande — uma porcentagem do zoom atual funciona nos dois casos.
+  function aplicarZoomBotao(fator: number) {
+    const { min, max } = zoomLimitesRef.current
+    const novoZoom = Math.min(max, Math.max(min, zoom * fator))
     const rect = containerRef.current!.getBoundingClientRect()
     const midX = rect.width / 2
     const midY = rect.height / 2
@@ -194,20 +245,21 @@ export default function FerramentaPintura({
   return (
     <div className={styles.overlay}>
       <div className={styles.barraFerramentas}>
-        <button className={ferramenta === 'pincel' ? styles.btnAtivo : styles.btn} onClick={() => setFerramenta('pincel')}>🖌️ Pincel</button>
-        <button className={ferramenta === 'borracha' ? styles.btnAtivo : styles.btn} onClick={() => setFerramenta('borracha')}>🧼 Borracha</button>
+        <button className={modo === 'desenhar' && ferramenta === 'pincel' ? styles.btnAtivo : styles.btn} onClick={() => { setModo('desenhar'); setFerramenta('pincel') }}>🖌️ Pincel</button>
+        <button className={modo === 'desenhar' && ferramenta === 'borracha' ? styles.btnAtivo : styles.btn} onClick={() => { setModo('desenhar'); setFerramenta('borracha') }}>🧼 Borracha</button>
         <select className={styles.selectEspessura} value={espessura} onChange={e => setEspessura(e.target.value as Espessura)}>
           <option value="fino">Fino</option>
           <option value="medio">Médio</option>
           <option value="grosso">Grosso</option>
         </select>
-        <button className={styles.btn} onClick={() => aplicarZoomBotao(-0.5)} aria-label="Diminuir zoom">−</button>
-        <button className={styles.btn} onClick={() => aplicarZoomBotao(0.5)} aria-label="Aumentar zoom">+</button>
+        <button className={modo === 'mover' ? styles.btnAtivo : styles.btn} onClick={() => setModo(m => m === 'mover' ? 'desenhar' : 'mover')}>✋ Mover</button>
+        <button className={styles.btn} onClick={() => aplicarZoomBotao(0.8)} aria-label="Diminuir zoom">−</button>
+        <button className={styles.btn} onClick={() => aplicarZoomBotao(1.25)} aria-label="Aumentar zoom">+</button>
       </div>
 
       <div
         ref={containerRef}
-        className={styles.viewport}
+        className={modo === 'mover' ? `${styles.viewport} ${styles.viewportMover}` : styles.viewport}
         onPointerDown={aoPressionar}
         onPointerMove={aoMover}
         onPointerUp={aoSoltar}

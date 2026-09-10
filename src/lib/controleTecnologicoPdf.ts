@@ -68,7 +68,7 @@ export function gerarPdfConcretagem(d: DadosPdfConcretagem): void {
   pdf.text(`${d.obraNome} · ${d.unidadeNome} · ${fmtData(d.concretagem.data)}`, W - MR, 19, { align: 'right' })
   y = 40
 
-  const colX = { cor: ML, fornecedor: ML + 12, nf: ML + 52, amostra: ML + 74, lacre: ML + 102, volume: ML + 130, slump: ML + 148, saida: ML + 176, chegada: ML + 192, inicio: ML + 208, fim: ML + 226 }
+  const colX = { cor: ML, fornecedor: ML + 12, nf: ML + 78, amostra: ML + 97, lacre: ML + 125, volume: ML + 152, slump: ML + 167, saida: ML + 192, chegada: ML + 204, inicio: ML + 220, fim: ML + 235 }
   pdf.setFillColor('#F0EBE3')
   pdf.rect(ML, y, LARG, 7, 'F')
   pdf.setFont('helvetica', 'bold')

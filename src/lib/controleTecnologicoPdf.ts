@@ -24,7 +24,12 @@ function fmtData(iso: string): string {
 function fmtHora(iso: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
-  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function fmtSlumpSolicitado(nominal: number | null, tolerancia: number | null): string {
+  if (nominal === null) return '—'
+  return tolerancia ? `${nominal}±${tolerancia}` : `${nominal}`
 }
 
 export function gerarPdfConcretagem(d: DadosPdfConcretagem): void {
@@ -63,7 +68,7 @@ export function gerarPdfConcretagem(d: DadosPdfConcretagem): void {
   pdf.text(`${d.obraNome} · ${d.unidadeNome} · ${fmtData(d.concretagem.data)}`, W - MR, 19, { align: 'right' })
   y = 40
 
-  const colX = { cor: ML, fornecedor: ML + 12, nf: ML + 62, amostra: ML + 92, volume: ML + 132, slump: ML + 157, saida: ML + 187, chegada: ML + 212, inicio: ML + 237, fim: ML + 262 }
+  const colX = { cor: ML, fornecedor: ML + 12, nf: ML + 52, amostra: ML + 74, lacre: ML + 102, volume: ML + 130, slump: ML + 148, saida: ML + 176, chegada: ML + 192, inicio: ML + 208, fim: ML + 226 }
   pdf.setFillColor('#F0EBE3')
   pdf.rect(ML, y, LARG, 7, 'F')
   pdf.setFont('helvetica', 'bold')
@@ -73,11 +78,12 @@ export function gerarPdfConcretagem(d: DadosPdfConcretagem): void {
   pdf.text('FORNECEDOR', colX.fornecedor, y + 4.7)
   pdf.text('NF', colX.nf, y + 4.7)
   pdf.text('AMOSTRA', colX.amostra, y + 4.7)
+  pdf.text('LACRE', colX.lacre, y + 4.7)
   pdf.text('VOL. (M³)', colX.volume, y + 4.7)
   pdf.text('SLUMP SOL./MED.', colX.slump, y + 4.7)
-  pdf.text('SAÍDA USINA', colX.saida, y + 4.7)
-  pdf.text('CHEGADA OBRA', colX.chegada, y + 4.7)
-  pdf.text('INÍCIO DESC.', colX.inicio, y + 4.7)
+  pdf.text('SAÍDA', colX.saida, y + 4.7)
+  pdf.text('CHEGADA', colX.chegada, y + 4.7)
+  pdf.text('IN. DESC.', colX.inicio, y + 4.7)
   pdf.text('FIM DESC.', colX.fim, y + 4.7)
   y += 7
 
@@ -93,8 +99,9 @@ export function gerarPdfConcretagem(d: DadosPdfConcretagem): void {
     pdf.text(c.fornecedor, colX.fornecedor, y + 5.2)
     pdf.text(c.nf, colX.nf, y + 5.2)
     pdf.text(c.numero_amostra, colX.amostra, y + 5.2)
+    pdf.text(c.numero_lacre, colX.lacre, y + 5.2)
     pdf.text(`${c.volume_m3}`, colX.volume, y + 5.2)
-    pdf.text(`${c.slump_solicitado_cm ?? '—'} / ${c.slump_medido_cm ?? '—'}`, colX.slump, y + 5.2)
+    pdf.text(`${fmtSlumpSolicitado(c.slump_solicitado_cm, c.slump_tolerancia_cm)} / ${c.slump_medido_cm ?? '—'}`, colX.slump, y + 5.2)
     pdf.text(fmtHora(c.hora_saida_usina), colX.saida, y + 5.2)
     pdf.text(fmtHora(c.hora_chegada_obra), colX.chegada, y + 5.2)
     pdf.text(fmtHora(c.hora_inicio_descarga), colX.inicio, y + 5.2)

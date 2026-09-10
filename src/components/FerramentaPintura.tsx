@@ -82,6 +82,7 @@ export default function FerramentaPintura({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !dimensoes) return
+    setPronto(false)
     if (!pinturaExistenteUrl) { setPronto(true); return }
     let cancelado = false
     const img = new Image()

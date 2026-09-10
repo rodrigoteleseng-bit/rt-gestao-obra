@@ -1,13 +1,19 @@
-// Geração do PDF do Controle Tecnológico do Concreto (jsPDF, client-side), paisagem.
+// Geração do PDF do Controle Tecnológico do Concreto (jsPDF, client-side).
 // Cabeçalho com identidade RT (mesmo padrão de todo PDF do app, ver medicoesPdf.ts) +
-// dados da concretagem + tabela-legenda dos caminhões. Sem mapa embutido nesta fase.
+// dados da concretagem + tabela-legenda dos caminhões. Página 1 = mapa de
+// concretagem anexado (convertido em imagem via prepararImagemAnexo — PDF de
+// 1 página ou foto, nunca a ferramenta de pintura, que é Fase 2). Página 2 =
+// cabeçalho + tabela-legenda, sempre paisagem.
 import { jsPDF } from 'jspdf'
-import type { CtConcretagem, CtCaminhao } from './supabase'
+import { supabase, type CtConcretagem, type CtCaminhao } from './supabase'
 import { larguraProporcional, type IdentidadeMarca } from './pdfBranding'
+import { prepararImagemAnexo, type ImagemAnexo } from './pdfParaImagem'
 
 const NAVY = '#1A3248'
 const TERRACOTA = '#C49A7A'
 const CINZA = '#6c757d'
+const ML = 14
+const MR = 14
 
 export interface DadosPdfConcretagem {
   concretagem: CtConcretagem
@@ -32,11 +38,21 @@ function fmtSlumpSolicitado(nominal: number | null, tolerancia: number | null): 
   return tolerancia ? `${nominal}±${tolerancia}` : `${nominal}`
 }
 
-export function gerarPdfConcretagem(d: DadosPdfConcretagem): void {
-  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' })
+function desenharPaginaMapa(pdf: jsPDF, imagem: ImagemAnexo, orientacao: 'landscape' | 'portrait'): void {
+  const [W, H] = orientacao === 'landscape' ? [297, 210] : [210, 297]
+  const M = 10
+  const boxW = W - 2 * M
+  const boxH = H - 2 * M
+  const escala = Math.min(boxW / imagem.width, boxH / imagem.height)
+  const larguraFinal = imagem.width * escala
+  const alturaFinal = imagem.height * escala
+  const x = (W - larguraFinal) / 2
+  const y = (H - alturaFinal) / 2
+  pdf.addImage(imagem.dataUrl, 'PNG', x, y, larguraFinal, alturaFinal)
+}
+
+function desenharPaginaTabela(pdf: jsPDF, d: DadosPdfConcretagem): void {
   const W = 297
-  const ML = 14
-  const MR = 14
   const LARG = W - ML - MR
   let y = 0
 
@@ -62,10 +78,21 @@ export function gerarPdfConcretagem(d: DadosPdfConcretagem): void {
   pdf.setFontSize(14)
   pdf.setTextColor('#ffffff')
   pdf.text('CONTROLE TECNOLÓGICO DO CONCRETO', W - MR, 13, { align: 'right' })
+
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(9)
   pdf.setTextColor('#D0AE95')
-  pdf.text(`${d.obraNome} · ${d.unidadeNome} · ${fmtData(d.concretagem.data)}`, W - MR, 19, { align: 'right' })
+  const textoObraLinha = `${d.obraNome} · ${d.unidadeNome} · ${fmtData(d.concretagem.data)}`
+  pdf.text(textoObraLinha, W - MR, 19, { align: 'right' })
+
+  // Numeração (CTC-001...) fica à esquerda dessa linha, com uma folga medida
+  // via getTextWidth — não uma posição fixa — pra nunca encostar no texto da
+  // obra mesmo com nome de obra comprido (mesma técnica usada no ajuste do
+  // fornecedor da tabela abaixo, ver docs/superpowers/plans/2026-09-10-ct-lacre-horario-slump.md).
+  const larguraObraLinha = pdf.getTextWidth(textoObraLinha)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setTextColor('#ffffff')
+  pdf.text(d.concretagem.numero, W - MR - larguraObraLinha - 6, 19, { align: 'right' })
   y = 40
 
   const colX = { cor: ML, fornecedor: ML + 12, nf: ML + 78, amostra: ML + 97, lacre: ML + 125, volume: ML + 152, slump: ML + 167, saida: ML + 192, chegada: ML + 204, inicio: ML + 220, fim: ML + 235 }
@@ -115,20 +142,51 @@ export function gerarPdfConcretagem(d: DadosPdfConcretagem): void {
   pdf.setFont('helvetica', 'italic')
   pdf.setFontSize(8)
   pdf.setTextColor(CINZA)
-  pdf.text('Mapa de concretagem anexado separadamente na tela do app.', ML, y)
+  pdf.text('Mapa de concretagem na página anterior.', ML, y)
+}
 
+// Roda por último, depois que todas as páginas existem — pdf.getNumberOfPages()
+// já conta a página do mapa. Usa a altura REAL de cada página (não um valor
+// fixo de paisagem), porque a página do mapa pode ser retrato.
+function desenharRodapeTodasPaginas(pdf: jsPDF, rodapeTexto: string): void {
   const totalPaginas = pdf.getNumberOfPages()
   for (let i = 1; i <= totalPaginas; i++) {
     pdf.setPage(i)
+    const W = pdf.internal.pageSize.getWidth()
+    const H = pdf.internal.pageSize.getHeight()
+    const yLinha = H - 14
+    const yTexto = H - 9
     pdf.setDrawColor(TERRACOTA)
     pdf.setLineWidth(0.5)
-    pdf.line(ML, 196, W - MR, 196)
+    pdf.line(ML, yLinha, W - MR, yLinha)
     pdf.setFontSize(7.5)
     pdf.setTextColor(CINZA)
     pdf.setFont('helvetica', 'normal')
-    pdf.text(d.identidade.rodapeTexto, ML, 201)
-    pdf.text(`Página ${i} de ${totalPaginas}`, W - MR, 201, { align: 'right' })
+    pdf.text(rodapeTexto, ML, yTexto)
+    pdf.text(`Página ${i} de ${totalPaginas}`, W - MR, yTexto, { align: 'right' })
   }
+}
+
+export async function gerarPdfConcretagem(d: DadosPdfConcretagem): Promise<void> {
+  if (!d.concretagem.anexo_url) {
+    throw new Error('Esta concretagem não tem mapa anexado — não é possível gerar o PDF.')
+  }
+  const { data: blob, error } = await supabase.storage
+    .from('controle-tecnologico')
+    .download(d.concretagem.anexo_url)
+  if (error || !blob) {
+    throw new Error(`Não foi possível baixar o mapa anexado: ${error?.message ?? 'arquivo não encontrado'}`)
+  }
+  const imagem = await prepararImagemAnexo(blob, d.concretagem.anexo_url)
+
+  const orientacaoMapa = imagem.width >= imagem.height ? 'landscape' : 'portrait'
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: orientacaoMapa })
+  desenharPaginaMapa(pdf, imagem, orientacaoMapa)
+
+  pdf.addPage('a4', 'landscape')
+  desenharPaginaTabela(pdf, d)
+
+  desenharRodapeTodasPaginas(pdf, d.identidade.rodapeTexto)
 
   pdf.save(`Controle Tecnologico - ${d.unidadeNome} - ${fmtData(d.concretagem.data)}.pdf`)
 }

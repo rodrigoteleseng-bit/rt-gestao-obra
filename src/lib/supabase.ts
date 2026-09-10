@@ -267,6 +267,7 @@ export type StatusLaudoConcreto = 'pendente' | 'aprovado' | 'reprovado'
 
 export interface CtConcretagem {
   id: string
+  numero: string
   obra_id: string
   unidade_id: string
   planta_id: string | null

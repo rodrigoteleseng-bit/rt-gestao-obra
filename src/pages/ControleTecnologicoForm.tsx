@@ -116,7 +116,9 @@ export default function ControleTecnologicoForm() {
     const { data } = await supabase.from('ct_caminhoes').select('*')
       .eq('concretagem_id', concretagemId).eq('ativo', true)
       .order('criado_em')
-    setCaminhoes(data ?? [])
+    const lista = data ?? []
+    setCaminhoes(lista)
+    return lista
   }
 
   useEffect(() => {
@@ -150,8 +152,8 @@ export default function ControleTecnologicoForm() {
     return valorHora ? new Date(`${dataConcretagem}T${valorHora}`).toISOString() : null
   }
 
-  async function abrirPintura(caminhao: CtCaminhao) {
-    const outrosComPintura = caminhoes.filter(c => c.id !== caminhao.id && c.pintura_url)
+  async function abrirPintura(caminhao: CtCaminhao, listaAtual: CtCaminhao[] = caminhoes) {
+    const outrosComPintura = listaAtual.filter(c => c.id !== caminhao.id && c.pintura_url)
     const camadas = await Promise.all(outrosComPintura.map(async c => {
       const { data } = await supabase.storage.from('controle-tecnologico').createSignedUrl(c.pintura_url!, 3600)
       return { id: c.id, url: data?.signedUrl ?? '' }
@@ -221,8 +223,8 @@ export default function ControleTecnologicoForm() {
     setFHoraSaida(''); setFHoraChegada(''); setFHoraInicioDescarga(''); setFHoraFimDescarga('')
     setFCor('#C49A7A')
     setMostrarFormCaminhao(false)
-    await carregarCaminhoes(concretagem.id)
-    if (concretagem.planta_id) await abrirPintura(novoCaminhao)
+    const listaAtualizada = await carregarCaminhoes(concretagem.id)
+    if (concretagem.planta_id) await abrirPintura(novoCaminhao, listaAtualizada)
   }
 
   async function finalizarConcretagem() {

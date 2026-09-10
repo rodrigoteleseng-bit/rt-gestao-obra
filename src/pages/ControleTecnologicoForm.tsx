@@ -288,6 +288,7 @@ export default function ControleTecnologicoForm() {
         concretagem, caminhoes, identidade,
         obraNome: obraRow?.nome ?? '—',
         unidadeNome: nomeUnidadeAtual,
+        planta: planta ? { imagem_path: planta.imagem_path } : null,
       })
     } catch (e) {
       setMsgCaminhao({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Erro ao gerar o PDF.' })

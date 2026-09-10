@@ -21,6 +21,7 @@ export interface DadosPdfConcretagem {
   identidade: IdentidadeMarca
   obraNome: string
   unidadeNome: string
+  planta: { imagem_path: string } | null
 }
 
 function fmtData(iso: string): string {
@@ -184,16 +185,21 @@ function desenharRodapeTodasPaginas(pdf: jsPDF, rodapeTexto: string): void {
 }
 
 export async function gerarPdfConcretagem(d: DadosPdfConcretagem): Promise<void> {
-  if (!d.concretagem.anexo_url) {
-    throw new Error('Esta concretagem não tem mapa anexado — não é possível gerar o PDF.')
+  let imagem: ImagemAnexo
+  if (d.concretagem.anexo_url) {
+    const { data: blob, error } = await supabase.storage
+      .from('controle-tecnologico')
+      .download(d.concretagem.anexo_url)
+    if (error || !blob) {
+      throw new Error(`Não foi possível baixar o mapa anexado: ${error?.message ?? 'arquivo não encontrado'}`)
+    }
+    imagem = await prepararImagemAnexo(blob, d.concretagem.anexo_url)
+  } else if (d.planta) {
+    const { achatarPlantaEPinturas } = await import('./ctPinturaFlatten')
+    imagem = await achatarPlantaEPinturas(d.planta, d.caminhoes)
+  } else {
+    throw new Error('Esta concretagem não tem mapa nem planta — não é possível gerar o PDF.')
   }
-  const { data: blob, error } = await supabase.storage
-    .from('controle-tecnologico')
-    .download(d.concretagem.anexo_url)
-  if (error || !blob) {
-    throw new Error(`Não foi possível baixar o mapa anexado: ${error?.message ?? 'arquivo não encontrado'}`)
-  }
-  const imagem = await prepararImagemAnexo(blob, d.concretagem.anexo_url)
 
   const orientacaoMapa = imagem.width >= imagem.height ? 'landscape' : 'portrait'
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: orientacaoMapa })

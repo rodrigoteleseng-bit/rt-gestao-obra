@@ -24,6 +24,16 @@ function nomeArquivoStorage(nome: string): string {
   return `${base}${extLimpa}`.toLowerCase()
 }
 
+function fmtHoraCurta(iso: string | null): string {
+  if (!iso) return '\u2014'
+  return new Date(iso).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function fmtSlumpSolicitado(nominal: number | null, tolerancia: number | null): string {
+  if (nominal === null) return '\u2014'
+  return tolerancia ? `${nominal}\u00b1${tolerancia}` : `${nominal}`
+}
+
 export default function ControleTecnologicoForm() {
   const { id } = useParams()
   const nova = id === 'nova'
@@ -47,8 +57,10 @@ export default function ControleTecnologicoForm() {
   const [fFornecedor, setFFornecedor] = useState('')
   const [fNf, setFNf] = useState('')
   const [fAmostra, setFAmostra] = useState('')
+  const [fLacre, setFLacre] = useState('')
   const [fVolume, setFVolume] = useState('')
   const [fSlumpSolicitado, setFSlumpSolicitado] = useState('')
+  const [fSlumpTolerancia, setFSlumpTolerancia] = useState('')
   const [fSlumpMedido, setFSlumpMedido] = useState('')
   const [fHoraSaida, setFHoraSaida] = useState('')
   const [fHoraChegada, setFHoraChegada] = useState('')
@@ -103,14 +115,14 @@ export default function ControleTecnologicoForm() {
     return () => { cancelado = true }
   }, [caminhoes])
 
-  function horaOuNulo(valor: string): string | null {
-    return valor ? new Date(valor).toISOString() : null
+  function horaOuNulo(valorHora: string, dataConcretagem: string): string | null {
+    return valorHora ? new Date(`${dataConcretagem}T${valorHora}`).toISOString() : null
   }
 
   async function lancarCaminhao() {
     if (!concretagem) return
-    if (!fFornecedor.trim() || !fNf.trim() || !fAmostra.trim() || !fVolume) {
-      setMsgCaminhao({ tipo: 'erro', texto: 'Preencha fornecedor, NF, amostra e volume.' })
+    if (!fFornecedor.trim() || !fNf.trim() || !fAmostra.trim() || !fLacre.trim() || !fVolume) {
+      setMsgCaminhao({ tipo: 'erro', texto: 'Preencha fornecedor, NF, amostra, lacre e volume.' })
       return
     }
     setSalvandoCaminhao(true)
@@ -120,13 +132,15 @@ export default function ControleTecnologicoForm() {
       fornecedor: fFornecedor.trim(),
       nf: fNf.trim(),
       numero_amostra: fAmostra.trim(),
+      numero_lacre: fLacre.trim(),
       volume_m3: Number(fVolume),
       slump_solicitado_cm: fSlumpSolicitado ? Number(fSlumpSolicitado) : null,
+      slump_tolerancia_cm: fSlumpTolerancia ? Number(fSlumpTolerancia) : null,
       slump_medido_cm: fSlumpMedido ? Number(fSlumpMedido) : null,
-      hora_saida_usina: horaOuNulo(fHoraSaida),
-      hora_chegada_obra: horaOuNulo(fHoraChegada),
-      hora_inicio_descarga: horaOuNulo(fHoraInicioDescarga),
-      hora_fim_descarga: horaOuNulo(fHoraFimDescarga),
+      hora_saida_usina: horaOuNulo(fHoraSaida, concretagem.data),
+      hora_chegada_obra: horaOuNulo(fHoraChegada, concretagem.data),
+      hora_inicio_descarga: horaOuNulo(fHoraInicioDescarga, concretagem.data),
+      hora_fim_descarga: horaOuNulo(fHoraFimDescarga, concretagem.data),
       cor: fCor,
     })
     setSalvandoCaminhao(false)
@@ -134,8 +148,8 @@ export default function ControleTecnologicoForm() {
       setMsgCaminhao({ tipo: 'erro', texto: `Erro ao lançar caminhão: ${error.message}` })
       return
     }
-    setFFornecedor(''); setFNf(''); setFAmostra(''); setFVolume('')
-    setFSlumpSolicitado(''); setFSlumpMedido('')
+    setFFornecedor(''); setFNf(''); setFAmostra(''); setFLacre(''); setFVolume('')
+    setFSlumpSolicitado(''); setFSlumpTolerancia(''); setFSlumpMedido('')
     setFHoraSaida(''); setFHoraChegada(''); setFHoraInicioDescarga(''); setFHoraFimDescarga('')
     setFCor('#C49A7A')
     setMostrarFormCaminhao(false)
@@ -295,20 +309,26 @@ export default function ControleTecnologicoForm() {
               <input value={fNf} onChange={e => setFNf(e.target.value)} /></label>
             <label className={styles.campo}>Nº da amostra (laboratório) *
               <input value={fAmostra} onChange={e => setFAmostra(e.target.value)} /></label>
+            <label className={styles.campo}>Número do lacre (betoneira) *
+              <input value={fLacre} onChange={e => setFLacre(e.target.value)} /></label>
             <label className={styles.campo}>Volume (m³) *
               <input type="number" min="0" step="0.1" value={fVolume} onChange={e => setFVolume(e.target.value)} /></label>
-            <label className={styles.campo}>Slump solicitado (cm)
-              <input type="number" min="0" step="0.5" value={fSlumpSolicitado} onChange={e => setFSlumpSolicitado(e.target.value)} /></label>
+            <div className={styles.parCampos}>
+              <label className={styles.campo}>Slump nominal (cm)
+                <input type="number" min="0" step="0.5" value={fSlumpSolicitado} onChange={e => setFSlumpSolicitado(e.target.value)} /></label>
+              <label className={styles.campo}>Tolerância (± cm)
+                <input type="number" min="0" step="0.5" value={fSlumpTolerancia} onChange={e => setFSlumpTolerancia(e.target.value)} /></label>
+            </div>
             <label className={styles.campo}>Slump medido (cm)
               <input type="number" min="0" step="0.5" value={fSlumpMedido} onChange={e => setFSlumpMedido(e.target.value)} /></label>
             <label className={styles.campo}>Saída da usina
-              <input type="datetime-local" value={fHoraSaida} onChange={e => setFHoraSaida(e.target.value)} /></label>
+              <input type="time" value={fHoraSaida} onChange={e => setFHoraSaida(e.target.value)} /></label>
             <label className={styles.campo}>Chegada na obra
-              <input type="datetime-local" value={fHoraChegada} onChange={e => setFHoraChegada(e.target.value)} /></label>
+              <input type="time" value={fHoraChegada} onChange={e => setFHoraChegada(e.target.value)} /></label>
             <label className={styles.campo}>Início da descarga
-              <input type="datetime-local" value={fHoraInicioDescarga} onChange={e => setFHoraInicioDescarga(e.target.value)} /></label>
+              <input type="time" value={fHoraInicioDescarga} onChange={e => setFHoraInicioDescarga(e.target.value)} /></label>
             <label className={styles.campo}>Fim da descarga
-              <input type="datetime-local" value={fHoraFimDescarga} onChange={e => setFHoraFimDescarga(e.target.value)} /></label>
+              <input type="time" value={fHoraFimDescarga} onChange={e => setFHoraFimDescarga(e.target.value)} /></label>
             <label className={styles.campo}>Cor (legenda)
               <input type="color" value={fCor} onChange={e => setFCor(e.target.value)} /></label>
             {msgCaminhao && <p className={msgCaminhao.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgCaminhao.texto}</p>}
@@ -323,7 +343,13 @@ export default function ControleTecnologicoForm() {
           <div key={c.id} className={styles.caminhaoItem}>
             <span className={styles.caminhaoCor} style={{ background: c.cor }} />
             <div className={styles.caminhaoInfo}>
-              <strong>{c.fornecedor}</strong> — NF {c.nf} · Amostra {c.numero_amostra} · {c.volume_m3} m³
+              <strong>{c.fornecedor}</strong> — NF {c.nf} · Amostra {c.numero_amostra} · Lacre {c.numero_lacre} · {c.volume_m3} m³
+              <div className={styles.caminhaoDetalhe}>
+                Slump: {fmtSlumpSolicitado(c.slump_solicitado_cm, c.slump_tolerancia_cm)} cm (solicitado) / {c.slump_medido_cm ?? '—'} cm (medido)
+              </div>
+              <div className={styles.caminhaoDetalhe}>
+                Saída {fmtHoraCurta(c.hora_saida_usina)} · Chegada {fmtHoraCurta(c.hora_chegada_obra)} · Início desc. {fmtHoraCurta(c.hora_inicio_descarga)} · Fim desc. {fmtHoraCurta(c.hora_fim_descarga)}
+              </div>
               <div className={`${styles.caminhaoMeta} ${styles[`laudo_${c.status_laudo}`]}`}>
                 Laudo: {c.status_laudo}
                 {c.laudo_url && urlsLaudo.get(c.laudo_url) && (

@@ -287,12 +287,14 @@ export interface CtCaminhao {
   fornecedor: string
   nf: string
   numero_amostra: string
+  numero_lacre: string
   hora_saida_usina: string | null
   hora_chegada_obra: string | null
   hora_inicio_descarga: string | null
   hora_fim_descarga: string | null
   volume_m3: number
   slump_solicitado_cm: number | null
+  slump_tolerancia_cm: number | null
   slump_medido_cm: number | null
   cor: string
   pintura_url: string | null

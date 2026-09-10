@@ -32,15 +32,6 @@ function ehPdf(nomeArquivo: string): boolean {
   return nomeArquivo.toLowerCase().endsWith('.pdf')
 }
 
-async function blobParaDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader()
-    r.onload = () => resolve(r.result as string)
-    r.onerror = reject
-    r.readAsDataURL(blob)
-  })
-}
-
 // Normaliza QUALQUER formato de imagem que o navegador consiga decodificar
 // (JPEG, PNG, WEBP, HEIC quando suportado) para PNG via canvas — evita
 // depender dos formatos nativos que o jsPDF aceita (só JPEG/PNG confiáveis).
@@ -72,8 +63,7 @@ async function normalizarImagemParaPng(blob: Blob): Promise<ImagemAnexo> {
 export async function prepararImagemAnexo(blob: Blob, nomeArquivo: string): Promise<ImagemAnexo> {
   if (ehPdf(nomeArquivo)) {
     const pngBlob = await converterPdfParaImagem(blob)
-    const dataUrl = await blobParaDataUrl(pngBlob)
-    return normalizarImagemParaPng(await (await fetch(dataUrl)).blob())
+    return normalizarImagemParaPng(pngBlob)
   }
   return normalizarImagemParaPng(blob)
 }

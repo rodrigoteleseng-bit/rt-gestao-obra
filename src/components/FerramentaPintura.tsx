@@ -66,13 +66,22 @@ export default function FerramentaPintura({
     return () => { cancelado = true }
   }, [imagemPlantaUrl])
 
-  // Uma vez que o canvas existe com o tamanho certo, pré-carrega a pintura
-  // existente (modo "corrigir") antes de liberar novos traços.
+  // Dimensiona o canvas assim que a planta é medida — só reage a `dimensoes`
+  // para não apagar o canvas (canvas.width/height sempre limpa o desenho) se
+  // pinturaExistenteUrl mudar sozinha num componente já montado (ex.: signed
+  // URL reemitida apontando pro mesmo arquivo).
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !dimensoes) return
     canvas.width = dimensoes.largura
     canvas.height = dimensoes.altura
+  }, [dimensoes])
+
+  // Uma vez que o canvas existe com o tamanho certo, pré-carrega a pintura
+  // existente (modo "corrigir") antes de liberar novos traços.
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !dimensoes) return
     if (!pinturaExistenteUrl) { setPronto(true); return }
     let cancelado = false
     const img = new Image()
@@ -110,6 +119,7 @@ export default function FerramentaPintura({
   }
 
   function aoPressionar(e: React.PointerEvent) {
+    if (!pronto) return
     canvasRef.current?.setPointerCapture(e.pointerId)
     pointersAtivos.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
 
@@ -135,6 +145,7 @@ export default function FerramentaPintura({
   }
 
   function aoMover(e: React.PointerEvent) {
+    if (!pronto) return
     if (!pointersAtivos.current.has(e.pointerId)) return
     pointersAtivos.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
 

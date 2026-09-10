@@ -38,28 +38,12 @@ function fmtSlumpSolicitado(nominal: number | null, tolerancia: number | null): 
   return tolerancia ? `${nominal}±${tolerancia}` : `${nominal}`
 }
 
-function desenharPaginaMapa(pdf: jsPDF, imagem: ImagemAnexo, orientacao: 'landscape' | 'portrait'): void {
-  const [W, H] = orientacao === 'landscape' ? [297, 210] : [210, 297]
-  const M = 10
-  // Margem inferior maior que as demais: desenharRodapeTodasPaginas desenha a
-  // linha/numeração de página em TODA página, inclusive esta — sem essa reserva
-  // o rodapé invade a base da imagem em mapas paisagem/proporção A4 (o caso comum,
-  // já que a orientação da página é escolhida pra combinar com a da imagem).
-  const MB = 20
-  const boxW = W - 2 * M
-  const boxH = H - M - MB
-  const escala = Math.min(boxW / imagem.width, boxH / imagem.height)
-  const larguraFinal = imagem.width * escala
-  const alturaFinal = imagem.height * escala
-  const x = (W - larguraFinal) / 2
-  const y = M + (boxH - alturaFinal) / 2
-  pdf.addImage(imagem.dataUrl, 'PNG', x, y, larguraFinal, alturaFinal)
-}
-
-function desenharPaginaTabela(pdf: jsPDF, d: DadosPdfConcretagem): void {
-  const W = 297
-  const LARG = W - ML - MR
-  let y = 0
+// Cabeçalho (faixa navy + identidade RT + título + obra/unidade/data + numeração
+// CTC) — compartilhado pelas duas páginas do PDF, pra dar a mesma moldura em
+// ambas. Usa a largura REAL da página atual (pdf.internal.pageSize), não um
+// valor fixo de paisagem, porque a página do mapa pode ser retrato.
+function desenharCabecalho(pdf: jsPDF, d: DadosPdfConcretagem): void {
+  const W = pdf.internal.pageSize.getWidth()
 
   pdf.setFillColor(NAVY)
   pdf.rect(0, 0, W, 30, 'F')
@@ -98,7 +82,34 @@ function desenharPaginaTabela(pdf: jsPDF, d: DadosPdfConcretagem): void {
   pdf.setFont('helvetica', 'bold')
   pdf.setTextColor('#ffffff')
   pdf.text(d.concretagem.numero, W - MR - larguraObraLinha - 6, 19, { align: 'right' })
-  y = 40
+}
+
+function desenharPaginaMapa(pdf: jsPDF, d: DadosPdfConcretagem, imagem: ImagemAnexo): void {
+  desenharCabecalho(pdf, d)
+  const W = pdf.internal.pageSize.getWidth()
+  const H = pdf.internal.pageSize.getHeight()
+  const MT = 40 // abaixo do cabeçalho — mesma altura em que a tabela começa na página 2
+  // Margem inferior maior que as demais: desenharRodapeTodasPaginas desenha a
+  // linha/numeração de página em TODA página, inclusive esta — sem essa reserva
+  // o rodapé invade a base da imagem em mapas paisagem/proporção A4 (o caso comum,
+  // já que a orientação da página é escolhida pra combinar com a da imagem).
+  const MB = 20
+  const boxW = W - ML - MR
+  const boxH = H - MT - MB
+  const escala = Math.min(boxW / imagem.width, boxH / imagem.height)
+  const larguraFinal = imagem.width * escala
+  const alturaFinal = imagem.height * escala
+  const x = ML + (boxW - larguraFinal) / 2
+  const y = MT + (boxH - alturaFinal) / 2
+  pdf.addImage(imagem.dataUrl, 'PNG', x, y, larguraFinal, alturaFinal)
+}
+
+function desenharPaginaTabela(pdf: jsPDF, d: DadosPdfConcretagem): void {
+  const W = 297
+  const LARG = W - ML - MR
+  let y = 40
+
+  desenharCabecalho(pdf, d)
 
   const colX = { cor: ML, fornecedor: ML + 12, nf: ML + 78, amostra: ML + 97, lacre: ML + 125, volume: ML + 152, slump: ML + 167, saida: ML + 192, chegada: ML + 204, inicio: ML + 220, fim: ML + 235 }
   pdf.setFillColor('#F0EBE3')
@@ -186,7 +197,7 @@ export async function gerarPdfConcretagem(d: DadosPdfConcretagem): Promise<void>
 
   const orientacaoMapa = imagem.width >= imagem.height ? 'landscape' : 'portrait'
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: orientacaoMapa })
-  desenharPaginaMapa(pdf, imagem, orientacaoMapa)
+  desenharPaginaMapa(pdf, d, imagem)
 
   pdf.addPage('a4', 'landscape')
   desenharPaginaTabela(pdf, d)

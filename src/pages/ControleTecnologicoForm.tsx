@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useObra } from '../contexts/ObraContext'
-import { supabase, type CtConcretagem, type Unidade } from '../lib/supabase'
+import { supabase, type CtCaminhao, type CtConcretagem, type Unidade } from '../lib/supabase'
 import { STATUS_CONCRETAGEM_LABEL } from './ControleTecnologico'
 import styles from './ControleTecnologicoForm.module.css'
 
@@ -42,6 +42,23 @@ export default function ControleTecnologicoForm() {
   const [concretagem, setConcretagem] = useState<CtConcretagem | null>(null)
   const [carregando, setCarregando] = useState(!nova)
 
+  const [caminhoes, setCaminhoes] = useState<CtCaminhao[]>([])
+  const [mostrarFormCaminhao, setMostrarFormCaminhao] = useState(false)
+  const [fFornecedor, setFFornecedor] = useState('')
+  const [fNf, setFNf] = useState('')
+  const [fAmostra, setFAmostra] = useState('')
+  const [fVolume, setFVolume] = useState('')
+  const [fSlumpSolicitado, setFSlumpSolicitado] = useState('')
+  const [fSlumpMedido, setFSlumpMedido] = useState('')
+  const [fHoraSaida, setFHoraSaida] = useState('')
+  const [fHoraChegada, setFHoraChegada] = useState('')
+  const [fHoraInicioDescarga, setFHoraInicioDescarga] = useState('')
+  const [fHoraFimDescarga, setFHoraFimDescarga] = useState('')
+  const [fCor, setFCor] = useState('#C49A7A')
+  const [salvandoCaminhao, setSalvandoCaminhao] = useState(false)
+  const [msgCaminhao, setMsgCaminhao] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  const [finalizando, setFinalizando] = useState(false)
+
   useEffect(() => {
     if (!obraAtiva) return
     supabase.from('unidades').select('*').eq('obra_id', obraAtiva.id).order('ordem')
@@ -52,8 +69,84 @@ export default function ControleTecnologicoForm() {
     if (nova || !id) return
     setCarregando(true)
     supabase.from('ct_concretagens').select('*').eq('id', id).single()
-      .then(({ data }) => { setConcretagem(data ?? null); setCarregando(false) })
+      .then(({ data }) => {
+        setConcretagem(data ?? null)
+        setCarregando(false)
+        if (data) carregarCaminhoes(data.id)
+      })
   }, [id, nova])
+
+  async function carregarCaminhoes(concretagemId: string) {
+    const { data } = await supabase.from('ct_caminhoes').select('*')
+      .eq('concretagem_id', concretagemId).eq('ativo', true)
+      .order('criado_em')
+    setCaminhoes(data ?? [])
+  }
+
+  function horaOuNulo(valor: string): string | null {
+    return valor ? new Date(valor).toISOString() : null
+  }
+
+  async function lancarCaminhao() {
+    if (!concretagem) return
+    if (!fFornecedor.trim() || !fNf.trim() || !fAmostra.trim() || !fVolume) {
+      setMsgCaminhao({ tipo: 'erro', texto: 'Preencha fornecedor, NF, amostra e volume.' })
+      return
+    }
+    setSalvandoCaminhao(true)
+    setMsgCaminhao(null)
+    const { error } = await supabase.from('ct_caminhoes').insert({
+      concretagem_id: concretagem.id,
+      fornecedor: fFornecedor.trim(),
+      nf: fNf.trim(),
+      numero_amostra: fAmostra.trim(),
+      volume_m3: Number(fVolume),
+      slump_solicitado_cm: fSlumpSolicitado ? Number(fSlumpSolicitado) : null,
+      slump_medido_cm: fSlumpMedido ? Number(fSlumpMedido) : null,
+      hora_saida_usina: horaOuNulo(fHoraSaida),
+      hora_chegada_obra: horaOuNulo(fHoraChegada),
+      hora_inicio_descarga: horaOuNulo(fHoraInicioDescarga),
+      hora_fim_descarga: horaOuNulo(fHoraFimDescarga),
+      cor: fCor,
+    })
+    setSalvandoCaminhao(false)
+    if (error) {
+      setMsgCaminhao({ tipo: 'erro', texto: `Erro ao lançar caminhão: ${error.message}` })
+      return
+    }
+    setFFornecedor(''); setFNf(''); setFAmostra(''); setFVolume('')
+    setFSlumpSolicitado(''); setFSlumpMedido('')
+    setFHoraSaida(''); setFHoraChegada(''); setFHoraInicioDescarga(''); setFHoraFimDescarga('')
+    setFCor('#C49A7A')
+    setMostrarFormCaminhao(false)
+    carregarCaminhoes(concretagem.id)
+  }
+
+  async function finalizarConcretagem() {
+    if (!concretagem) return
+    setFinalizando(true)
+    const { error } = await supabase.from('ct_concretagens').update({
+      status: 'finalizada', finalizada_por: perfil?.id, finalizada_em: new Date().toISOString(),
+    }).eq('id', concretagem.id)
+    setFinalizando(false)
+    if (error) { setMsgCaminhao({ tipo: 'erro', texto: `Erro ao finalizar: ${error.message}` }); return }
+    setConcretagem(prev => prev ? { ...prev, status: 'finalizada' } : prev)
+  }
+
+  async function imprimir() {
+    if (!concretagem || !obraAtiva) return
+    const { gerarPdfConcretagem } = await import('../lib/controleTecnologicoPdf')
+    const { data: obraRow } = await supabase.from('obras')
+      .select('nome, logo_url, rodape_pdf').eq('id', obraAtiva.id).maybeSingle()
+    const { carregarIdentidadeObra } = await import('../lib/pdfBranding')
+    const identidade = await carregarIdentidadeObra(obraRow)
+    const nomeUnidadeAtual = unidades.find(u => u.id === concretagem.unidade_id)?.nome ?? '—'
+    gerarPdfConcretagem({
+      concretagem, caminhoes, identidade,
+      obraNome: obraRow?.nome ?? '—',
+      unidadeNome: nomeUnidadeAtual,
+    })
+  }
 
   async function criar() {
     if (!obraAtiva) return
@@ -129,7 +222,72 @@ export default function ControleTecnologicoForm() {
         <h1>{concretagem.data.slice(8, 10)}/{concretagem.data.slice(5, 7)}/{concretagem.data.slice(0, 4)}</h1>
         <span className={styles.chip}>{STATUS_CONCRETAGEM_LABEL[concretagem.status]}</span>
       </div>
-      {/* Task 4 adiciona aqui: lista de caminhões, "+ Lançar caminhão", "Finalizar concretagem" e o PDF. */}
+      <div className={styles.bloco}>
+        <div className={styles.header} style={{ marginBottom: 10 }}>
+          <h2 style={{ margin: 0, fontSize: 14, color: 'var(--navy)' }}>Caminhões</h2>
+          {podeEditar && concretagem.status === 'aberta' && (
+            <button className={styles.btnSecundario} onClick={() => setMostrarFormCaminhao(v => !v)}>
+              {mostrarFormCaminhao ? 'Cancelar' : '+ Lançar caminhão'}
+            </button>
+          )}
+        </div>
+
+        {mostrarFormCaminhao && (
+          <div className={styles.formCaminhao}>
+            <label className={styles.campo}>Fornecedor (usina) *
+              <input value={fFornecedor} onChange={e => setFFornecedor(e.target.value)} /></label>
+            <label className={styles.campo}>NF *
+              <input value={fNf} onChange={e => setFNf(e.target.value)} /></label>
+            <label className={styles.campo}>Nº da amostra (laboratório) *
+              <input value={fAmostra} onChange={e => setFAmostra(e.target.value)} /></label>
+            <label className={styles.campo}>Volume (m³) *
+              <input type="number" min="0" step="0.1" value={fVolume} onChange={e => setFVolume(e.target.value)} /></label>
+            <label className={styles.campo}>Slump solicitado (cm)
+              <input type="number" min="0" step="0.5" value={fSlumpSolicitado} onChange={e => setFSlumpSolicitado(e.target.value)} /></label>
+            <label className={styles.campo}>Slump medido (cm)
+              <input type="number" min="0" step="0.5" value={fSlumpMedido} onChange={e => setFSlumpMedido(e.target.value)} /></label>
+            <label className={styles.campo}>Saída da usina
+              <input type="datetime-local" value={fHoraSaida} onChange={e => setFHoraSaida(e.target.value)} /></label>
+            <label className={styles.campo}>Chegada na obra
+              <input type="datetime-local" value={fHoraChegada} onChange={e => setFHoraChegada(e.target.value)} /></label>
+            <label className={styles.campo}>Início da descarga
+              <input type="datetime-local" value={fHoraInicioDescarga} onChange={e => setFHoraInicioDescarga(e.target.value)} /></label>
+            <label className={styles.campo}>Fim da descarga
+              <input type="datetime-local" value={fHoraFimDescarga} onChange={e => setFHoraFimDescarga(e.target.value)} /></label>
+            <label className={styles.campo}>Cor (legenda)
+              <input type="color" value={fCor} onChange={e => setFCor(e.target.value)} /></label>
+            {msgCaminhao && <p className={msgCaminhao.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgCaminhao.texto}</p>}
+            <button className={styles.btnPrincipal} onClick={lancarCaminhao} disabled={salvandoCaminhao}>
+              {salvandoCaminhao ? 'Salvando…' : 'Lançar caminhão'}
+            </button>
+          </div>
+        )}
+
+        {caminhoes.length === 0 && !mostrarFormCaminhao && <p className={styles.vazio}>Nenhum caminhão lançado.</p>}
+        {caminhoes.map(c => (
+          <div key={c.id} className={styles.caminhaoItem}>
+            <span className={styles.caminhaoCor} style={{ background: c.cor }} />
+            <div className={styles.caminhaoInfo}>
+              <strong>{c.fornecedor}</strong> — NF {c.nf} · Amostra {c.numero_amostra} · {c.volume_m3} m³
+              <div className={styles.caminhaoMeta}>Laudo: {c.status_laudo}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {concretagem.status === 'aberta' && podeEditar && (
+        <div className={styles.bloco}>
+          <button className={styles.btnPrincipal} onClick={finalizarConcretagem} disabled={finalizando || caminhoes.length === 0}>
+            {finalizando ? 'Finalizando…' : 'Finalizar concretagem'}
+          </button>
+        </div>
+      )}
+
+      {concretagem.status === 'finalizada' && (
+        <div className={styles.bloco}>
+          <button className={styles.btnSecundario} onClick={imprimir}>🖨️ Imprimir PDF</button>
+        </div>
+      )}
       {/* Task 5 adiciona aqui: acompanhamento/validação do laudo por caminhão. */}
     </div>
   )

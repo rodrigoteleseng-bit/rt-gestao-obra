@@ -118,6 +118,13 @@ export default function FerramentaPintura({
     if (!pinturaExistenteUrl) { setPronto(true); return }
     let cancelado = false
     const img = new Image()
+    // Sem isso, desenhar essa imagem (de outro domínio — URL assinada do
+    // Supabase Storage) no canvas "contamina" o canvas: os traços continuam
+    // funcionando normalmente, mas toBlob() (usado em salvar()) passa a
+    // devolver null silenciosamente, sem erro nenhum — exatamente o "clico
+    // em Salvar e não acontece nada" só ao reabrir uma pintura existente,
+    // já que é o único caminho que desenha uma imagem externa no canvas.
+    img.crossOrigin = 'anonymous'
     img.onload = () => {
       if (cancelado) return
       const ctx = canvas.getContext('2d')

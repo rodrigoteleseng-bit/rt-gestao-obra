@@ -41,13 +41,18 @@ function fmtSlumpSolicitado(nominal: number | null, tolerancia: number | null): 
 function desenharPaginaMapa(pdf: jsPDF, imagem: ImagemAnexo, orientacao: 'landscape' | 'portrait'): void {
   const [W, H] = orientacao === 'landscape' ? [297, 210] : [210, 297]
   const M = 10
+  // Margem inferior maior que as demais: desenharRodapeTodasPaginas desenha a
+  // linha/numeração de página em TODA página, inclusive esta — sem essa reserva
+  // o rodapé invade a base da imagem em mapas paisagem/proporção A4 (o caso comum,
+  // já que a orientação da página é escolhida pra combinar com a da imagem).
+  const MB = 20
   const boxW = W - 2 * M
-  const boxH = H - 2 * M
+  const boxH = H - M - MB
   const escala = Math.min(boxW / imagem.width, boxH / imagem.height)
   const larguraFinal = imagem.width * escala
   const alturaFinal = imagem.height * escala
   const x = (W - larguraFinal) / 2
-  const y = (H - alturaFinal) / 2
+  const y = M + (boxH - alturaFinal) / 2
   pdf.addImage(imagem.dataUrl, 'PNG', x, y, larguraFinal, alturaFinal)
 }
 

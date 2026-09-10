@@ -70,6 +70,7 @@ export default function ControleTecnologicoForm() {
   const [salvandoCaminhao, setSalvandoCaminhao] = useState(false)
   const [msgCaminhao, setMsgCaminhao] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [finalizando, setFinalizando] = useState(false)
+  const [gerandoPdf, setGerandoPdf] = useState(false)
 
   const [caminhaoLaudoId, setCaminhaoLaudoId] = useState<string | null>(null)
   const [arquivoLaudo, setArquivoLaudo] = useState<File | null>(null)
@@ -204,17 +205,25 @@ export default function ControleTecnologicoForm() {
 
   async function imprimir() {
     if (!concretagem || !obraAtiva) return
-    const { gerarPdfConcretagem } = await import('../lib/controleTecnologicoPdf')
-    const { data: obraRow } = await supabase.from('obras')
-      .select('nome, logo_url, rodape_pdf').eq('id', obraAtiva.id).maybeSingle()
-    const { carregarIdentidadeObra } = await import('../lib/pdfBranding')
-    const identidade = await carregarIdentidadeObra(obraRow)
-    const nomeUnidadeAtual = unidades.find(u => u.id === concretagem.unidade_id)?.nome ?? '—'
-    gerarPdfConcretagem({
-      concretagem, caminhoes, identidade,
-      obraNome: obraRow?.nome ?? '—',
-      unidadeNome: nomeUnidadeAtual,
-    })
+    setGerandoPdf(true)
+    setMsgCaminhao(null)
+    try {
+      const { gerarPdfConcretagem } = await import('../lib/controleTecnologicoPdf')
+      const { data: obraRow } = await supabase.from('obras')
+        .select('nome, logo_url, rodape_pdf').eq('id', obraAtiva.id).maybeSingle()
+      const { carregarIdentidadeObra } = await import('../lib/pdfBranding')
+      const identidade = await carregarIdentidadeObra(obraRow)
+      const nomeUnidadeAtual = unidades.find(u => u.id === concretagem.unidade_id)?.nome ?? '—'
+      await gerarPdfConcretagem({
+        concretagem, caminhoes, identidade,
+        obraNome: obraRow?.nome ?? '—',
+        unidadeNome: nomeUnidadeAtual,
+      })
+    } catch (e) {
+      setMsgCaminhao({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Erro ao gerar o PDF.' })
+    } finally {
+      setGerandoPdf(false)
+    }
   }
 
   async function criar() {
@@ -389,7 +398,10 @@ export default function ControleTecnologicoForm() {
 
       {concretagem.status === 'finalizada' && (
         <div className={styles.bloco}>
-          <button className={styles.btnSecundario} onClick={imprimir}>🖨️ Imprimir PDF</button>
+          <button className={styles.btnSecundario} onClick={imprimir} disabled={gerandoPdf}>
+            {gerandoPdf ? 'Gerando PDF…' : '🖨️ Imprimir PDF'}
+          </button>
+          {msgCaminhao && <p className={msgCaminhao.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgCaminhao.texto}</p>}
         </div>
       )}
     </div>

@@ -47,6 +47,7 @@
   font-weight: 700;
   cursor: pointer;
 }
+.btnSecundario:disabled { opacity: 0.6; cursor: default; }
 
 .formCaminhao { border-top: 1.5px solid var(--cinza-200); margin-top: 12px; padding-top: 12px; }
 

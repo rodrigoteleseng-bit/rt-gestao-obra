@@ -160,6 +160,7 @@ export default function Dashboard() {
   }, [obra, veRdo])
 
   const vePainelAlmoxarifado = perfil?.papel !== 'cliente' && temModulo('almoxarifado')
+  const veControleTecnologico = perfil?.papel !== 'cliente' && temModulo('controle_tecnologico')
 
   useEffect(() => {
     if (!obra || !vePainelAlmoxarifado) {
@@ -198,7 +199,7 @@ export default function Dashboard() {
   }, [obra, vePainelAlmoxarifado])
 
   useEffect(() => {
-    if (!obra) { setLaudosPendentes([]); return }
+    if (!obra || !veControleTecnologico) { setLaudosPendentes([]); return }
     type LinhaCaminhao = {
       id: string
       fornecedor: string
@@ -229,7 +230,7 @@ export default function Dashboard() {
           }))
         setLaudosPendentes(pendentes)
       })
-  }, [obra])
+  }, [obra, veControleTecnologico])
 
   const veCompras = perfil?.papel !== 'cliente' && temModulo('compras')
 

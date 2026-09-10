@@ -267,7 +267,11 @@ export default function FerramentaPintura({
 
       <div
         ref={containerRef}
-        className={modo === 'mover' ? `${styles.viewport} ${styles.viewportMover}` : styles.viewport}
+        className={
+          modo === 'mover' ? `${styles.viewport} ${styles.viewportMover}`
+          : ferramenta === 'borracha' ? `${styles.viewport} ${styles.viewportBorracha}`
+          : styles.viewport
+        }
         onPointerDown={aoPressionar}
         onPointerMove={aoMover}
         onPointerUp={aoSoltar}

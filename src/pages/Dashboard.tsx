@@ -103,11 +103,12 @@ const CARDS_MODULOS: CardModulo[] = [
     key: 'tarefas', label: 'Tarefas', icon: '☑️', desc: 'Ações avulsas, responsáveis e prazos', path: '/tarefas',
   },
   {
-    key: 'qualidade', label: 'Qualidade', icon: '🏷️', desc: 'FVS, checklists e pendências de obra',
-    multiKey: ['fvs', 'pendencias'],
+    key: 'qualidade', label: 'Qualidade', icon: '🏷️', desc: 'FVS, checklists, pendências e controle tecnológico',
+    multiKey: ['fvs', 'pendencias', 'controle_tecnologico'],
     subs: [
       { label: 'FVS / Checklists', icon: '✅', path: '/fvs', moduloKey: 'fvs' },
       { label: 'Pendências', icon: '⚠️', path: '/pendencias', moduloKey: 'pendencias' },
+      { label: 'Controle Tecnológico', icon: '🧪', path: '/controle-tecnologico', moduloKey: 'controle_tecnologico' },
     ],
   },
 ]

@@ -34,9 +34,10 @@ interface EstadoPan {
 }
 
 // Opacidade do pincel — deixa o croqui visível por baixo da cor enquanto
-// pinta (confirmado com o Rodrigo: bem translúcido). A borracha continua
-// em opacidade 1 (apaga de verdade, não só "clareia").
-const OPACIDADE_PINCEL = 0.5
+// pinta. Ajustado pro Rodrigo de 50% pra 25% (mais claro ainda) depois do
+// primeiro teste real. A borracha continua em opacidade 1 (apaga de
+// verdade, não só "clareia").
+const OPACIDADE_PINCEL = 0.25
 
 function larguraPincel(espessura: Espessura, canvasWidth: number): number {
   const fracao = espessura === 'fino' ? 0.003 : espessura === 'medio' ? 0.008 : 0.015

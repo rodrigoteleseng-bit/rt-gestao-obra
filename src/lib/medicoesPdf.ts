@@ -87,19 +87,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const LIMITE_CONTEUDO = 190 // abaixo disso, quebra a tabela pra próxima página
   const LIMITE_RODAPE = 196   // onde a faixa de rodapé começa
   const LARG_DESC_DEDUCAO = 168 // largura da coluna de descrição na tabela de deduções
-  // Altura real da tabela de deduções dentro do bloco final — soma o
-  // cabeçalho, cada linha (com quebra de texto, mesma fórmula da tabela
-  // de itens) e a linha de total. Zero quando não há deduções, então o
-  // bloco final volta exatamente ao tamanho de antes.
-  function alturaTabelaDeducoes(): number {
-    if (d.deducoes.length === 0) return 0
-    const alturaLinhas = d.deducoes.reduce((soma, ded) => {
-      const linhas = pdf.splitTextToSize(ded.descricao, LARG_DESC_DEDUCAO) as string[]
-      return soma + Math.max(linhas.length, 1) * 4.2 + 2.5
-    }, 0)
-    return 5 + 7 + alturaLinhas + 7 // margem superior + cabeçalho + linhas + linha de total
-  }
-  const ALTURA_BLOCO_FINAL = 68 + alturaTabelaDeducoes() // assinaturas + resumo + acumulado (~58mm) + folga (~10mm) + deduções, se houver
+  const ALTURA_BLOCO_FINAL = 68 // assinaturas + resumo + acumulado — medido no bloco real (~58mm) + folga de ~10mm
   const BLOCO_FINAL_Y = LIMITE_RODAPE - ALTURA_BLOCO_FINAL // posição fixa — o bloco final sempre começa aqui, travado no rodapé
   const medXxx = `MED-${String(d.medicao.numero).padStart(3, '0')}`
   let y = 0
@@ -313,6 +301,53 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   pdf.line(ML, y, W - MR, y)
   y += 8
 
+  // ---------- deduções desta medição, se houver ----------
+  // Fora do bloco final atômico: uma lista de deduções pode crescer sem
+  // limite (múltiplos descontos por período), então pagina normalmente
+  // como qualquer outro conteúdo, igual ao quadro de Nota Fiscal — só o
+  // bloco de assinaturas+resumo+acumulado precisa ficar travado no rodapé.
+  const totalDeducoes = d.deducoes.reduce((s, ded) => s + ded.valorTotal, 0)
+  if (d.deducoes.length > 0) {
+    const colXDed = { descricao: ML, quantidade: ML + 184, valorUnitario: ML + 212, valorTotal: ML + 246 }
+    precisaEspaco(7 + 7)
+    pdf.setFillColor('#F0EBE3')
+    pdf.rect(ML, y, LARG, 7, 'F')
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(7)
+    pdf.setTextColor(NAVY)
+    pdf.text('DEDUÇÕES', colXDed.descricao + 1, y + 4.7)
+    pdf.text('QTD.', colXDed.quantidade + 14, y + 4.7, { align: 'center' })
+    pdf.text('VALOR UNIT.', colXDed.valorUnitario + 17, y + 4.7, { align: 'center' })
+    pdf.text('VALOR TOTAL', W - MR - 18, y + 4.7, { align: 'center' })
+    y += 7
+
+    for (const ded of d.deducoes) {
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(8.5)
+      const linhasDesc = pdf.splitTextToSize(ded.descricao, LARG_DESC_DEDUCAO) as string[]
+      const alturaLinha = Math.max(linhasDesc.length, 1) * 4.2 + 2.5
+      precisaEspaco(alturaLinha)
+      pdf.setDrawColor('#E0DAD0')
+      pdf.setLineWidth(0.2)
+      pdf.line(ML, y, W - MR, y)
+      pdf.setTextColor(PRETO)
+      pdf.text(linhasDesc, colXDed.descricao + 1, y + 4.2)
+      pdf.text(`${ded.quantidade}`, colXDed.quantidade + 14, y + 4.2, { align: 'center' })
+      pdf.text(`R$ ${formatarMoeda(ded.valorUnitario)}`, colXDed.valorUnitario + 17, y + 4.2, { align: 'center' })
+      pdf.text(`R$ ${formatarMoeda(ded.valorTotal)}`, W - MR - 18, y + 4.2, { align: 'center' })
+      y += alturaLinha
+    }
+    pdf.setDrawColor('#E0DAD0')
+    pdf.line(ML, y, W - MR, y)
+    y += 5
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9.5)
+    pdf.setTextColor(NAVY)
+    pdf.text('Total de Deduções', ML, y)
+    pdf.text(`R$ ${formatarMoeda(totalDeducoes)}`, W - MR, y, { align: 'right' })
+    y += 10
+  }
+
   // ---------- bloco final: assinaturas + resumo + acumulado (atômico) ----------
   // Sempre travado no rodapé (mesma posição em qualquer página) — se a
   // tabela já passou desse ponto, o bloco inteiro vai pra próxima página;
@@ -354,7 +389,6 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const retencaoPct = d.contrato.retencao_pct ?? 0
   const bruto = aprovada ? d.medicao.valor_bruto : brutoItens
   const retido = aprovada ? d.medicao.valor_retido : Math.round(brutoItens * retencaoPct) / 100
-  const totalDeducoes = d.deducoes.reduce((s, ded) => s + ded.valorTotal, 0)
   const liquido = aprovada ? d.medicao.valor_liquido : bruto - retido - totalDeducoes
 
   const alturaDestaque = 18
@@ -382,47 +416,6 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     }
   })
   y += alturaDestaque + 5
-
-  // ---------- deduções desta medição, se houver ----------
-  if (d.deducoes.length > 0) {
-    y += 5
-    const colXDed = { descricao: ML, quantidade: ML + 184, valorUnitario: ML + 212, valorTotal: ML + 246 }
-    pdf.setFillColor('#F0EBE3')
-    pdf.rect(ML, y, LARG, 7, 'F')
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(7)
-    pdf.setTextColor(NAVY)
-    pdf.text('DEDUÇÕES', colXDed.descricao + 1, y + 4.7)
-    pdf.text('QTD.', colXDed.quantidade + 14, y + 4.7, { align: 'center' })
-    pdf.text('VALOR UNIT.', colXDed.valorUnitario + 17, y + 4.7, { align: 'center' })
-    pdf.text('VALOR TOTAL', W - MR - 18, y + 4.7, { align: 'center' })
-    y += 7
-
-    for (const ded of d.deducoes) {
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(8.5)
-      const linhasDesc = pdf.splitTextToSize(ded.descricao, LARG_DESC_DEDUCAO) as string[]
-      const alturaLinha = Math.max(linhasDesc.length, 1) * 4.2 + 2.5
-      pdf.setDrawColor('#E0DAD0')
-      pdf.setLineWidth(0.2)
-      pdf.line(ML, y, W - MR, y)
-      pdf.setTextColor(PRETO)
-      pdf.text(linhasDesc, colXDed.descricao + 1, y + 4.2)
-      pdf.text(`${ded.quantidade}`, colXDed.quantidade + 14, y + 4.2, { align: 'center' })
-      pdf.text(`R$ ${formatarMoeda(ded.valorUnitario)}`, colXDed.valorUnitario + 17, y + 4.2, { align: 'center' })
-      pdf.text(`R$ ${formatarMoeda(ded.valorTotal)}`, W - MR - 18, y + 4.2, { align: 'center' })
-      y += alturaLinha
-    }
-    pdf.setDrawColor('#E0DAD0')
-    pdf.line(ML, y, W - MR, y)
-    y += 5
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(9.5)
-    pdf.setTextColor(NAVY)
-    pdf.text('Total de Deduções', ML, y)
-    pdf.text(`R$ ${formatarMoeda(totalDeducoes)}`, W - MR, y, { align: 'right' })
-    y += 2
-  }
 
   // acumulado do contrato inteiro
   const valorTotalContrato = d.contrato.valor_total

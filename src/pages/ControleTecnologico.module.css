@@ -1,0 +1,39 @@
+.page { padding: 16px; max-width: 900px; margin: 0 auto; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.page h1 { font-size: 20px; margin: 0; }
+.sub { font-size: 13px; color: var(--cinza-600); margin: 4px 0 0; }
+
+.btnNova {
+  background: var(--navy);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filtros { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.selectFiltro { padding: 8px 10px; border: 1px solid var(--cinza-200); border-radius: var(--radius-sm); font-size: 13px; }
+
+.vazio { color: var(--cinza-600); font-size: 14px; padding: 12px 0; }
+
+.card {
+  width: 100%;
+  display: block;
+  text-align: left;
+  background: var(--branco);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.cardTopo { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px; }
+.cardData { font-family: var(--font-titulo); font-weight: 700; color: var(--navy); font-size: 14px; }
+.cardDesc { font-size: 14px; color: var(--cinza-800); }
+
+.chip { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; }
+.chip_aberta { background: #eceff1; color: #546e7a; }
+.chip_finalizada { background: #e3f4e3; color: #1e6b2e; }

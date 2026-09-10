@@ -29,6 +29,8 @@ const Medicoes = lazy(() => import('./pages/Medicoes'))
 const CompraForm = lazy(() => import('./pages/CompraForm'))
 const FvsPage = lazy(() => import('./pages/Fvs'))
 const FvsForm = lazy(() => import('./pages/FvsForm'))
+const ControleTecnologico = lazy(() => import('./pages/ControleTecnologico'))
+const ControleTecnologicoForm = lazy(() => import('./pages/ControleTecnologicoForm'))
 const Almoxarifado = lazy(() => import('./pages/Almoxarifado'))
 const Efetivo = lazy(() => import('./pages/Efetivo'))
 const Producao = lazy(() => import('./pages/Producao'))
@@ -85,6 +87,8 @@ function AppRoutes() {
         <Route path="contratos/:contratoId/medicoes/:medicaoId" element={<MedicaoForm />} />
         <Route path="fvs" element={<FvsPage />} />
         <Route path="fvs/:id" element={<FvsForm />} />
+        <Route path="controle-tecnologico" element={<ControleTecnologico />} />
+        <Route path="controle-tecnologico/:id" element={<ControleTecnologicoForm />} />
         <Route path="galeria" element={<Galeria />} />
         <Route path="efetivo" element={<Efetivo />} />
         <Route path="producao" element={<Producao />} />

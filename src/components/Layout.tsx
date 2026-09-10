@@ -59,6 +59,7 @@ const MODULOS: NavItem[] = [
     type: 'group', key: 'qualidade', label: 'Qualidade', icon: '🏷️', items: [
       { type: 'link', key: 'fvs', label: 'FVS / Checklists', icon: '✅', path: '/fvs' },
       { type: 'link', key: 'pendencias', label: 'Pendências', icon: '⚠️', path: '/pendencias' },
+      { type: 'link', key: 'controle_tecnologico', label: 'Controle Tecnológico', icon: '🧪', path: '/controle-tecnologico' },
     ],
   },
   { type: 'link', key: 'tarefas', label: 'Tarefas', icon: '☑️', path: '/tarefas' },

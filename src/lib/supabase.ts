@@ -9,6 +9,7 @@ export type PapelUsuario = 'admin' | 'equipe' | 'cliente'
 export type ModuloApp =
   | 'rdo' | 'avanco' | 'pendencias' | 'almoxarifado' | 'financeiro' | 'compras'
   | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas' | 'definicoes' | 'tarefas' | 'projetos' | 'planejamento'
+  | 'controle_tecnologico'
 export type StatusObra = 'ativa' | 'pausada' | 'concluida' | 'arquivada'
 export type TipoUnidade = 'sobrado' | 'portaria' | 'area_comum' | 'canteiro' | 'outro'
 
@@ -259,6 +260,51 @@ export interface Pendencia {
   ativo: boolean
   criado_em: string
   criado_por: string
+}
+
+export type StatusConcretagem = 'aberta' | 'finalizada'
+export type StatusLaudoConcreto = 'pendente' | 'aprovado' | 'reprovado'
+
+export interface CtConcretagem {
+  id: string
+  obra_id: string
+  unidade_id: string
+  planta_id: string | null
+  pavimento_identificacao: string | null
+  anexo_url: string | null
+  data: string
+  status: StatusConcretagem
+  finalizada_por: string | null
+  finalizada_em: string | null
+  ativo: boolean
+  criado_por: string
+  criado_em: string
+}
+
+export interface CtCaminhao {
+  id: string
+  concretagem_id: string
+  fornecedor: string
+  nf: string
+  numero_amostra: string
+  hora_saida_usina: string | null
+  hora_chegada_obra: string | null
+  hora_inicio_descarga: string | null
+  hora_fim_descarga: string | null
+  volume_m3: number
+  slump_solicitado_cm: number | null
+  slump_medido_cm: number | null
+  cor: string
+  pintura_url: string | null
+  status_laudo: StatusLaudoConcreto
+  laudo_url: string | null
+  laudo_anexado_em: string | null
+  validado_por: string | null
+  validado_em: string | null
+  pendencia_id: string | null
+  ativo: boolean
+  criado_por: string
+  criado_em: string
 }
 
 export interface PendenciaEvento {

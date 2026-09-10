@@ -28,6 +28,13 @@ interface FerramentaAtraso {
   dias: number
 }
 
+interface LaudoPendente {
+  caminhaoId: string
+  fornecedor: string
+  numeroAmostra: string
+  dias: number
+}
+
 interface ChamadaHoje {
   feita: boolean
   presentes: number
@@ -111,6 +118,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [cardAberto, setCardAberto] = useState<string | null>(null)
   const [ferramentasAtraso, setFerramentasAtraso] = useState<FerramentaAtraso[]>([])
+  const [laudosPendentes, setLaudosPendentes] = useState<LaudoPendente[]>([])
   const [chamadaHoje, setChamadaHoje] = useState<ChamadaHoje | null>(null)
   const [pedidosAguardando, setPedidosAguardando] = useState(0)
   const [pendenciasAbertas, setPendenciasAbertas] = useState(0)
@@ -188,6 +196,40 @@ export default function Dashboard() {
         setFerramentasAtraso(atrasadas)
       })
   }, [obra, vePainelAlmoxarifado])
+
+  useEffect(() => {
+    if (!obra) { setLaudosPendentes([]); return }
+    type LinhaCaminhao = {
+      id: string
+      fornecedor: string
+      numero_amostra: string
+      status_laudo: string
+      ct_concretagens: { data: string; obra_id: string } | null
+    }
+    supabase.from('ct_caminhoes')
+      .select('id, fornecedor, numero_amostra, status_laudo, ct_concretagens!inner(data, obra_id)')
+      .eq('ct_concretagens.obra_id', obra.id)
+      .eq('status_laudo', 'pendente')
+      .then(({ data }) => {
+        const hoje = dataHoje()
+        const linhas = (data ?? []) as unknown as LinhaCaminhao[]
+        const pendentes: LaudoPendente[] = linhas
+          .map(c => ({
+            caminhaoId: c.id,
+            fornecedor: c.fornecedor,
+            numeroAmostra: c.numero_amostra,
+            dataConcretagem: c.ct_concretagens?.data ?? hoje,
+          }))
+          .filter(c => diasEntre(c.dataConcretagem, hoje) >= 30)
+          .map(c => ({
+            caminhaoId: c.caminhaoId,
+            fornecedor: c.fornecedor,
+            numeroAmostra: c.numeroAmostra,
+            dias: diasEntre(c.dataConcretagem, hoje),
+          }))
+        setLaudosPendentes(pendentes)
+      })
+  }, [obra])
 
   const veCompras = perfil?.papel !== 'cliente' && temModulo('compras')
 
@@ -331,6 +373,17 @@ export default function Dashboard() {
           </button>
         )}
       </div>
+
+      {laudosPendentes.length > 0 && (
+        <div className={styles.bannerAlerta}>
+          <strong>🧪 {laudosPendentes.length} laudo(s) de concreto pendente(s) há 30+ dias</strong>
+          <ul>
+            {laudosPendentes.map(l => (
+              <li key={l.caminhaoId}>{l.fornecedor} — amostra {l.numeroAmostra} ({l.dias} dias)</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {veRdo && (
         <>

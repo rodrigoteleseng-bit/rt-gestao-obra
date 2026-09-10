@@ -55,3 +55,23 @@
 .caminhaoCor { width: 16px; height: 16px; border-radius: 4px; flex: none; margin-top: 2px; border: 1px solid rgba(0,0,0,0.15); }
 .caminhaoInfo { font-size: 13px; color: var(--cinza-800); }
 .caminhaoMeta { font-size: 11px; color: var(--cinza-600); margin-top: 2px; text-transform: capitalize; }
+
+.laudo_pendente { color: #a35c00; }
+.laudo_aprovado { color: #1e6b2e; }
+.laudo_reprovado { color: #a33030; }
+
+.laudoForm { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+
+.anexoLink { color: var(--navy); font-weight: 600; text-decoration: none; }
+.anexoLink:hover { text-decoration: underline; }
+
+.btnPerigo {
+  background: var(--branco);
+  color: #a33030;
+  border: 1.5px solid #a33030;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}

@@ -59,6 +59,11 @@ export default function ControleTecnologicoForm() {
   const [msgCaminhao, setMsgCaminhao] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [finalizando, setFinalizando] = useState(false)
 
+  const [caminhaoLaudoId, setCaminhaoLaudoId] = useState<string | null>(null)
+  const [arquivoLaudo, setArquivoLaudo] = useState<File | null>(null)
+  const [enviandoLaudo, setEnviandoLaudo] = useState(false)
+  const [urlsLaudo, setUrlsLaudo] = useState<Map<string, string>>(new Map())
+
   useEffect(() => {
     if (!obraAtiva) return
     supabase.from('unidades').select('*').eq('obra_id', obraAtiva.id).order('ordem')
@@ -82,6 +87,21 @@ export default function ControleTecnologicoForm() {
       .order('criado_em')
     setCaminhoes(data ?? [])
   }
+
+  useEffect(() => {
+    let cancelado = false
+    async function carregarUrls() {
+      const novasUrls = new Map<string, string>()
+      await Promise.all(caminhoes.map(async c => {
+        if (!c.laudo_url) return
+        const { data } = await supabase.storage.from('controle-tecnologico').createSignedUrl(c.laudo_url, 3600)
+        if (data) novasUrls.set(c.laudo_url, data.signedUrl)
+      }))
+      if (!cancelado) setUrlsLaudo(novasUrls)
+    }
+    carregarUrls()
+    return () => { cancelado = true }
+  }, [caminhoes])
 
   function horaOuNulo(valor: string): string | null {
     return valor ? new Date(valor).toISOString() : null
@@ -131,6 +151,41 @@ export default function ControleTecnologicoForm() {
     setFinalizando(false)
     if (error) { setMsgCaminhao({ tipo: 'erro', texto: `Erro ao finalizar: ${error.message}` }); return }
     setConcretagem(prev => prev ? { ...prev, status: 'finalizada' } : prev)
+  }
+
+  async function enviarLaudo(caminhao: CtCaminhao) {
+    if (!arquivoLaudo || !obraAtiva) return
+    setEnviandoLaudo(true)
+    const path = `${obraAtiva.id}/${crypto.randomUUID()}-${nomeArquivoStorage(arquivoLaudo.name)}`
+    const { error: eUp } = await supabase.storage.from('controle-tecnologico').upload(path, arquivoLaudo)
+    if (eUp) {
+      setEnviandoLaudo(false)
+      setMsgCaminhao({ tipo: 'erro', texto: `Falha no envio do laudo: ${eUp.message}` })
+      return
+    }
+    const { error } = await supabase.from('ct_caminhoes').update({
+      laudo_url: path, laudo_anexado_em: new Date().toISOString(),
+    }).eq('id', caminhao.id)
+    setEnviandoLaudo(false)
+    if (error) {
+      setMsgCaminhao({ tipo: 'erro', texto: `Falha ao registrar o laudo: ${error.message}` })
+      return
+    }
+    setArquivoLaudo(null)
+    if (concretagem) carregarCaminhoes(concretagem.id)
+  }
+
+  async function validarLaudo(caminhao: CtCaminhao, aprovado: boolean) {
+    const { error } = await supabase.from('ct_caminhoes').update({
+      status_laudo: aprovado ? 'aprovado' : 'reprovado',
+      validado_por: perfil?.id, validado_em: new Date().toISOString(),
+    }).eq('id', caminhao.id)
+    if (error) {
+      setMsgCaminhao({ tipo: 'erro', texto: `Falha ao validar: ${error.message}` })
+      return
+    }
+    setCaminhaoLaudoId(null)
+    if (concretagem) carregarCaminhoes(concretagem.id)
   }
 
   async function imprimir() {
@@ -269,7 +324,30 @@ export default function ControleTecnologicoForm() {
             <span className={styles.caminhaoCor} style={{ background: c.cor }} />
             <div className={styles.caminhaoInfo}>
               <strong>{c.fornecedor}</strong> — NF {c.nf} · Amostra {c.numero_amostra} · {c.volume_m3} m³
-              <div className={styles.caminhaoMeta}>Laudo: {c.status_laudo}</div>
+              <div className={`${styles.caminhaoMeta} ${styles[`laudo_${c.status_laudo}`]}`}>
+                Laudo: {c.status_laudo}
+                {c.laudo_url && urlsLaudo.get(c.laudo_url) && (
+                  <> · <a className={styles.anexoLink} href={urlsLaudo.get(c.laudo_url)} target="_blank" rel="noreferrer">📎 ver laudo</a></>
+                )}
+              </div>
+              {perfil?.papel === 'admin' && c.status_laudo === 'pendente' && (
+                caminhaoLaudoId === c.id ? (
+                  <div className={styles.laudoForm}>
+                    <input type="file" accept="application/pdf,image/*" onChange={e => setArquivoLaudo(e.target.files?.[0] ?? null)} />
+                    <button className={styles.btnSecundario} onClick={() => enviarLaudo(c)} disabled={enviandoLaudo || !arquivoLaudo}>
+                      {enviandoLaudo ? 'Enviando…' : 'Anexar laudo'}
+                    </button>
+                  </div>
+                ) : (
+                  <button className={styles.btnSecundario} onClick={() => setCaminhaoLaudoId(c.id)}>Anexar laudo</button>
+                )
+              )}
+              {perfil?.papel === 'admin' && c.status_laudo === 'pendente' && c.laudo_url && (
+                <div className={styles.laudoForm}>
+                  <button className={styles.btnPrincipal} onClick={() => validarLaudo(c, true)}>Aprovar</button>
+                  <button className={styles.btnPerigo} onClick={() => validarLaudo(c, false)}>Reprovar</button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -288,7 +366,6 @@ export default function ControleTecnologicoForm() {
           <button className={styles.btnSecundario} onClick={imprimir}>🖨️ Imprimir PDF</button>
         </div>
       )}
-      {/* Task 5 adiciona aqui: acompanhamento/validação do laudo por caminhão. */}
     </div>
   )
 }

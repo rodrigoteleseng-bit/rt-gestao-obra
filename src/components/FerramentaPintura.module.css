@@ -1,0 +1,91 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--branco);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+}
+
+.barraFerramentas {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1.5px solid var(--cinza-200);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn, .btnAtivo {
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn { background: var(--branco); color: var(--navy); border: 1.5px solid var(--navy); }
+.btnAtivo { background: var(--navy); color: #fff; border: 1.5px solid var(--navy); }
+
+.selectEspessura {
+  padding: 8px 10px;
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  background: var(--cinza-100, #f5f3f0);
+}
+
+.carregando { padding: 20px; color: var(--cinza-600); font-size: 14px; }
+
+.conteudo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.imagemPlanta, .camadaTravada, .canvasAtivo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.imagemPlanta, .camadaTravada { pointer-events: none; user-select: none; }
+
+.barraAcoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1.5px solid var(--cinza-200);
+}
+
+.btnCancelar {
+  background: var(--branco);
+  color: var(--cinza-700);
+  border: 1.5px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btnCancelar:disabled { opacity: 0.6; cursor: default; }
+
+.btnSalvar {
+  background: var(--navy);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btnSalvar:disabled { opacity: 0.6; cursor: default; }

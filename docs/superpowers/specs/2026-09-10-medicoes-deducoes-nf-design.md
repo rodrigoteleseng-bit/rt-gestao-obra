@@ -152,6 +152,20 @@ Igual ao padrão de `medicoes_itens` pós-`20260713_fase7_medicoes_travas.sql`: 
 
 Sem policy de DELETE — soft delete via UPDATE `ativo=false`, coberto pela policy de update acima (a trava por status continua valendo).
 
+> **Achado na revisão da Task 1 (não estava nesta versão original da spec):** faltava aqui a policy RESTRICTIVE `isolamento_obra` que `medicoes_itens` já tem desde `20260717_isolamento_usuario_obra.sql` — sem ela, qualquer usuário com `pode_editar_medicoes()` lia/escrevia deduções de qualquer obra via chamada direta à tabela (a checagem de obra só existia dentro da RPC, que é opcional pro cliente usar). Corrigido em produção via `20260910_medicoes_deducoes_isolamento_obra.sql`:
+>
+> ```sql
+> CREATE POLICY isolamento_obra ON medicoes_deducoes AS RESTRICTIVE FOR ALL TO authenticated
+>   USING (EXISTS (
+>     SELECT 1 FROM medicoes m JOIN contratos c ON c.id = m.contrato_id
+>     WHERE m.id = medicoes_deducoes.medicao_id AND pode_acessar_obra(c.obra_id)
+>   ))
+>   WITH CHECK (EXISTS (
+>     SELECT 1 FROM medicoes m JOIN contratos c ON c.id = m.contrato_id
+>     WHERE m.id = medicoes_deducoes.medicao_id AND pode_acessar_obra(c.obra_id)
+>   ));
+> ```
+
 ### 4.5 RPC `salvar_deducoes_medicao` (nova)
 
 Réplica do padrão `salvar_itens_contrato` — substitui todo o conjunto de deduções da medição numa única transação, aceitando inserção, edição e remoção (soft delete) na mesma chamada:

@@ -5,6 +5,7 @@ import { useObra } from '../contexts/ObraContext'
 import { supabase, type CtCaminhao, type CtConcretagem, type CtPlanta, type Unidade } from '../lib/supabase'
 import { STATUS_CONCRETAGEM_LABEL } from './ControleTecnologico'
 import styles from './ControleTecnologicoForm.module.css'
+import FerramentaPintura, { type CamadaTravada } from '../components/FerramentaPintura'
 
 function nomeArquivoStorage(nome: string): string {
   const partes = nome.split('.')
@@ -81,6 +82,13 @@ export default function ControleTecnologicoForm() {
   const [enviandoLaudo, setEnviandoLaudo] = useState(false)
   const [urlsLaudo, setUrlsLaudo] = useState<Map<string, string>>(new Map())
 
+  const [planta, setPlanta] = useState<CtPlanta | null>(null)
+  const [imagemPlantaUrl, setImagemPlantaUrl] = useState<string | null>(null)
+  const [caminhaoParaPintar, setCaminhaoParaPintar] = useState<CtCaminhao | null>(null)
+  const [camadasTravadas, setCamadasTravadas] = useState<CamadaTravada[]>([])
+  const [pinturaExistenteUrl, setPinturaExistenteUrl] = useState<string | null>(null)
+  const [salvandoPintura, setSalvandoPintura] = useState(false)
+
   useEffect(() => {
     if (!obraAtiva) return
     supabase.from('unidades').select('*').eq('obra_id', obraAtiva.id).order('ordem')
@@ -126,8 +134,57 @@ export default function ControleTecnologicoForm() {
     return () => { cancelado = true }
   }, [caminhoes])
 
+  useEffect(() => {
+    if (!concretagem?.planta_id) { setPlanta(null); return }
+    supabase.from('ct_plantas').select('*').eq('id', concretagem.planta_id).single()
+      .then(({ data }) => setPlanta(data ?? null))
+  }, [concretagem?.planta_id])
+
+  useEffect(() => {
+    if (!planta) { setImagemPlantaUrl(null); return }
+    supabase.storage.from('controle-tecnologico').createSignedUrl(planta.imagem_path, 3600)
+      .then(({ data }) => setImagemPlantaUrl(data?.signedUrl ?? null))
+  }, [planta])
+
   function horaOuNulo(valorHora: string, dataConcretagem: string): string | null {
     return valorHora ? new Date(`${dataConcretagem}T${valorHora}`).toISOString() : null
+  }
+
+  async function abrirPintura(caminhao: CtCaminhao) {
+    const outrosComPintura = caminhoes.filter(c => c.id !== caminhao.id && c.pintura_url)
+    const camadas = await Promise.all(outrosComPintura.map(async c => {
+      const { data } = await supabase.storage.from('controle-tecnologico').createSignedUrl(c.pintura_url!, 3600)
+      return { id: c.id, url: data?.signedUrl ?? '' }
+    }))
+    setCamadasTravadas(camadas.filter(c => c.url))
+
+    if (caminhao.pintura_url) {
+      const { data } = await supabase.storage.from('controle-tecnologico').createSignedUrl(caminhao.pintura_url, 3600)
+      setPinturaExistenteUrl(data?.signedUrl ?? null)
+    } else {
+      setPinturaExistenteUrl(null)
+    }
+    setCaminhaoParaPintar(caminhao)
+  }
+
+  async function salvarPintura(blob: Blob) {
+    if (!caminhaoParaPintar || !obraAtiva) return
+    setSalvandoPintura(true)
+    const path = `${obraAtiva.id}/${crypto.randomUUID()}-pintura.png`
+    const { error: eUp } = await supabase.storage.from('controle-tecnologico').upload(path, blob)
+    if (eUp) {
+      setSalvandoPintura(false)
+      setMsgCaminhao({ tipo: 'erro', texto: `Falha ao salvar a pintura: ${eUp.message}` })
+      return
+    }
+    const { error } = await supabase.from('ct_caminhoes').update({ pintura_url: path }).eq('id', caminhaoParaPintar.id)
+    setSalvandoPintura(false)
+    if (error) {
+      setMsgCaminhao({ tipo: 'erro', texto: `Falha ao registrar a pintura: ${error.message}` })
+      return
+    }
+    setCaminhaoParaPintar(null)
+    if (concretagem) carregarCaminhoes(concretagem.id)
   }
 
   async function lancarCaminhao() {
@@ -138,7 +195,7 @@ export default function ControleTecnologicoForm() {
     }
     setSalvandoCaminhao(true)
     setMsgCaminhao(null)
-    const { error } = await supabase.from('ct_caminhoes').insert({
+    const { data: novoCaminhao, error } = await supabase.from('ct_caminhoes').insert({
       concretagem_id: concretagem.id,
       fornecedor: fFornecedor.trim(),
       nf: fNf.trim(),
@@ -153,10 +210,10 @@ export default function ControleTecnologicoForm() {
       hora_inicio_descarga: horaOuNulo(fHoraInicioDescarga, concretagem.data),
       hora_fim_descarga: horaOuNulo(fHoraFimDescarga, concretagem.data),
       cor: fCor,
-    })
+    }).select().single()
     setSalvandoCaminhao(false)
-    if (error) {
-      setMsgCaminhao({ tipo: 'erro', texto: `Erro ao lançar caminhão: ${error.message}` })
+    if (error || !novoCaminhao) {
+      setMsgCaminhao({ tipo: 'erro', texto: `Erro ao lançar caminhão: ${error?.message}` })
       return
     }
     setFFornecedor(''); setFNf(''); setFAmostra(''); setFLacre(''); setFVolume('')
@@ -164,7 +221,8 @@ export default function ControleTecnologicoForm() {
     setFHoraSaida(''); setFHoraChegada(''); setFHoraInicioDescarga(''); setFHoraFimDescarga('')
     setFCor('#C49A7A')
     setMostrarFormCaminhao(false)
-    carregarCaminhoes(concretagem.id)
+    await carregarCaminhoes(concretagem.id)
+    if (concretagem.planta_id) await abrirPintura(novoCaminhao)
   }
 
   async function finalizarConcretagem() {
@@ -448,6 +506,11 @@ export default function ControleTecnologicoForm() {
                   <button className={styles.btnPerigo} onClick={() => validarLaudo(c, false)}>Reprovar</button>
                 </div>
               )}
+              {concretagem.status === 'aberta' && concretagem.planta_id && podeEditar && (
+                <button className={styles.btnSecundario} onClick={() => abrirPintura(c)} style={{ marginTop: 6 }}>
+                  🖌️ {c.pintura_url ? 'Corrigir pintura' : 'Pintar área'}
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -468,6 +531,18 @@ export default function ControleTecnologicoForm() {
           </button>
           {msgCaminhao && <p className={msgCaminhao.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msgCaminhao.texto}</p>}
         </div>
+      )}
+
+      {caminhaoParaPintar && imagemPlantaUrl && (
+        <FerramentaPintura
+          imagemPlantaUrl={imagemPlantaUrl}
+          camadasTravadas={camadasTravadas}
+          corAtual={caminhaoParaPintar.cor}
+          pinturaExistenteUrl={pinturaExistenteUrl}
+          onSalvar={salvarPintura}
+          onCancelar={() => setCaminhaoParaPintar(null)}
+          salvando={salvandoPintura}
+        />
       )}
     </div>
   )

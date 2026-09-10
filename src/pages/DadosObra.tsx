@@ -30,6 +30,7 @@ export default function DadosObra() {
   const [cnpj, setCnpj] = useState('')
   const [cnoObra, setCnoObra] = useState('')
   const [enderecoEscritorio, setEnderecoEscritorio] = useState('')
+  const [cep, setCep] = useState('')
   const [email, setEmail] = useState('')
   const [dataInicio, setDataInicio] = useState('')
   const [dataFimPrevista, setDataFimPrevista] = useState('')
@@ -52,7 +53,7 @@ export default function DadosObra() {
   function abrirNovo() {
     setEditandoId(null)
     setNome(''); setDescricao(''); setNomeEmpreendimento(''); setEndereco(''); setCidade(''); setEstado('')
-    setCnpj(''); setCnoObra(''); setEnderecoEscritorio(''); setEmail('')
+    setCnpj(''); setCnoObra(''); setEnderecoEscritorio(''); setCep(''); setEmail('')
     setDataInicio(''); setDataFimPrevista(''); setStatus('ativa')
     setLogoUrl(null); setRodapePdf(''); setLogoArquivo(null)
     setMsg(null)
@@ -70,6 +71,7 @@ export default function DadosObra() {
     setCnpj(o.cnpj ?? '')
     setCnoObra(o.cno_obra ?? '')
     setEnderecoEscritorio(o.endereco_escritorio ?? '')
+    setCep(o.cep ?? '')
     setEmail(o.email ?? '')
     setDataInicio(o.data_inicio ?? '')
     setDataFimPrevista(o.data_fim_prevista ?? '')
@@ -119,6 +121,7 @@ export default function DadosObra() {
       cnpj: cnpj.trim() || null,
       cno_obra: cnoObra.trim() || null,
       endereco_escritorio: enderecoEscritorio.trim() || null,
+      cep: cep.trim() || null,
       email: email.trim() || null,
       data_inicio: dataInicio || null,
       data_fim_prevista: dataFimPrevista || null,
@@ -198,10 +201,16 @@ export default function DadosObra() {
                 <input value={cnoObra} onChange={e => setCnoObra(e.target.value)} placeholder="Opcional" />
               </label>
             </div>
-            <label className={styles.campo}>
-              Endereço Escritório
-              <input value={enderecoEscritorio} onChange={e => setEnderecoEscritorio(e.target.value)} placeholder="Opcional" />
-            </label>
+            <div className={styles.linha}>
+              <label className={styles.campo}>
+                Endereço Escritório
+                <input value={enderecoEscritorio} onChange={e => setEnderecoEscritorio(e.target.value)} placeholder="Opcional" />
+              </label>
+              <label className={styles.campo}>
+                CEP
+                <input value={cep} onChange={e => setCep(e.target.value)} placeholder="Opcional" />
+              </label>
+            </div>
             <label className={styles.campo}>
               Email
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Opcional" />

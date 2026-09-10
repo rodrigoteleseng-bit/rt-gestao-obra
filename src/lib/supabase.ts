@@ -40,6 +40,7 @@ export interface Obra {
   cnpj: string | null
   cno_obra: string | null
   endereco_escritorio: string | null
+  cep: string | null
   email: string | null
 }
 
@@ -813,6 +814,18 @@ export interface MedicaoItem {
   contrato_item_id: string
   quantidade_periodo: number
   valor_total_item: number
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
+export interface MedicaoDeducao {
+  id: string
+  medicao_id: string
+  descricao: string
+  quantidade: number
+  valor_unitario: number
+  valor_total: number
   ativo: boolean
   criado_em: string
   criado_por: string

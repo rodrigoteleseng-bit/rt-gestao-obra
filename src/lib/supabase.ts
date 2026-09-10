@@ -265,6 +265,18 @@ export interface Pendencia {
 export type StatusConcretagem = 'aberta' | 'finalizada'
 export type StatusLaudoConcreto = 'pendente' | 'aprovado' | 'reprovado'
 
+export interface CtPlanta {
+  id: string
+  obra_id: string
+  nome: string
+  reutilizavel: boolean
+  pdf_path: string
+  imagem_path: string
+  ativo: boolean
+  criado_por: string
+  criado_em: string
+}
+
 export interface CtConcretagem {
   id: string
   numero: string

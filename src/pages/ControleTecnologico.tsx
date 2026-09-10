@@ -57,7 +57,10 @@ export default function ControleTecnologico() {
           <p className={styles.sub}>Concreto usinado — caminhões, amostras e laudos de ruptura.</p>
         </div>
         {podeEditar && (
-          <button className={styles.btnNova} onClick={() => navigate('/controle-tecnologico/nova')}>+ Nova concretagem</button>
+          <div className={styles.acoesHeader}>
+            <button className={styles.btnSecundario} onClick={() => navigate('/controle-tecnologico/plantas')}>🗂️ Plantas</button>
+            <button className={styles.btnNova} onClick={() => navigate('/controle-tecnologico/nova')}>+ Nova concretagem</button>
+          </div>
         )}
       </div>
 

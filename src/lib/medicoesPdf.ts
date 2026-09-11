@@ -179,16 +179,20 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   y += 6
 
   // ---------- informações gerais — 3 colunas (Obra / Contrato / Medição) ----------
+  // Coluna do meio (Contrato) mais larga que as outras duas — é onde entra
+  // o nome do empreiteiro, que pode ser longo — pra caber numa linha só
+  // sem quebrar. Obra e Medição dividem o espaço restante igualmente.
   const yColunas = y
-  const colLarg = LARG / 3
-  const colunaX = [ML, ML + colLarg, ML + colLarg * 2]
-
-  const largColuna = colLarg - 8
+  const LARG_COL_MEIO = 118
+  const LARG_COL_LATERAL = (LARG - LARG_COL_MEIO) / 2
+  const colunaX = [ML, ML + LARG_COL_LATERAL, ML + LARG_COL_LATERAL + LARG_COL_MEIO]
+  const largColunaLateral = LARG_COL_LATERAL - 8
+  const largColunaMeio = LARG_COL_MEIO - 8
 
   // Quebra cada linha dentro da largura da coluna (empreiteiro/objeto podem
   // ser longos) e devolve a altura final ocupada, pra dimensionar as
   // divisórias e o y seguinte pela coluna mais alta das 3.
-  function coluna(x: number, rotulo: string, linhas: string[]): number {
+  function coluna(x: number, rotulo: string, linhas: string[], largura: number): number {
     let yc = yColunas
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(7)
@@ -199,7 +203,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     pdf.setFontSize(9)
     pdf.setTextColor('#333333')
     for (const linha of linhas) {
-      const quebradas = pdf.splitTextToSize(linha, largColuna) as string[]
+      const quebradas = pdf.splitTextToSize(linha, largura) as string[]
       pdf.text(quebradas, x, yc)
       yc += quebradas.length * 4.3
     }
@@ -213,19 +217,20 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const fimCol0 = coluna(colunaX[0], 'Obra', [
     ...(endereco ? [`Endereço: ${endereco}`] : []),
     linhaResponsavel,
-  ])
+  ], largColunaLateral)
   const retencaoPct = d.contrato.retencao_pct ?? 0
+  // Sem a linha "Contrato: CT-XXX" — já aparece no canto superior direito
+  // do cabeçalho ("MEDIÇÃO · CT-XXX"), repetir aqui é redundante.
   const fimCol1 = coluna(colunaX[1], 'Contrato', [
     `Empreiteiro: ${d.empreiteiroNome}`,
-    `Contrato: ${d.contrato.numero}`,
     `Objeto: ${d.contrato.objeto}`,
     `Retenção: ${retencaoPct}%`,
-  ])
+  ], largColunaMeio)
   const fimCol2 = coluna(colunaX[2], 'Medição', [
     `Medição Nº: ${medXxx}`,
     `Período: ${fmtData(d.medicao.data_inicio)} a ${fmtData(d.medicao.data_fim)}`,
     `Data: ${fmtDataHora(d.medicao.aprovada_em)}`,
-  ])
+  ], largColunaLateral)
   const fimColunas = Math.max(fimCol0, fimCol1, fimCol2)
 
   pdf.setDrawColor('#ddd3c4')
@@ -421,18 +426,16 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   pdf.setLineWidth(0.3)
   pdf.rect(ML, y, LARG, ALTURA_NF, 'S')
 
-  // barra de título como uma aba, só a largura do texto — não a caixa
-  // inteira, que fica bem mais larga que "DADOS PARA EMISSÃO DE NOTA
-  // FISCAL" precisa.
+  // barra de título ocupa a largura inteira do quadro (igual ao cabeçalho
+  // do documento), texto centralizado.
+  pdf.setFillColor(NAVY)
+  pdf.rect(ML, y, LARG, ALTURA_NF_TITULO, 'F')
+  pdf.setFillColor(TERRACOTA)
+  pdf.rect(ML, y + ALTURA_NF_TITULO - 0.8, LARG, 0.8, 'F')
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(9.5)
-  const larguraTituloNF = pdf.getTextWidth('DADOS PARA EMISSÃO DE NOTA FISCAL') + 12
-  pdf.setFillColor(NAVY)
-  pdf.rect(ML, y, larguraTituloNF, ALTURA_NF_TITULO, 'F')
-  pdf.setFillColor(TERRACOTA)
-  pdf.rect(ML, y + ALTURA_NF_TITULO - 0.8, larguraTituloNF, 0.8, 'F')
   pdf.setTextColor('#ffffff')
-  pdf.text('DADOS PARA EMISSÃO DE NOTA FISCAL', ML + 6, y + 6)
+  pdf.text('DADOS PARA EMISSÃO DE NOTA FISCAL', ML + LARG / 2, y + 6, { align: 'center' })
 
   pdf.setFillColor('#F0EBE3')
   pdf.rect(ML, y + ALTURA_NF_TITULO, LARG, ALTURA_NF_BODY, 'F')

@@ -96,7 +96,8 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const LIMITE_CONTEUDO = 190 // abaixo disso, quebra a tabela pra próxima página
   const LIMITE_RODAPE = 196   // onde a faixa de rodapé começa
   const LARG_DESC_DEDUCAO = 168 // largura da coluna de descrição na tabela de deduções
-  const ALTURA_BLOCO_FINAL = 93 // espaço p/ assinatura física + assinaturas + recap + resumo + acumulado — medido no bloco real (~82mm) + folga de ~10mm
+  const ALTURA_BLOCO_FINAL = 90 // espaço p/ assinatura física + assinaturas + recap + resumo + acumulado + nota — medido no bloco real (~86mm) + folga
+  const BLOCO_FINAL_Y = LIMITE_RODAPE - ALTURA_BLOCO_FINAL // sempre ancorado no rodapé, nunca solto no meio da página
   const medXxx = `MED-${String(d.medicao.numero).padStart(3, '0')}`
   let y = 0
 
@@ -384,6 +385,12 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
       ['E-mail', d.emailObra ?? '—'],
     ],
   ]
+  // Fonte igual à usada pra desenhar os valores (8.5 normal) — sem isso,
+  // splitTextToSize mede a quebra com a fonte que sobrou de antes (a do
+  // "Total de Deduções", maior e em negrito), superestimando quantas
+  // linhas cada campo ocupa e inflando a altura reservada do quadro.
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(8.5)
   const linhasNFQuebradas = linhasNF.map(linha => {
     const largCol = LARG / linha.length
     return linha.map(([, valor]) => pdf.splitTextToSize(valor, largCol - 26) as string[])
@@ -435,12 +442,12 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   y += ALTURA_NF + 8
 
   // ---------- bloco final: assinaturas + resumo + acumulado (atômico) ----------
-  // Nunca quebra no meio — se não sobrar espaço pro bloco inteiro, pula pra
-  // próxima página — mas, ao contrário de antes, não pula pra uma posição
-  // fixa perto do rodapé: continua exatamente de onde o conteúdo anterior
-  // (Nota Fiscal) parou, sem vão em branco. A única quebra de página
-  // deliberada deste documento é a de 60% antes das Deduções.
-  precisaEspaco(ALTURA_BLOCO_FINAL)
+  // Sempre ancorado embaixo, colado no rodapé — nunca solto no meio da
+  // página com vão em branco depois dele. Só quebra pra próxima página se
+  // o bloco inteiro (altura sempre fixa) genuinamente não couber mais
+  // entre onde o conteúdo parou e o rodapé.
+  if (y > BLOCO_FINAL_Y) novaPagina()
+  y = BLOCO_FINAL_Y
 
   // assinaturas — espaço em branco antes da linha, pra caber a assinatura
   // física a caneta (a linha sozinha, sem esse respiro, não deixa lugar

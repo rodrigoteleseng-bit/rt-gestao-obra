@@ -1,10 +1,16 @@
 // Geração do PDF da medição de empreiteiro com identidade RT Engenharia
 // (jsPDF, client-side), paisagem. Cabeçalho em 3 colunas (Obra / Contrato /
-// Medição), tabela com quantidade e valor acumulados por item, resumo em
-// destaque (bruto/retenção/líquido) seguido do acumulado do contrato inteiro
-// (com % sobre o valor total) e assinatura de empreiteiro + fiscal RT. Esse
-// bloco final (assinaturas + resumo + acumulado) nunca quebra no meio: se não
-// sobrar espaço confortável na página, ele inteiro vai para a próxima.
+// Medição), tabela com quantidade e valor acumulados por item, deduções
+// (se houver), assinatura de empreiteiro + fiscal RT, recap compacto
+// (bruto/retenção %/retenção acumulada/deduções), faixa de resumo em
+// destaque com 4 colunas (bruto/retenção/deduções/líquido) e acumulado do
+// contrato inteiro (bruto e líquido, com % sobre o valor total). Esse bloco
+// final (assinaturas + recap + resumo + acumulado) nunca quebra no meio: se
+// não sobrar espaço confortável na página, ele inteiro vai para a próxima —
+// é seguro mantê-lo atômico porque, ao contrário da tabela de Deduções (que
+// pagina normalmente, ver comentário mais abaixo), seu conteúdo tem tamanho
+// sempre fixo, não cresce com dados do usuário. O quadro de Nota Fiscal vem
+// depois, fora desse bloco, com sua própria altura dinâmica.
 import { jsPDF } from 'jspdf'
 import type { Contrato, Medicao } from './supabase'
 import { formatarMoeda } from './formato'
@@ -87,7 +93,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const LIMITE_CONTEUDO = 190 // abaixo disso, quebra a tabela pra próxima página
   const LIMITE_RODAPE = 196   // onde a faixa de rodapé começa
   const LARG_DESC_DEDUCAO = 168 // largura da coluna de descrição na tabela de deduções
-  const ALTURA_BLOCO_FINAL = 68 // assinaturas + resumo + acumulado — medido no bloco real (~58mm) + folga de ~10mm
+  const ALTURA_BLOCO_FINAL = 83 // assinaturas + recap + resumo + acumulado — medido no bloco real (~72mm) + folga de ~10mm
   const BLOCO_FINAL_Y = LIMITE_RODAPE - ALTURA_BLOCO_FINAL // posição fixa — o bloco final sempre começa aqui, travado no rodapé
   const medXxx = `MED-${String(d.medicao.numero).padStart(3, '0')}`
   let y = 0
@@ -391,13 +397,56 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const retido = aprovada ? d.medicao.valor_retido : Math.round(brutoItens * retencaoPct) / 100
   const liquido = aprovada ? d.medicao.valor_liquido : bruto - retido - totalDeducoes
 
+  const valorTotalContrato = d.contrato.valor_total
+  const pctBruto = valorTotalContrato > 0 ? (d.totalBrutoContrato / valorTotalContrato) * 100 : 0
+  const pctRetido = valorTotalContrato > 0 ? (d.totalRetidoContrato / valorTotalContrato) * 100 : 0
+  const pctLiquido = valorTotalContrato > 0 ? (d.totalLiquidoContrato / valorTotalContrato) * 100 : 0
+
+  // recap compacto — mesma largura da faixa de resumo logo abaixo
+  const ALTURA_RECAP = 15
+  pdf.setDrawColor('#E0DAD0')
+  pdf.setLineWidth(0.3)
+  pdf.rect(ML, y, LARG, ALTURA_RECAP, 'S')
+  const largRecap = LARG / 4
+  const recapItens: [string, string, string | null][] = [
+    ['VALOR BRUTO MEDIÇÃO', `R$ ${formatarMoeda(bruto)}`, null],
+    ['RETENÇÃO %', `${retencaoPct}%`, null],
+    ['RETENÇÃO ACUMULADA', `R$ ${formatarMoeda(d.totalRetidoContrato)}`, `${pctRetido.toFixed(1)}% do contrato`],
+    ['TOTAL DEDUÇÕES', `R$ ${formatarMoeda(totalDeducoes)}`, null],
+  ]
+  recapItens.forEach(([rotulo, valor, aux], i) => {
+    const xItem = ML + largRecap * i + 6
+    if (i > 0) {
+      pdf.setDrawColor('#E0DAD0')
+      pdf.setLineWidth(0.2)
+      pdf.line(ML + largRecap * i, y + 2, ML + largRecap * i, y + ALTURA_RECAP - 2)
+    }
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(6.5)
+    pdf.setTextColor(TERRACOTA)
+    pdf.text(rotulo, xItem, y + 5.5)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(10.5)
+    pdf.setTextColor(NAVY)
+    pdf.text(valor, xItem, y + 11)
+    if (aux) {
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(6.5)
+      pdf.setTextColor(CINZA)
+      pdf.text(aux, ML + largRecap * (i + 1) - 6, y + 11, { align: 'right' })
+    }
+  })
+  y += ALTURA_RECAP + 5
+
+  // faixa de resumo em destaque — 4 colunas (bruto/retenção/deduções/líquido)
   const alturaDestaque = 18
   pdf.setFillColor(NAVY)
   pdf.rect(ML, y, LARG, alturaDestaque, 'F')
-  const largTile = LARG / 3
+  const largTile = LARG / 4
   const tiles: [string, string, string][] = [
     ['VALOR BRUTO', `R$ ${formatarMoeda(bruto)}`, '#ffffff'],
     [`RETENÇÃO (${retencaoPct}%)`, `- R$ ${formatarMoeda(retido)}`, '#ffffff'],
+    ['DEDUÇÕES', `- R$ ${formatarMoeda(totalDeducoes)}`, '#ffffff'],
     ['VALOR LÍQUIDO', `R$ ${formatarMoeda(liquido)}`, '#cfe8d6'],
   ]
   tiles.forEach(([rotulo, valor, cor], i) => {
@@ -417,12 +466,8 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   })
   y += alturaDestaque + 5
 
-  // acumulado do contrato inteiro
-  const valorTotalContrato = d.contrato.valor_total
-  const pctBruto = valorTotalContrato > 0 ? (d.totalBrutoContrato / valorTotalContrato) * 100 : 0
-  const pctRetido = valorTotalContrato > 0 ? (d.totalRetidoContrato / valorTotalContrato) * 100 : 0
-  const pctLiquido = valorTotalContrato > 0 ? (d.totalLiquidoContrato / valorTotalContrato) * 100 : 0
-
+  // acumulado do contrato inteiro — bruto e líquido; a retenção acumulada
+  // já aparece no recap compacto acima, não repete aqui.
   function linhaAcumulada(rotulo: string, valor: number, pct: number, destaque: boolean) {
     pdf.setFont('helvetica', destaque ? 'bold' : 'normal')
     pdf.setFontSize(destaque ? 10 : 9.5)
@@ -436,9 +481,8 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     y += destaque ? 6.5 : 5.5
   }
 
-  linhaAcumulada('Valor total medido (líquido + retenção), com esta medição', d.totalBrutoContrato, pctBruto, true)
-  linhaAcumulada('Retenção acumulada do contrato', d.totalRetidoContrato, pctRetido, false)
-  linhaAcumulada('Valor líquido pago acumulado do contrato', d.totalLiquidoContrato, pctLiquido, false)
+  linhaAcumulada('Valor total medido (bruto), acumulado do contrato', d.totalBrutoContrato, pctBruto, true)
+  linhaAcumulada('Valor líquido pago, acumulado do contrato', d.totalLiquidoContrato, pctLiquido, false)
 
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(7)
@@ -449,32 +493,75 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   ) as string[]
   pdf.text(nota, ML, y)
 
-  // ---------- dados para emissão de nota fiscal ----------
-  const camposNF: [string, string][] = [
-    ['Empresa', d.nomeEmpreendimento ?? d.obraNome],
-    ['CNPJ', d.cnpjObra ?? '—'],
-    ['Endereço', d.enderecoEscritorioObra ?? '—'],
-    ['CEP', d.cepObra ?? '—'],
-    ['E-mail', d.emailObra ?? '—'],
-    ['CNO', d.cnoObra ?? '—'],
+  // ---------- dados para emissão de nota fiscal (destacado, em quadro
+  // próprio com barra de título navy — mesma linguagem visual do
+  // cabeçalho do documento) ----------
+  // Endereço ganha a linha inteira (é tipicamente o campo mais longo);
+  // os outros 5 dividem 2 linhas de 3/2 colunas. Cada valor quebra de
+  // verdade dentro da largura da coluna (mesmo padrão das tabelas de
+  // itens/deduções), então a altura do quadro é sempre a real, nunca
+  // corta texto.
+  const linhasNF: [string, string][][] = [
+    [
+      ['Empresa', d.nomeEmpreendimento ?? d.obraNome],
+      ['CNPJ', d.cnpjObra ?? '—'],
+      ['CNO', d.cnoObra ?? '—'],
+    ],
+    [['Endereço', d.enderecoEscritorioObra ?? '—']],
+    [
+      ['CEP', d.cepObra ?? '—'],
+      ['E-mail', d.emailObra ?? '—'],
+    ],
   ]
-  precisaEspaco(8 + camposNF.length * 5.5)
-  y += 8
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(10)
-  pdf.setTextColor(NAVY)
-  pdf.text('DADOS PARA EMISSÃO DE NOTA FISCAL', ML, y)
-  y += 6
-  for (const [rotulo, valor] of camposNF) {
-    pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(8.5)
-    pdf.setTextColor(TERRACOTA)
-    pdf.text(`${rotulo}:`, ML, y)
-    pdf.setFont('helvetica', 'normal')
-    pdf.setTextColor('#333333')
-    pdf.text(valor, ML + 28, y)
-    y += 5.5
+  const linhasNFQuebradas = linhasNF.map(linha => {
+    const largCol = LARG / linha.length
+    return linha.map(([, valor]) => pdf.splitTextToSize(valor, largCol - 26) as string[])
+  })
+  function alturaLinhaNF(linhasTexto: string[][]): number {
+    return Math.max(...linhasTexto.map(ls => ls.length)) * 4.2 + 2.5
   }
+  const alturasLinhasNF = linhasNFQuebradas.map(alturaLinhaNF)
+  const ALTURA_NF_TITULO = 9
+  const ALTURA_NF_BODY = alturasLinhasNF.reduce((s, h) => s + h, 0) + 6
+  const ALTURA_NF = ALTURA_NF_TITULO + ALTURA_NF_BODY
+
+  precisaEspaco(ALTURA_NF + 8)
+  y += 8
+
+  pdf.setDrawColor('#E0DAD0')
+  pdf.setLineWidth(0.3)
+  pdf.rect(ML, y, LARG, ALTURA_NF, 'S')
+
+  pdf.setFillColor(NAVY)
+  pdf.rect(ML, y, LARG, ALTURA_NF_TITULO, 'F')
+  pdf.setFillColor(TERRACOTA)
+  pdf.rect(ML, y + ALTURA_NF_TITULO - 0.8, LARG, 0.8, 'F')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9.5)
+  pdf.setTextColor('#ffffff')
+  pdf.text('DADOS PARA EMISSÃO DE NOTA FISCAL', ML + 6, y + 6)
+
+  pdf.setFillColor('#F0EBE3')
+  pdf.rect(ML, y + ALTURA_NF_TITULO, LARG, ALTURA_NF_BODY, 'F')
+
+  let yLinhaNF = y + ALTURA_NF_TITULO + 4.5
+  linhasNF.forEach((linha, li) => {
+    const largCol = LARG / linha.length
+    linha.forEach(([rotulo], i) => {
+      const linhasTexto = linhasNFQuebradas[li][i]
+      const xCampo = ML + largCol * i + 6
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(8.5)
+      pdf.setTextColor(TERRACOTA)
+      pdf.text(`${rotulo}:`, xCampo, yLinhaNF)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setTextColor('#333333')
+      pdf.text(linhasTexto, xCampo + 20, yLinhaNF)
+    })
+    yLinhaNF += alturasLinhasNF[li]
+  })
+
+  y += ALTURA_NF
 
   rodape()
   pdf.save(`${d.contrato.numero} - ${medXxx} - ${d.empreiteiroNome}.pdf`)

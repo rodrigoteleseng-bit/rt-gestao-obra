@@ -43,10 +43,6 @@ export interface DadosPdfMedicao {
   contrato: Contrato
   medicao: Medicao
   empreiteiroNome: string
-  empreiteiroPix: string | null
-  empreiteiroBanco: string | null
-  empreiteiroAgencia: string | null
-  empreiteiroConta: string | null
   obraNome: string
   nomeEmpreendimento: string | null
   enderecoObra: string | null
@@ -372,51 +368,48 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   // próprio com barra de título navy — mesma linguagem visual do
   // cabeçalho do documento) ----------
   // Sempre logo abaixo das Deduções (não depois do bloco final, que às
-  // vezes salta pra uma página nova) — Endereço ganha a linha inteira (é
-  // tipicamente o campo mais longo); os outros 5 dividem 2 linhas de 3/2
-  // colunas. Cada valor quebra de verdade dentro da largura da coluna
-  // (mesmo padrão das tabelas de itens/deduções), então a altura do
-  // quadro é sempre a real, nunca corta texto.
-  // "Informações" traz a referência da medição/contrato (rastreabilidade
-  // de a que essa nota fiscal se refere) e os dados bancários do
-  // empreiteiro (pra quem vai processar o pagamento não precisar buscar
-  // em outro lugar).
-  const referenciaContrato = `Nota fiscal referente a ${medXxx} do ${d.contrato.numero}, referente a serviço de ${d.contrato.objeto}`
-  const linhasNF: [string, string][][] = [
+  // vezes salta pra uma página nova). Colunas de largura variável — CNPJ/
+  // CNO/CEP têm formato curto e fixo, então ganham coluna estreita,
+  // liberando espaço pra Empresa/E-mail/Endereço (mais longos) ficarem
+  // na mesma linha em vez de sozinhos. "Informações" é só texto (não é
+  // mais um campo com dado do empreiteiro): traz a referência da medição/
+  // contrato e pede pro empreiteiro incluir os dados bancários dele no
+  // corpo da própria nota fiscal — não é um dado que a RT cadastra e
+  // reproduz aqui. Cada valor quebra de verdade dentro da largura da
+  // coluna (mesmo padrão das tabelas de itens/deduções), então a altura
+  // do quadro é sempre a real, nunca corta texto.
+  const informacoesTexto = `Nota fiscal referente a ${medXxx} do ${d.contrato.numero}, referente a serviço de ${d.contrato.objeto}. Informar no corpo da nota os dados bancários para pagamento (banco, agência, conta e PIX).`
+  const linhasNF: { rotulo: string; valor: string; largura: number }[][] = [
     [
-      ['Empresa', d.razaoSocialObra ?? '—'],
-      ['CNPJ', d.cnpjObra ?? '—'],
-      ['CNO', d.cnoObra ?? '—'],
+      { rotulo: 'Empresa', valor: d.razaoSocialObra ?? '—', largura: 86 },
+      { rotulo: 'CNPJ', valor: d.cnpjObra ?? '—', largura: 50 },
+      { rotulo: 'CNO', valor: d.cnoObra ?? '—', largura: 44 },
+      { rotulo: 'E-mail', valor: d.emailObra ?? '—', largura: 89 },
     ],
-    [['Endereço', d.enderecoEscritorioObra ?? '—']],
     [
-      ['CEP', d.cepObra ?? '—'],
-      ['E-mail', d.emailObra ?? '—'],
+      { rotulo: 'Endereço', valor: d.enderecoEscritorioObra ?? '—', largura: 224 },
+      { rotulo: 'CEP', valor: d.cepObra ?? '—', largura: 45 },
     ],
-    [['Informações', referenciaContrato]],
-    [
-      ['Banco', d.empreiteiroBanco ?? '—'],
-      ['Agência', d.empreiteiroAgencia ?? '—'],
-      ['Conta', d.empreiteiroConta ?? '—'],
-      ['PIX', d.empreiteiroPix ?? '—'],
-    ],
+    [{ rotulo: 'Informações', valor: informacoesTexto, largura: LARG }],
   ]
   // Fonte igual à usada pra desenhar os valores (8.5 normal) — sem isso,
   // splitTextToSize mede a quebra com a fonte que sobrou de antes (a do
   // "Total de Deduções", maior e em negrito), superestimando quantas
   // linhas cada campo ocupa e inflando a altura reservada do quadro.
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(8.5)
+  const largurasRotulo = linhasNF.map(linha => linha.map(c => pdf.getTextWidth(`${c.rotulo}: `)))
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(8.5)
-  const linhasNFQuebradas = linhasNF.map(linha => {
-    const largCol = LARG / linha.length
-    return linha.map(([, valor]) => pdf.splitTextToSize(valor, largCol - 26) as string[])
-  })
+  const linhasNFQuebradas = linhasNF.map((linha, li) =>
+    linha.map((c, i) => pdf.splitTextToSize(c.valor, c.largura - 6 - largurasRotulo[li][i] - 4) as string[])
+  )
   function alturaLinhaNF(linhasTexto: string[][]): number {
-    return Math.max(...linhasTexto.map(ls => ls.length)) * 4.2 + 2.5
+    return Math.max(...linhasTexto.map(ls => ls.length)) * 4 + 1.8
   }
   const alturasLinhasNF = linhasNFQuebradas.map(alturaLinhaNF)
   const ALTURA_NF_TITULO = 9
-  const ALTURA_NF_BODY = alturasLinhasNF.reduce((s, h) => s + h, 0) + 6
+  const ALTURA_NF_BODY = alturasLinhasNF.reduce((s, h) => s + h, 0) + 5
   const ALTURA_NF = ALTURA_NF_TITULO + ALTURA_NF_BODY
 
   precisaEspaco(ALTURA_NF + 5)
@@ -438,19 +431,19 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   pdf.setFillColor('#F0EBE3')
   pdf.rect(ML, y + ALTURA_NF_TITULO, LARG, ALTURA_NF_BODY, 'F')
 
-  let yLinhaNF = y + ALTURA_NF_TITULO + 4.5
+  let yLinhaNF = y + ALTURA_NF_TITULO + 4
   linhasNF.forEach((linha, li) => {
-    const largCol = LARG / linha.length
-    linha.forEach(([rotulo], i) => {
+    let xCampo = ML + 6
+    linha.forEach((campo, i) => {
       const linhasTexto = linhasNFQuebradas[li][i]
-      const xCampo = ML + largCol * i + 6
       pdf.setFont('helvetica', 'bold')
       pdf.setFontSize(8.5)
       pdf.setTextColor(TERRACOTA)
-      pdf.text(`${rotulo}:`, xCampo, yLinhaNF)
+      pdf.text(`${campo.rotulo}:`, xCampo, yLinhaNF)
       pdf.setFont('helvetica', 'normal')
       pdf.setTextColor('#333333')
-      pdf.text(linhasTexto, xCampo + 20, yLinhaNF)
+      pdf.text(linhasTexto, xCampo + largurasRotulo[li][i] + 1, yLinhaNF)
+      xCampo += campo.largura
     })
     yLinhaNF += alturasLinhasNF[li]
   })

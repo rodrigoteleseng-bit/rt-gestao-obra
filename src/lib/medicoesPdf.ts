@@ -96,7 +96,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const LIMITE_CONTEUDO = 190 // abaixo disso, quebra a tabela pra próxima página
   const LIMITE_RODAPE = 196   // onde a faixa de rodapé começa
   const LARG_DESC_DEDUCAO = 168 // largura da coluna de descrição na tabela de deduções
-  const ALTURA_BLOCO_FINAL = 87 // espaço p/ assinatura física + assinaturas + recap + resumo + acumulado + nota — medido no bloco real (~86mm) + folga mínima
+  const ALTURA_BLOCO_FINAL = 89 // espaço p/ assinatura física + assinaturas + recap + resumo + acumulado + nota — medido no bloco real (~88mm) + folga mínima
   const BLOCO_FINAL_Y = LIMITE_RODAPE - ALTURA_BLOCO_FINAL // sempre ancorado no rodapé, nunca solto no meio da página
   const medXxx = `MED-${String(d.medicao.numero).padStart(3, '0')}`
   let y = 0
@@ -387,8 +387,10 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
       { rotulo: 'E-mail', valor: d.emailObra ?? '—', largura: 89 },
     ],
     [
-      { rotulo: 'Endereço', valor: d.enderecoEscritorioObra ?? '—', largura: 224 },
-      { rotulo: 'CEP', valor: d.cepObra ?? '—', largura: 45 },
+      // 180mm = Empresa(86)+CNPJ(50)+CNO(44) da linha de cima — CEP começa
+      // exatamente onde E-mail começa, colunas alinhadas entre as duas linhas.
+      { rotulo: 'Endereço', valor: d.enderecoEscritorioObra ?? '—', largura: 180 },
+      { rotulo: 'CEP', valor: d.cepObra ?? '—', largura: 89 },
     ],
     [{ rotulo: 'Informações', valor: informacoesTexto, largura: LARG }],
   ]
@@ -419,12 +421,16 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   pdf.setLineWidth(0.3)
   pdf.rect(ML, y, LARG, ALTURA_NF, 'S')
 
-  pdf.setFillColor(NAVY)
-  pdf.rect(ML, y, LARG, ALTURA_NF_TITULO, 'F')
-  pdf.setFillColor(TERRACOTA)
-  pdf.rect(ML, y + ALTURA_NF_TITULO - 0.8, LARG, 0.8, 'F')
+  // barra de título como uma aba, só a largura do texto — não a caixa
+  // inteira, que fica bem mais larga que "DADOS PARA EMISSÃO DE NOTA
+  // FISCAL" precisa.
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(9.5)
+  const larguraTituloNF = pdf.getTextWidth('DADOS PARA EMISSÃO DE NOTA FISCAL') + 12
+  pdf.setFillColor(NAVY)
+  pdf.rect(ML, y, larguraTituloNF, ALTURA_NF_TITULO, 'F')
+  pdf.setFillColor(TERRACOTA)
+  pdf.rect(ML, y + ALTURA_NF_TITULO - 0.8, larguraTituloNF, 0.8, 'F')
   pdf.setTextColor('#ffffff')
   pdf.text('DADOS PARA EMISSÃO DE NOTA FISCAL', ML + 6, y + 6)
 
@@ -504,7 +510,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const pctLiquido = valorTotalContrato > 0 ? (d.totalLiquidoContrato / valorTotalContrato) * 100 : 0
 
   // recap compacto — mesma largura da faixa de resumo logo abaixo
-  const ALTURA_RECAP = 15
+  const ALTURA_RECAP = 17 // 15 + 2mm pra caber o "% do contrato" centralizado embaixo do valor, sem sobrepor
   pdf.setDrawColor('#E0DAD0')
   pdf.setLineWidth(0.3)
   pdf.rect(ML, y, LARG, ALTURA_RECAP, 'S')
@@ -516,7 +522,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     ['TOTAL DEDUÇÕES', `R$ ${formatarMoeda(totalDeducoes)}`, null],
   ]
   recapItens.forEach(([rotulo, valor, aux], i) => {
-    const xItem = ML + largRecap * i + 6
+    const centroItem = ML + largRecap * (i + 0.5)
     if (i > 0) {
       pdf.setDrawColor('#E0DAD0')
       pdf.setLineWidth(0.2)
@@ -525,16 +531,16 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(6.5)
     pdf.setTextColor(TERRACOTA)
-    pdf.text(rotulo, xItem, y + 5.5)
+    pdf.text(rotulo, centroItem, y + 5, { align: 'center' })
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(10.5)
     pdf.setTextColor(NAVY)
-    pdf.text(valor, xItem, y + 11)
+    pdf.text(valor, centroItem, y + 10.5, { align: 'center' })
     if (aux) {
       pdf.setFont('helvetica', 'normal')
       pdf.setFontSize(6.5)
       pdf.setTextColor(CINZA)
-      pdf.text(aux, ML + largRecap * (i + 1) - 6, y + 11, { align: 'right' })
+      pdf.text(aux, centroItem, y + 14.5, { align: 'center' })
     }
   })
   y += ALTURA_RECAP + 5
@@ -551,14 +557,14 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     ['VALOR LÍQUIDO', `R$ ${formatarMoeda(liquido)}`, '#cfe8d6'],
   ]
   tiles.forEach(([rotulo, valor, cor], i) => {
-    const xTile = ML + largTile * i + 8
+    const centroTile = ML + largTile * (i + 0.5)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(7.5)
     pdf.setTextColor('#D0AE95')
-    pdf.text(rotulo, xTile, y + 7)
+    pdf.text(rotulo, centroTile, y + 7, { align: 'center' })
     pdf.setFontSize(13)
     pdf.setTextColor(cor)
-    pdf.text(valor, xTile, y + 14)
+    pdf.text(valor, centroTile, y + 14, { align: 'center' })
     if (i > 0) {
       pdf.setDrawColor(255, 255, 255)
       pdf.setLineWidth(0.15)

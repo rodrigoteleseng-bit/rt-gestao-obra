@@ -314,6 +314,11 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   // bloco de assinaturas+resumo+acumulado precisa ficar travado no rodapé.
   const totalDeducoes = d.deducoes.reduce((s, ded) => s + ded.valorTotal, 0)
   if (d.deducoes.length > 0) {
+    // Se a tabela de itens já preencheu mais de 60% da página, começa as
+    // Deduções numa página nova em vez de espremer no rodapé — evita que o
+    // que vem depois (Nota Fiscal, bloco final) sobre pouco espaço e acabe
+    // isolado numa página quase vazia.
+    if (y > LIMITE_CONTEUDO * 0.6) novaPagina()
     const colXDed = { descricao: ML, quantidade: ML + 184, valorUnitario: ML + 212, valorTotal: ML + 246 }
     precisaEspaco(7 + 7)
     pdf.setFillColor('#F0EBE3')
@@ -353,6 +358,77 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     pdf.text(`R$ ${formatarMoeda(totalDeducoes)}`, W - MR, y, { align: 'right' })
     y += 10
   }
+
+  // ---------- dados para emissão de nota fiscal (destacado, em quadro
+  // próprio com barra de título navy — mesma linguagem visual do
+  // cabeçalho do documento) ----------
+  // Sempre logo abaixo das Deduções (não depois do bloco final, que às
+  // vezes salta pra uma página nova) — Endereço ganha a linha inteira (é
+  // tipicamente o campo mais longo); os outros 5 dividem 2 linhas de 3/2
+  // colunas. Cada valor quebra de verdade dentro da largura da coluna
+  // (mesmo padrão das tabelas de itens/deduções), então a altura do
+  // quadro é sempre a real, nunca corta texto.
+  const linhasNF: [string, string][][] = [
+    [
+      ['Empresa', d.nomeEmpreendimento ?? d.obraNome],
+      ['CNPJ', d.cnpjObra ?? '—'],
+      ['CNO', d.cnoObra ?? '—'],
+    ],
+    [['Endereço', d.enderecoEscritorioObra ?? '—']],
+    [
+      ['CEP', d.cepObra ?? '—'],
+      ['E-mail', d.emailObra ?? '—'],
+    ],
+  ]
+  const linhasNFQuebradas = linhasNF.map(linha => {
+    const largCol = LARG / linha.length
+    return linha.map(([, valor]) => pdf.splitTextToSize(valor, largCol - 26) as string[])
+  })
+  function alturaLinhaNF(linhasTexto: string[][]): number {
+    return Math.max(...linhasTexto.map(ls => ls.length)) * 4.2 + 2.5
+  }
+  const alturasLinhasNF = linhasNFQuebradas.map(alturaLinhaNF)
+  const ALTURA_NF_TITULO = 9
+  const ALTURA_NF_BODY = alturasLinhasNF.reduce((s, h) => s + h, 0) + 6
+  const ALTURA_NF = ALTURA_NF_TITULO + ALTURA_NF_BODY
+
+  precisaEspaco(ALTURA_NF + 8)
+  y += 8
+
+  pdf.setDrawColor('#E0DAD0')
+  pdf.setLineWidth(0.3)
+  pdf.rect(ML, y, LARG, ALTURA_NF, 'S')
+
+  pdf.setFillColor(NAVY)
+  pdf.rect(ML, y, LARG, ALTURA_NF_TITULO, 'F')
+  pdf.setFillColor(TERRACOTA)
+  pdf.rect(ML, y + ALTURA_NF_TITULO - 0.8, LARG, 0.8, 'F')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(9.5)
+  pdf.setTextColor('#ffffff')
+  pdf.text('DADOS PARA EMISSÃO DE NOTA FISCAL', ML + 6, y + 6)
+
+  pdf.setFillColor('#F0EBE3')
+  pdf.rect(ML, y + ALTURA_NF_TITULO, LARG, ALTURA_NF_BODY, 'F')
+
+  let yLinhaNF = y + ALTURA_NF_TITULO + 4.5
+  linhasNF.forEach((linha, li) => {
+    const largCol = LARG / linha.length
+    linha.forEach(([rotulo], i) => {
+      const linhasTexto = linhasNFQuebradas[li][i]
+      const xCampo = ML + largCol * i + 6
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(8.5)
+      pdf.setTextColor(TERRACOTA)
+      pdf.text(`${rotulo}:`, xCampo, yLinhaNF)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setTextColor('#333333')
+      pdf.text(linhasTexto, xCampo + 20, yLinhaNF)
+    })
+    yLinhaNF += alturasLinhasNF[li]
+  })
+
+  y += ALTURA_NF + 8
 
   // ---------- bloco final: assinaturas + resumo + acumulado (atômico) ----------
   // Sempre travado no rodapé (mesma posição em qualquer página) — se a
@@ -492,76 +568,6 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     LARG
   ) as string[]
   pdf.text(nota, ML, y)
-
-  // ---------- dados para emissão de nota fiscal (destacado, em quadro
-  // próprio com barra de título navy — mesma linguagem visual do
-  // cabeçalho do documento) ----------
-  // Endereço ganha a linha inteira (é tipicamente o campo mais longo);
-  // os outros 5 dividem 2 linhas de 3/2 colunas. Cada valor quebra de
-  // verdade dentro da largura da coluna (mesmo padrão das tabelas de
-  // itens/deduções), então a altura do quadro é sempre a real, nunca
-  // corta texto.
-  const linhasNF: [string, string][][] = [
-    [
-      ['Empresa', d.nomeEmpreendimento ?? d.obraNome],
-      ['CNPJ', d.cnpjObra ?? '—'],
-      ['CNO', d.cnoObra ?? '—'],
-    ],
-    [['Endereço', d.enderecoEscritorioObra ?? '—']],
-    [
-      ['CEP', d.cepObra ?? '—'],
-      ['E-mail', d.emailObra ?? '—'],
-    ],
-  ]
-  const linhasNFQuebradas = linhasNF.map(linha => {
-    const largCol = LARG / linha.length
-    return linha.map(([, valor]) => pdf.splitTextToSize(valor, largCol - 26) as string[])
-  })
-  function alturaLinhaNF(linhasTexto: string[][]): number {
-    return Math.max(...linhasTexto.map(ls => ls.length)) * 4.2 + 2.5
-  }
-  const alturasLinhasNF = linhasNFQuebradas.map(alturaLinhaNF)
-  const ALTURA_NF_TITULO = 9
-  const ALTURA_NF_BODY = alturasLinhasNF.reduce((s, h) => s + h, 0) + 6
-  const ALTURA_NF = ALTURA_NF_TITULO + ALTURA_NF_BODY
-
-  precisaEspaco(ALTURA_NF + 8)
-  y += 8
-
-  pdf.setDrawColor('#E0DAD0')
-  pdf.setLineWidth(0.3)
-  pdf.rect(ML, y, LARG, ALTURA_NF, 'S')
-
-  pdf.setFillColor(NAVY)
-  pdf.rect(ML, y, LARG, ALTURA_NF_TITULO, 'F')
-  pdf.setFillColor(TERRACOTA)
-  pdf.rect(ML, y + ALTURA_NF_TITULO - 0.8, LARG, 0.8, 'F')
-  pdf.setFont('helvetica', 'bold')
-  pdf.setFontSize(9.5)
-  pdf.setTextColor('#ffffff')
-  pdf.text('DADOS PARA EMISSÃO DE NOTA FISCAL', ML + 6, y + 6)
-
-  pdf.setFillColor('#F0EBE3')
-  pdf.rect(ML, y + ALTURA_NF_TITULO, LARG, ALTURA_NF_BODY, 'F')
-
-  let yLinhaNF = y + ALTURA_NF_TITULO + 4.5
-  linhasNF.forEach((linha, li) => {
-    const largCol = LARG / linha.length
-    linha.forEach(([rotulo], i) => {
-      const linhasTexto = linhasNFQuebradas[li][i]
-      const xCampo = ML + largCol * i + 6
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(8.5)
-      pdf.setTextColor(TERRACOTA)
-      pdf.text(`${rotulo}:`, xCampo, yLinhaNF)
-      pdf.setFont('helvetica', 'normal')
-      pdf.setTextColor('#333333')
-      pdf.text(linhasTexto, xCampo + 20, yLinhaNF)
-    })
-    yLinhaNF += alturasLinhasNF[li]
-  })
-
-  y += ALTURA_NF
 
   rodape()
   pdf.save(`${d.contrato.numero} - ${medXxx} - ${d.empreiteiroNome}.pdf`)

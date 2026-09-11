@@ -37,11 +37,14 @@ export interface Obra {
   logo_url: string | null
   rodape_pdf: string | null
   nome_empreendimento: string | null
+  razao_social: string | null
   cnpj: string | null
   cno_obra: string | null
   endereco_escritorio: string | null
   cep: string | null
   email: string | null
+  engenheiro_obra_nome: string | null
+  engenheiro_obra_crea: string | null
 }
 
 export interface UsuarioObra {

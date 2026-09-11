@@ -48,11 +48,14 @@ export interface DadosPdfMedicao {
   enderecoObra: string | null
   cidadeObra: string | null
   estadoObra: string | null
+  razaoSocialObra: string | null
   cnpjObra: string | null
   cnoObra: string | null
   enderecoEscritorioObra: string | null
   cepObra: string | null
   emailObra: string | null
+  engenheiroObraNome: string | null
+  engenheiroObraCrea: string | null
   identidade: IdentidadeMarca
   responsavelNome: string
   responsavelEmail: string
@@ -93,7 +96,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const LIMITE_CONTEUDO = 190 // abaixo disso, quebra a tabela pra próxima página
   const LIMITE_RODAPE = 196   // onde a faixa de rodapé começa
   const LARG_DESC_DEDUCAO = 168 // largura da coluna de descrição na tabela de deduções
-  const ALTURA_BLOCO_FINAL = 83 // assinaturas + recap + resumo + acumulado — medido no bloco real (~72mm) + folga de ~10mm
+  const ALTURA_BLOCO_FINAL = 93 // espaço p/ assinatura física + assinaturas + recap + resumo + acumulado — medido no bloco real (~82mm) + folga de ~10mm
   const BLOCO_FINAL_Y = LIMITE_RODAPE - ALTURA_BLOCO_FINAL // posição fixa — o bloco final sempre começa aqui, travado no rodapé
   const medXxx = `MED-${String(d.medicao.numero).padStart(3, '0')}`
   let y = 0
@@ -370,7 +373,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   // quadro é sempre a real, nunca corta texto.
   const linhasNF: [string, string][][] = [
     [
-      ['Empresa', d.nomeEmpreendimento ?? d.obraNome],
+      ['Empresa', d.razaoSocialObra ?? '—'],
       ['CNPJ', d.cnpjObra ?? '—'],
       ['CNO', d.cnoObra ?? '—'],
     ],
@@ -437,7 +440,10 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   if (y > BLOCO_FINAL_Y) novaPagina()
   y = BLOCO_FINAL_Y
 
-  // assinaturas
+  // assinaturas — espaço em branco antes da linha, pra caber a assinatura
+  // física a caneta (a linha sozinha, sem esse respiro, não deixa lugar
+  // pra assinar por cima dela).
+  y += 10
   const meioAssinatura = ML + LARG / 2
   const largAssinatura = LARG / 2 - 20
   pdf.setDrawColor('#999999')
@@ -445,17 +451,19 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   pdf.line(ML + 10, y, ML + 10 + largAssinatura, y)
   pdf.line(meioAssinatura + 10, y, meioAssinatura + 10 + largAssinatura, y)
   y += 4.5
+  const nomeEngenheiro = d.engenheiroObraNome ?? '—'
+  const linhaEngenheiro = d.engenheiroObraCrea ? `${nomeEngenheiro} — CREA ${d.engenheiroObraCrea}` : nomeEngenheiro
   pdf.setFont('helvetica', 'bold')
   pdf.setFontSize(8.5)
   pdf.setTextColor(NAVY)
   pdf.text(d.empreiteiroNome, ML + 10 + largAssinatura / 2, y, { align: 'center' })
-  pdf.text(d.responsavelNome, meioAssinatura + 10 + largAssinatura / 2, y, { align: 'center' })
+  pdf.text(linhaEngenheiro, meioAssinatura + 10 + largAssinatura / 2, y, { align: 'center' })
   y += 4
   pdf.setFont('helvetica', 'normal')
   pdf.setFontSize(7.5)
   pdf.setTextColor(CINZA)
   pdf.text('Empreiteiro', ML + 10 + largAssinatura / 2, y, { align: 'center' })
-  pdf.text('Fiscal RT Engenharia', meioAssinatura + 10 + largAssinatura / 2, y, { align: 'center' })
+  pdf.text('Eng. da Obra', meioAssinatura + 10 + largAssinatura / 2, y, { align: 'center' })
   y += 9
 
   // resumo desta medição, em destaque

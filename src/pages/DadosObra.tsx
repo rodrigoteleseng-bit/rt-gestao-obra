@@ -24,6 +24,7 @@ export default function DadosObra() {
   const [nome, setNome] = useState('')
   const [descricao, setDescricao] = useState('')
   const [nomeEmpreendimento, setNomeEmpreendimento] = useState('')
+  const [razaoSocial, setRazaoSocial] = useState('')
   const [endereco, setEndereco] = useState('')
   const [cidade, setCidade] = useState('')
   const [estado, setEstado] = useState('')
@@ -32,6 +33,8 @@ export default function DadosObra() {
   const [enderecoEscritorio, setEnderecoEscritorio] = useState('')
   const [cep, setCep] = useState('')
   const [email, setEmail] = useState('')
+  const [engenheiroObraNome, setEngenheiroObraNome] = useState('')
+  const [engenheiroObraCrea, setEngenheiroObraCrea] = useState('')
   const [dataInicio, setDataInicio] = useState('')
   const [dataFimPrevista, setDataFimPrevista] = useState('')
   const [status, setStatus] = useState<StatusObra>('ativa')
@@ -52,8 +55,9 @@ export default function DadosObra() {
 
   function abrirNovo() {
     setEditandoId(null)
-    setNome(''); setDescricao(''); setNomeEmpreendimento(''); setEndereco(''); setCidade(''); setEstado('')
+    setNome(''); setDescricao(''); setNomeEmpreendimento(''); setRazaoSocial(''); setEndereco(''); setCidade(''); setEstado('')
     setCnpj(''); setCnoObra(''); setEnderecoEscritorio(''); setCep(''); setEmail('')
+    setEngenheiroObraNome(''); setEngenheiroObraCrea('')
     setDataInicio(''); setDataFimPrevista(''); setStatus('ativa')
     setLogoUrl(null); setRodapePdf(''); setLogoArquivo(null)
     setMsg(null)
@@ -65,6 +69,7 @@ export default function DadosObra() {
     setNome(o.nome)
     setDescricao(o.descricao ?? '')
     setNomeEmpreendimento(o.nome_empreendimento ?? '')
+    setRazaoSocial(o.razao_social ?? '')
     setEndereco(o.endereco ?? '')
     setCidade(o.cidade ?? '')
     setEstado(o.estado ?? '')
@@ -73,6 +78,8 @@ export default function DadosObra() {
     setEnderecoEscritorio(o.endereco_escritorio ?? '')
     setCep(o.cep ?? '')
     setEmail(o.email ?? '')
+    setEngenheiroObraNome(o.engenheiro_obra_nome ?? '')
+    setEngenheiroObraCrea(o.engenheiro_obra_crea ?? '')
     setDataInicio(o.data_inicio ?? '')
     setDataFimPrevista(o.data_fim_prevista ?? '')
     setStatus(o.status)
@@ -115,6 +122,7 @@ export default function DadosObra() {
       nome: nome.trim(),
       descricao: descricao.trim() || null,
       nome_empreendimento: nomeEmpreendimento.trim() || null,
+      razao_social: razaoSocial.trim() || null,
       endereco: endereco.trim() || null,
       cidade: cidade.trim() || null,
       estado: estado.trim().toUpperCase() || null,
@@ -123,6 +131,8 @@ export default function DadosObra() {
       endereco_escritorio: enderecoEscritorio.trim() || null,
       cep: cep.trim() || null,
       email: email.trim() || null,
+      engenheiro_obra_nome: engenheiroObraNome.trim() || null,
+      engenheiro_obra_crea: engenheiroObraCrea.trim() || null,
       data_inicio: dataInicio || null,
       data_fim_prevista: dataFimPrevista || null,
       status,
@@ -170,14 +180,6 @@ export default function DadosObra() {
               <textarea value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Opcional" />
             </label>
             <label className={styles.campo}>
-              Nome do empreendimento (comercial, se diferente do nome da obra)
-              <input
-                value={nomeEmpreendimento}
-                onChange={e => setNomeEmpreendimento(e.target.value)}
-                placeholder="Ex.: Residencial Azaleia"
-              />
-            </label>
-            <label className={styles.campo}>
               Endereço Obra
               <input value={endereco} onChange={e => setEndereco(e.target.value)} placeholder="Opcional" />
             </label>
@@ -191,6 +193,10 @@ export default function DadosObra() {
                 <input value={estado} onChange={e => setEstado(e.target.value)} maxLength={2} placeholder="GO" />
               </label>
             </div>
+            <label className={styles.campo}>
+              Razão Social (para o quadro de emissão de Nota Fiscal)
+              <input value={razaoSocial} onChange={e => setRazaoSocial(e.target.value)} placeholder="Opcional" />
+            </label>
             <div className={styles.linha}>
               <label className={styles.campo}>
                 CNPJ
@@ -215,6 +221,24 @@ export default function DadosObra() {
               Email
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Opcional" />
             </label>
+            <label className={styles.campo}>
+              Nome do empreendimento (comercial, se diferente do nome da obra)
+              <input
+                value={nomeEmpreendimento}
+                onChange={e => setNomeEmpreendimento(e.target.value)}
+                placeholder="Ex.: Residencial Azaleia"
+              />
+            </label>
+            <div className={styles.linha}>
+              <label className={styles.campo}>
+                Engenheiro da Obra
+                <input value={engenheiroObraNome} onChange={e => setEngenheiroObraNome(e.target.value)} placeholder="Ex.: Rodrigo Teles Silva" />
+              </label>
+              <label className={styles.campo}>
+                CREA
+                <input value={engenheiroObraCrea} onChange={e => setEngenheiroObraCrea(e.target.value)} placeholder="Ex.: 1018712895 D/GO" />
+              </label>
+            </div>
             <div className={styles.linha}>
               <label className={styles.campo}>
                 Data de início

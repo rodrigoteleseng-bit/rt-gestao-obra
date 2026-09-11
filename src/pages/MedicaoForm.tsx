@@ -340,7 +340,7 @@ export default function MedicaoForm() {
     if (!contrato || !medicao) return
     const [{ data: obraRow }, { data: responsavelRow }, { data: deducoesAtual }] = await Promise.all([
       supabase.from('obras')
-        .select('nome, logo_url, rodape_pdf, nome_empreendimento, endereco, cidade, estado, cnpj, cno_obra, endereco_escritorio, cep, email')
+        .select('nome, logo_url, rodape_pdf, nome_empreendimento, razao_social, endereco, cidade, estado, cnpj, cno_obra, endereco_escritorio, cep, email, engenheiro_obra_nome, engenheiro_obra_crea')
         .eq('id', contrato.obra_id).maybeSingle(),
       supabase.from('perfis_usuario').select('nome, email, telefone').eq('id', medicao.criado_por).maybeSingle(),
       supabase.from('medicoes_deducoes').select('*').eq('medicao_id', medicao.id).eq('ativo', true).order('criado_em'),
@@ -359,6 +359,7 @@ export default function MedicaoForm() {
       empreiteiroNome,
       obraNome: obraRow?.nome ?? '—',
       nomeEmpreendimento: obraRow?.nome_empreendimento ?? null,
+      razaoSocialObra: obraRow?.razao_social ?? null,
       enderecoObra: obraRow?.endereco ?? null,
       cidadeObra: obraRow?.cidade ?? null,
       estadoObra: obraRow?.estado ?? null,
@@ -367,6 +368,8 @@ export default function MedicaoForm() {
       enderecoEscritorioObra: obraRow?.endereco_escritorio ?? null,
       cepObra: obraRow?.cep ?? null,
       emailObra: obraRow?.email ?? null,
+      engenheiroObraNome: obraRow?.engenheiro_obra_nome ?? null,
+      engenheiroObraCrea: obraRow?.engenheiro_obra_crea ?? null,
       responsavelNome: responsavelRow?.nome ?? '—',
       responsavelEmail: responsavelRow?.email ?? '—',
       responsavelTelefone: responsavelRow?.telefone ?? null,

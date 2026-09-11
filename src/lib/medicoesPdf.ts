@@ -97,7 +97,6 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const LIMITE_RODAPE = 196   // onde a faixa de rodapé começa
   const LARG_DESC_DEDUCAO = 168 // largura da coluna de descrição na tabela de deduções
   const ALTURA_BLOCO_FINAL = 93 // espaço p/ assinatura física + assinaturas + recap + resumo + acumulado — medido no bloco real (~82mm) + folga de ~10mm
-  const BLOCO_FINAL_Y = LIMITE_RODAPE - ALTURA_BLOCO_FINAL // posição fixa — o bloco final sempre começa aqui, travado no rodapé
   const medXxx = `MED-${String(d.medicao.numero).padStart(3, '0')}`
   let y = 0
 
@@ -214,10 +213,12 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     ...(endereco ? [`Endereço: ${endereco}`] : []),
     linhaResponsavel,
   ])
+  const retencaoPct = d.contrato.retencao_pct ?? 0
   const fimCol1 = coluna(colunaX[1], 'Contrato', [
     `Empreiteiro: ${d.empreiteiroNome}`,
     `Contrato: ${d.contrato.numero}`,
     `Objeto: ${d.contrato.objeto}`,
+    `Retenção: ${retencaoPct}%`,
   ])
   const fimCol2 = coluna(colunaX[2], 'Medição', [
     `Medição Nº: ${medXxx}`,
@@ -434,11 +435,12 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   y += ALTURA_NF + 8
 
   // ---------- bloco final: assinaturas + resumo + acumulado (atômico) ----------
-  // Sempre travado no rodapé (mesma posição em qualquer página) — se a
-  // tabela já passou desse ponto, o bloco inteiro vai pra próxima página;
-  // senão, "sobe" pro y fixo mesmo com a tabela terminando bem antes.
-  if (y > BLOCO_FINAL_Y) novaPagina()
-  y = BLOCO_FINAL_Y
+  // Nunca quebra no meio — se não sobrar espaço pro bloco inteiro, pula pra
+  // próxima página — mas, ao contrário de antes, não pula pra uma posição
+  // fixa perto do rodapé: continua exatamente de onde o conteúdo anterior
+  // (Nota Fiscal) parou, sem vão em branco. A única quebra de página
+  // deliberada deste documento é a de 60% antes das Deduções.
+  precisaEspaco(ALTURA_BLOCO_FINAL)
 
   // assinaturas — espaço em branco antes da linha, pra caber a assinatura
   // física a caneta (a linha sozinha, sem esse respiro, não deixa lugar
@@ -476,7 +478,6 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   // valor definitivo ainda, então o PDF recomputa a partir dos itens
   // passados (mesmo cálculo já usado linha a linha acima).
   const aprovada = d.medicao.status === 'aprovada'
-  const retencaoPct = d.contrato.retencao_pct ?? 0
   const bruto = aprovada ? d.medicao.valor_bruto : brutoItens
   const retido = aprovada ? d.medicao.valor_retido : Math.round(brutoItens * retencaoPct) / 100
   const liquido = aprovada ? d.medicao.valor_liquido : bruto - retido - totalDeducoes
@@ -494,7 +495,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const largRecap = LARG / 4
   const recapItens: [string, string, string | null][] = [
     ['VALOR BRUTO MEDIÇÃO', `R$ ${formatarMoeda(bruto)}`, null],
-    ['RETENÇÃO %', `${retencaoPct}%`, null],
+    ['RETENÇÃO', `R$ ${formatarMoeda(retido)}`, null],
     ['RETENÇÃO ACUMULADA', `R$ ${formatarMoeda(d.totalRetidoContrato)}`, `${pctRetido.toFixed(1)}% do contrato`],
     ['TOTAL DEDUÇÕES', `R$ ${formatarMoeda(totalDeducoes)}`, null],
   ]

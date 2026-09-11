@@ -5,7 +5,7 @@ import { useObra } from '../contexts/ObraContext'
 import {
   supabase, type Rdo, type RdoAtividade, type RdoEfetivo, type RdoFoto, type RdoAudio,
   type Unidade, type CronogramaTarefa, type AvancoFisico, type CondicaoClima,
-  type EfetivoChamada, type Trabalhador,
+  type EfetivoChamada, type Trabalhador, type RdoMaquinario, type SituacaoMaquinario,
 } from '../lib/supabase'
 import { obterPosicao, sha256Hex, carimbarFoto, fmtCoord, fmtDuracao } from '../lib/rdo'
 import { agruparPresencasComoEfetivo } from '../lib/efetivo'
@@ -19,6 +19,11 @@ const CLIMAS: { valor: CondicaoClima; rotulo: string; icone: string }[] = [
   { valor: 'chuvoso', rotulo: 'Chuvoso', icone: '🌧️' },
 ]
 const FUNCOES_SUGERIDAS = ['Pedreiro', 'Servente', 'Carpinteiro', 'Armador', 'Eletricista', 'Encanador', 'Pintor', 'Gesseiro', 'Mestre de obras', 'Encarregado']
+const SITUACAO_MAQUINARIO_LABEL: Record<SituacaoMaquinario, string> = {
+  em_operacao: 'Em operação',
+  parada: 'Parada',
+  manutencao: 'Manutenção',
+}
 
 interface AvancoDoDia extends AvancoFisico {
   tarefaNome: string
@@ -49,6 +54,7 @@ export default function RDOForm() {
   const [rdo, setRdo] = useState<Rdo | null>(null)
   const [atividades, setAtividades] = useState<RdoAtividade[]>([])
   const [efetivo, setEfetivo] = useState<RdoEfetivo[]>([])
+  const [maquinarios, setMaquinarios] = useState<RdoMaquinario[]>([])
   const [chamadaDia, setChamadaDia] = useState<EfetivoChamada | null>(null)
   const [fotos, setFotos] = useState<RdoFoto[]>([])
   const [audios, setAudios] = useState<RdoAudio[]>([])
@@ -76,9 +82,10 @@ export default function RDOForm() {
   // formulários de adição
   // funcaoSel: null = mostrando a lista de funções; nome = função clicada; '' = "outra função" (digita)
   const [funcaoSel, setFuncaoSel] = useState<string | null>(null)
-  const [novoEfetivo, setNovoEfetivo] = useState({ funcao: '', quantidade: '', empresa: '' })
+  const [novoEfetivo, setNovoEfetivo] = useState<{ funcao: string; quantidade: string; vinculo: 'propria' | 'terceirizado'; empresa: string }>({ funcao: '', quantidade: '', vinculo: 'propria', empresa: '' })
   const [novaAtividade, setNovaAtividade] = useState({ unidade: '', tarefa: '', descricao: '' })
   const [tarefasUnidade, setTarefasUnidade] = useState<CronogramaTarefa[]>([])
+  const [novoMaquinario, setNovoMaquinario] = useState<{ maquina: string; periodo: string; situacao: SituacaoMaquinario }>({ maquina: '', periodo: '', situacao: 'em_operacao' })
 
   // áudio
   const [gravando, setGravando] = useState(false)
@@ -123,15 +130,17 @@ export default function RDOForm() {
     setObs(r.observacoes ?? '')
     setNomeAssinante(perfil?.nome ?? '')
 
-    const [ativ, efet, fts, auds, unis] = await Promise.all([
+    const [ativ, efet, maqs, fts, auds, unis] = await Promise.all([
       supabase.from('rdo_atividades').select('*').eq('rdo_id', rdoId).eq('ativo', true).order('ordem'),
       supabase.from('rdo_efetivo').select('*').eq('rdo_id', rdoId).eq('ativo', true).order('criado_em'),
+      supabase.from('rdo_maquinarios').select('*').eq('rdo_id', rdoId).eq('ativo', true).order('criado_em'),
       supabase.from('rdo_fotos').select('*').eq('rdo_id', rdoId).eq('ativo', true).order('capturada_em'),
       supabase.from('rdo_audios').select('*').eq('rdo_id', rdoId).eq('ativo', true).order('gravado_em'),
       supabase.from('unidades').select('*').eq('obra_id', r.obra_id).order('ordem'),
     ])
     setAtividades(ativ.data ?? [])
     setEfetivo(efet.data ?? [])
+    setMaquinarios(maqs.data ?? [])
     setFotos(fts.data ?? [])
     setAudios(auds.data ?? [])
     setUnidades(unis.data ?? [])
@@ -289,19 +298,46 @@ export default function RDOForm() {
     const funcao = (funcaoSel || novoEfetivo.funcao).trim()
     const qtd = Number(novoEfetivo.quantidade)
     if (!funcao || isNaN(qtd) || qtd <= 0) return
+    // Terceirizado exige o nome da empresa — é o que diferencia dos 12
+    // lançamentos reais do RDO 44 que ficaram todos "própria" por
+    // ausência de indicação clara no formulário antigo.
+    const empresa = novoEfetivo.vinculo === 'terceirizado' ? novoEfetivo.empresa.trim() : ''
+    if (novoEfetivo.vinculo === 'terceirizado' && !empresa) {
+      setMsg({ tipo: 'erro', texto: 'Informe a empresa terceirizada.' })
+      return
+    }
     const { data, error } = await supabase.from('rdo_efetivo').insert({
       rdo_id: rdo.id, funcao, quantidade: qtd,
-      empresa: novoEfetivo.empresa.trim() || null,
+      empresa: empresa || null,
     }).select().single()
     if (error) { setMsg({ tipo: 'erro', texto: error.message }); return }
     setEfetivo(prev => [...prev, data])
-    setNovoEfetivo({ funcao: '', quantidade: '', empresa: '' })
+    setNovoEfetivo({ funcao: '', quantidade: '', vinculo: 'propria', empresa: '' })
     setFuncaoSel(null)
   }
   async function removerEfetivo(eId: string) {
     const { error } = await supabase.from('rdo_efetivo').update({ ativo: false }).eq('id', eId)
     if (error) { setMsg({ tipo: 'erro', texto: `Erro ao remover: ${error.message}` }); return }
     setEfetivo(prev => prev.filter(e => e.id !== eId))
+  }
+
+  // ---------- maquinário ----------
+  async function addMaquinario() {
+    if (!rdo) return
+    const maquina = novoMaquinario.maquina.trim()
+    const periodo = novoMaquinario.periodo.trim()
+    if (!maquina || !periodo) return
+    const { data, error } = await supabase.from('rdo_maquinarios').insert({
+      rdo_id: rdo.id, maquina, periodo, situacao: novoMaquinario.situacao,
+    }).select().single()
+    if (error) { setMsg({ tipo: 'erro', texto: error.message }); return }
+    setMaquinarios(prev => [...prev, data])
+    setNovoMaquinario({ maquina: '', periodo: '', situacao: 'em_operacao' })
+  }
+  async function removerMaquinario(mId: string) {
+    const { error } = await supabase.from('rdo_maquinarios').update({ ativo: false }).eq('id', mId)
+    if (error) { setMsg({ tipo: 'erro', texto: `Erro ao remover: ${error.message}` }); return }
+    setMaquinarios(prev => prev.filter(m => m.id !== mId))
   }
 
   // ---------- atividades ----------
@@ -553,8 +589,10 @@ export default function RDOForm() {
       await gerarPdfRdo({
         rdo: { ...rdo, horario_inicio: horario || rdo.horario_inicio, observacoes: obs || rdo.observacoes },
         obraNome: obraAtiva.nome,
+        obraDataInicio: obraAtiva.data_inicio,
+        obraDataFimPrevista: obraAtiva.data_fim_prevista,
         identidade,
-        atividades, efetivo, fotos, audios, avancosDia, fvsDia, unidades,
+        atividades, efetivo, maquinarios, fotos, audios, avancosDia, fvsDia, unidades,
       })
     } catch (e) {
       setMsg({ tipo: 'erro', texto: `Erro ao gerar PDF: ${e instanceof Error ? e.message : e}` })
@@ -651,11 +689,11 @@ export default function RDOForm() {
         {podeEditar && !chamadaDia && funcaoSel === null && (
           <div className={styles.chipsFuncoes}>
             {FUNCOES_SUGERIDAS.map(f => (
-              <button key={f} className={styles.chipFuncao} onClick={() => { setFuncaoSel(f); setNovoEfetivo({ funcao: '', quantidade: '', empresa: '' }) }}>
+              <button key={f} className={styles.chipFuncao} onClick={() => { setFuncaoSel(f); setNovoEfetivo({ funcao: '', quantidade: '', vinculo: 'propria', empresa: '' }) }}>
                 {f}
               </button>
             ))}
-            <button className={styles.chipFuncaoOutra} onClick={() => { setFuncaoSel(''); setNovoEfetivo({ funcao: '', quantidade: '', empresa: '' }) }}>
+            <button className={styles.chipFuncaoOutra} onClick={() => { setFuncaoSel(''); setNovoEfetivo({ funcao: '', quantidade: '', vinculo: 'propria', empresa: '' }) }}>
               + Outra função
             </button>
           </div>
@@ -669,10 +707,22 @@ export default function RDOForm() {
             <input type="number" min={1} inputMode="numeric" placeholder="Qtd" autoFocus={funcaoSel !== ''}
               value={novoEfetivo.quantidade}
               onChange={e => setNovoEfetivo(prev => ({ ...prev, quantidade: e.target.value }))}
-              onKeyDown={e => { if (e.key === 'Enter') addEfetivo() }}
+              onKeyDown={e => { if (e.key === 'Enter' && novoEfetivo.vinculo === 'propria') addEfetivo() }}
               className={styles.inputCurto} />
-            <input placeholder="Empresa (opcional)" value={novoEfetivo.empresa}
-              onChange={e => setNovoEfetivo(prev => ({ ...prev, empresa: e.target.value }))} className={styles.inputMedio} />
+            <button type="button" className={novoEfetivo.vinculo === 'propria' ? styles.climaBtnAtivo : styles.climaBtn}
+              onClick={() => setNovoEfetivo(prev => ({ ...prev, vinculo: 'propria', empresa: '' }))}>
+              Mão de obra própria
+            </button>
+            <button type="button" className={novoEfetivo.vinculo === 'terceirizado' ? styles.climaBtnAtivo : styles.climaBtn}
+              onClick={() => setNovoEfetivo(prev => ({ ...prev, vinculo: 'terceirizado' }))}>
+              Terceirizado
+            </button>
+            {novoEfetivo.vinculo === 'terceirizado' && (
+              <input placeholder="Empresa terceirizada *" value={novoEfetivo.empresa} autoFocus
+                onChange={e => setNovoEfetivo(prev => ({ ...prev, empresa: e.target.value }))}
+                onKeyDown={e => { if (e.key === 'Enter') addEfetivo() }}
+                className={styles.inputMedio} />
+            )}
             <button className={styles.btnAdd} onClick={addEfetivo}>+ Adicionar</button>
             <button className={styles.btnRemover} onClick={() => setFuncaoSel(null)}>Cancelar</button>
           </div>
@@ -716,6 +766,36 @@ export default function RDOForm() {
             <input placeholder="Descrição do serviço" value={novaAtividade.descricao} className={styles.inputLongo}
               onChange={e => setNovaAtividade(prev => ({ ...prev, descricao: e.target.value }))} />
             <button className={styles.btnAdd} onClick={addAtividade}>+ Adicionar</button>
+          </div>
+        )}
+      </section>
+
+      {/* Maquinário */}
+      <section className={styles.bloco}>
+        <h2>Maquinário {maquinarios.length > 0 && <span className={styles.totalEfetivo}>({maquinarios.length})</span>}</h2>
+        {maquinarios.map(m => (
+          <div key={m.id} className={styles.itemLinha}>
+            <span className={styles.itemTexto}>
+              🚜 <strong>{m.maquina}</strong> · {m.periodo} — {SITUACAO_MAQUINARIO_LABEL[m.situacao]}
+            </span>
+            {podeEditar && <button className={styles.btnRemover} onClick={() => removerMaquinario(m.id)}>✕</button>}
+          </div>
+        ))}
+        {maquinarios.length === 0 && <p className={styles.vazio}>Nenhum maquinário registrado neste dia.</p>}
+        {podeEditar && (
+          <div className={styles.linhaCampos}>
+            <input placeholder="Máquina (ex.: Betoneira 400L)" value={novoMaquinario.maquina} className={styles.inputMedio}
+              onChange={e => setNovoMaquinario(prev => ({ ...prev, maquina: e.target.value }))} />
+            <input placeholder="Período (ex.: 07h às 12h)" value={novoMaquinario.periodo} className={styles.inputMedio}
+              onChange={e => setNovoMaquinario(prev => ({ ...prev, periodo: e.target.value }))}
+              onKeyDown={e => { if (e.key === 'Enter') addMaquinario() }} />
+            <select value={novoMaquinario.situacao} className={styles.inputMedio}
+              onChange={e => setNovoMaquinario(prev => ({ ...prev, situacao: e.target.value as SituacaoMaquinario }))}>
+              {(Object.keys(SITUACAO_MAQUINARIO_LABEL) as SituacaoMaquinario[]).map(s => (
+                <option key={s} value={s}>{SITUACAO_MAQUINARIO_LABEL[s]}</option>
+              ))}
+            </select>
+            <button className={styles.btnAdd} onClick={addMaquinario}>+ Adicionar</button>
           </div>
         )}
       </section>

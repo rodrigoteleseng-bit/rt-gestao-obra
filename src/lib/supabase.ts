@@ -169,6 +169,18 @@ export interface RdoEfetivo {
   ativo: boolean
 }
 
+export type SituacaoMaquinario = 'em_operacao' | 'parada' | 'manutencao'
+export interface RdoMaquinario {
+  id: string
+  rdo_id: string
+  maquina: string
+  periodo: string
+  situacao: SituacaoMaquinario
+  ativo: boolean
+  criado_em: string
+  criado_por: string
+}
+
 export interface RdoFoto {
   id: string
   rdo_id: string

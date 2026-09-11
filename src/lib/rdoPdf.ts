@@ -1,13 +1,19 @@
 // Geração do PDF do RDO com identidade RT Engenharia (jsPDF, client-side).
 import { jsPDF } from 'jspdf'
 import { supabase } from './supabase'
-import type { Rdo, RdoAtividade, RdoEfetivo, RdoFoto, RdoAudio, Unidade, AvancoFisico } from './supabase'
+import type { Rdo, RdoAtividade, RdoEfetivo, RdoMaquinario, SituacaoMaquinario, RdoFoto, RdoAudio, Unidade, AvancoFisico } from './supabase'
 import { fmtCoord, fmtDuracao } from './rdo'
 import { carregarIdentidadeObra, larguraProporcional, type IdentidadeMarca } from './pdfBranding'
 
 const NAVY = '#1A3248'
 const TERRACOTA = '#C49A7A'
+const AZUL_MEDIO = '#3A7CA5'
 const CINZA = '#6c757d'
+const SITUACAO_MAQUINARIO_LABEL: Record<SituacaoMaquinario, string> = {
+  em_operacao: 'Em operação',
+  parada: 'Parada',
+  manutencao: 'Manutenção',
+}
 
 interface AvancoDoDia extends AvancoFisico { tarefaNome: string; unidadeNome: string }
 export interface FvsDoDiaPdf { codigo: string; nome: string; unidadeNome: string; resultado: string }
@@ -16,9 +22,12 @@ const RESULTADO_FVS: Record<string, string> = { aprovada: 'Aprovada', aprovada_r
 export interface DadosPdfRdo {
   rdo: Rdo
   obraNome: string
+  obraDataInicio: string | null
+  obraDataFimPrevista: string | null
   identidade: IdentidadeMarca
   atividades: RdoAtividade[]
   efetivo: RdoEfetivo[]
+  maquinarios: RdoMaquinario[]
   fotos: RdoFoto[]
   audios: RdoAudio[]
   avancosDia: AvancoDoDia[]
@@ -28,6 +37,14 @@ export interface DadosPdfRdo {
 
 const fmtData = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
 const CLIMA_ROTULO: Record<string, string> = { claro: 'Claro', nublado: 'Nublado', chuvoso: 'Chuvoso' }
+
+// Dias corridos entre duas datas 'YYYY-MM-DD' (UTC, sem hora — evita
+// desvio de fuso horário na subtração de dias corridos).
+function diffDias(a: string, b: string): number {
+  const da = new Date(`${a}T00:00:00Z`).getTime()
+  const db = new Date(`${b}T00:00:00Z`).getTime()
+  return Math.round((db - da) / 86400000)
+}
 
 async function blobParaDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -75,16 +92,23 @@ export async function gerarPdfRdo(d: DadosPdfRdo): Promise<void> {
   function precisa(mm: number) {
     if (y + mm > 280) novaPagina()
   }
+  // Barra navy de largura inteira (mesmo padrão do quadro "Dados para
+  // Emissão de Nota Fiscal" do PDF de Medição) — substitui o traço fino
+  // + texto que era usado antes, aplicado uniformemente a todos os
+  // títulos de seção do RDO.
   function titulo(txt: string) {
-    precisa(14)
-    y += 3
+    precisa(16)
+    y += 4
+    const alturaBarra = 7
     pdf.setFillColor(NAVY)
-    pdf.rect(ML, y, 2.2, 5.6, 'F')
+    pdf.rect(ML, y, LARG, alturaBarra, 'F')
+    pdf.setFillColor(TERRACOTA)
+    pdf.rect(ML, y + alturaBarra - 0.8, LARG, 0.8, 'F')
     pdf.setFont('helvetica', 'bold')
-    pdf.setFontSize(11)
-    pdf.setTextColor(NAVY)
-    pdf.text(txt.toUpperCase(), ML + 4.5, y + 4.4)
-    y += 9
+    pdf.setFontSize(9.5)
+    pdf.setTextColor('#ffffff')
+    pdf.text(txt.toUpperCase(), ML + 5, y + 5)
+    y += alturaBarra + 5
   }
   function texto(txt: string, opts: { negrito?: boolean; cor?: string; tamanho?: number; indent?: number } = {}) {
     pdf.setFont('helvetica', opts.negrito ? 'bold' : 'normal')
@@ -100,10 +124,16 @@ export async function gerarPdfRdo(d: DadosPdfRdo): Promise<void> {
   }
 
   // ---------- cabeçalho ----------
+  // Altura maior que antes (38mm, era 30mm) pra caber as 3 linhas de
+  // prazo abaixo do número do RDO. Prazo Contratual/Decorrido/Restante
+  // vêm de obraDataInicio/obraDataFimPrevista (Dados da Obra) — quando
+  // a obra não tem essas datas cadastradas, mostra "—" em vez de
+  // inventar um número.
+  const ALTURA_CABECALHO = 38
   pdf.setFillColor(NAVY)
-  pdf.rect(0, 0, W, 30, 'F')
+  pdf.rect(0, 0, W, ALTURA_CABECALHO, 'F')
   pdf.setFillColor(TERRACOTA)
-  pdf.rect(0, 30, W, 1.4, 'F')
+  pdf.rect(0, ALTURA_CABECALHO, W, 1.4, 'F')
   pdf.setTextColor('#ffffff')
   if (d.identidade.logoBase64) {
     const alturaLogo = 22
@@ -125,7 +155,19 @@ export async function gerarPdfRdo(d: DadosPdfRdo): Promise<void> {
   pdf.setFontSize(10)
   pdf.setTextColor('#D0AE95')
   pdf.text(`RDO Nº ${String(d.rdo.numero).padStart(3, '0')} · ${fmtData(d.rdo.data)}`, W - MR, 18.5, { align: 'right' })
-  y = 39
+
+  const prazoContratual = d.obraDataInicio && d.obraDataFimPrevista ? diffDias(d.obraDataInicio, d.obraDataFimPrevista) : null
+  const prazoDecorrido = d.obraDataInicio ? diffDias(d.obraDataInicio, d.rdo.data) : null
+  const prazoRestante = d.obraDataFimPrevista ? diffDias(d.rdo.data, d.obraDataFimPrevista) : null
+  const fmtPrazo = (dias: number | null) => dias === null ? '—' : `${dias} dias`
+  pdf.setFont('helvetica', 'normal')
+  pdf.setFontSize(7.5)
+  pdf.setTextColor('#ffffff')
+  pdf.text(`Prazo Contratual: ${fmtPrazo(prazoContratual)}`, W - MR, 24, { align: 'right' })
+  pdf.text(`Prazo Decorrido: ${fmtPrazo(prazoDecorrido)}`, W - MR, 28.5, { align: 'right' })
+  pdf.text(`Prazo Restante: ${fmtPrazo(prazoRestante)}`, W - MR, 33, { align: 'right' })
+
+  y = ALTURA_CABECALHO + 9
 
   // ---------- identificação ----------
   texto(`Obra: ${d.obraNome}`, { negrito: true, tamanho: 11 })
@@ -135,18 +177,130 @@ export async function gerarPdfRdo(d: DadosPdfRdo): Promise<void> {
   }
 
   // ---------- clima ----------
+  // Tabela (era texto corrido) — Período/Tempo/Condição em colunas
+  // bordadas, igual ao modelo que o Rodrigo pediu pra seguir. Sem ícone
+  // de clima aqui: o emoji força jsPDF a codificar a string inteira em
+  // 2 bytes/caractere (a fonte helvetica padrão só cobre WinAnsi de 1
+  // byte), corrompendo o texto — mesmo bug já corrigido no PDF de
+  // Pedido de Compra ("⚡ SIM" virando lixo).
   titulo('Condições climáticas')
-  const clima = (rot: string, c: string | null, t: boolean | null) =>
-    `${rot}: ${c ? CLIMA_ROTULO[c] : 'não informado'} · ${t === null ? 'trabalhável não informado' : t ? 'trabalhável' : 'NÃO trabalhável'}`
-  texto(clima('Manhã', d.rdo.clima_manha, d.rdo.clima_manha_trabalhavel))
-  texto(clima('Tarde', d.rdo.clima_tarde, d.rdo.clima_tarde_trabalhavel))
+  const colPeriodo = 30
+  const colTempo = 76
+  function linhaClima(periodoLabel: string, c: string | null, t: boolean | null) {
+    const alturaLinha = 7
+    precisa(alturaLinha)
+    pdf.setDrawColor('#E0DAD0')
+    pdf.setLineWidth(0.2)
+    pdf.rect(ML, y, LARG, alturaLinha, 'S')
+    pdf.line(ML + colPeriodo, y, ML + colPeriodo, y + alturaLinha)
+    pdf.line(ML + colPeriodo + colTempo, y, ML + colPeriodo + colTempo, y + alturaLinha)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8.5)
+    pdf.setTextColor(NAVY)
+    pdf.text(periodoLabel, ML + 3, y + 4.7)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setTextColor('#222222')
+    pdf.text(c ? CLIMA_ROTULO[c] : 'não informado', ML + colPeriodo + 3, y + 4.7)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(t === null ? CINZA : t ? '#1e6b2e' : '#a33030')
+    pdf.text(t === null ? 'Não informado' : t ? 'Praticável' : 'Não praticável', ML + colPeriodo + colTempo + 3, y + 4.7)
+    y += alturaLinha
+  }
+  precisa(6)
+  pdf.setFillColor('#F0EBE3')
+  pdf.rect(ML, y, LARG, 6, 'F')
+  pdf.setDrawColor('#E0DAD0')
+  pdf.setLineWidth(0.2)
+  pdf.rect(ML, y, LARG, 6, 'S')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(7)
+  pdf.setTextColor(NAVY)
+  pdf.text('TEMPO', ML + colPeriodo + 3, y + 4.2)
+  pdf.text('CONDIÇÃO', ML + colPeriodo + colTempo + 3, y + 4.2)
+  y += 6
+  linhaClima('Manhã', d.rdo.clima_manha, d.rdo.clima_manha_trabalhavel)
+  linhaClima('Tarde', d.rdo.clima_tarde, d.rdo.clima_tarde_trabalhavel)
+  y += 5
 
   // ---------- efetivo ----------
+  // Grade de caixas agrupada em Mão de Obra Própria / Terceirizado (a
+  // distinção vem do campo Empresa: vazio = própria, preenchido =
+  // terceirizado) — cada caixa tem a largura do próprio texto (nunca
+  // precisa quebrar linha) e "empacota" numa fileira até não caber mais,
+  // começando fileira nova — o traço entre fileiras sai de graça porque
+  // a borda de baixo de uma caixa e a de cima da próxima coincidem.
   titulo('Efetivo do dia')
   if (d.efetivo.length === 0) texto('Não informado.', { cor: CINZA })
   else {
-    for (const e of d.efetivo) texto(`• ${e.quantidade}× ${e.funcao}${e.empresa ? ` — ${e.empresa}` : ''}`, { indent: 2 })
-    texto(`Total: ${d.efetivo.reduce((a, e) => a + e.quantidade, 0)} pessoas`, { negrito: true })
+    function grupoEfetivo(rotulo: string, entradas: RdoEfetivo[]) {
+      if (entradas.length === 0) return
+      const total = entradas.reduce((s, e) => s + e.quantidade, 0)
+      precisa(6)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(7.5)
+      pdf.setTextColor(TERRACOTA)
+      pdf.text(`${rotulo.toUpperCase()} (${total})`, ML, y)
+      y += 4.5
+
+      const comEmpresa = entradas.some(e => e.empresa)
+      const alturaBox = comEmpresa ? 13 : 10
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(6.5)
+      const caixas = entradas.map(e => {
+        const largFuncao = pdf.getTextWidth(e.funcao.toUpperCase())
+        const largEmpresa = e.empresa ? pdf.getTextWidth(e.empresa) : 0
+        return { e, largura: Math.max(largFuncao, largEmpresa, 18) + 8 }
+      })
+      const fileiras: typeof caixas[] = []
+      let atual: typeof caixas = []
+      let largAtual = 0
+      for (const cx of caixas) {
+        if (largAtual + cx.largura > LARG && atual.length > 0) {
+          fileiras.push(atual)
+          atual = []
+          largAtual = 0
+        }
+        atual.push(cx)
+        largAtual += cx.largura
+      }
+      if (atual.length > 0) fileiras.push(atual)
+
+      for (const fileira of fileiras) {
+        precisa(alturaBox)
+        let x = ML
+        for (const cx of fileira) {
+          pdf.setDrawColor('#E0DAD0')
+          pdf.setLineWidth(0.2)
+          pdf.rect(x, y, cx.largura, alturaBox, 'S')
+          const centro = x + cx.largura / 2
+          pdf.setFont('helvetica', 'normal')
+          pdf.setFontSize(6.5)
+          pdf.setTextColor(CINZA)
+          pdf.text(cx.e.funcao.toUpperCase(), centro, y + 4, { align: 'center' })
+          pdf.setFont('helvetica', 'bold')
+          pdf.setFontSize(11)
+          pdf.setTextColor(NAVY)
+          pdf.text(String(cx.e.quantidade), centro, y + 8.5, { align: 'center' })
+          if (cx.e.empresa) {
+            pdf.setFont('helvetica', 'normal')
+            pdf.setFontSize(5.8)
+            pdf.setTextColor(AZUL_MEDIO)
+            pdf.text(cx.e.empresa, centro, y + 11.5, { align: 'center' })
+          }
+          x += cx.largura
+        }
+        y += alturaBox
+      }
+      y += 4
+    }
+    grupoEfetivo('Mão de Obra Própria', d.efetivo.filter(e => !e.empresa))
+    grupoEfetivo('Terceirizado', d.efetivo.filter(e => e.empresa))
+    precisa(6)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(9)
+    pdf.setTextColor(NAVY)
+    pdf.text(`Total do dia: ${d.efetivo.reduce((a, e) => a + e.quantidade, 0)} pessoas`, ML, y)
+    y += 8
   }
 
   // ---------- serviços ----------
@@ -157,6 +311,46 @@ export async function gerarPdfRdo(d: DadosPdfRdo): Promise<void> {
   }
   for (const a of d.atividades) {
     texto(`• ${nomeUnidade(a.unidade_id)} — ${a.descricao}`, { indent: 2 })
+  }
+
+  // ---------- maquinário ----------
+  titulo('Maquinário')
+  if (d.maquinarios.length === 0) texto('Nenhum maquinário registrado.', { cor: CINZA })
+  else {
+    const colMaquina = 70
+    const colPeriodoMaq = 50
+    precisa(6)
+    pdf.setFillColor('#F0EBE3')
+    pdf.rect(ML, y, LARG, 6, 'F')
+    pdf.setDrawColor('#E0DAD0')
+    pdf.setLineWidth(0.2)
+    pdf.rect(ML, y, LARG, 6, 'S')
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(7)
+    pdf.setTextColor(NAVY)
+    pdf.text('MÁQUINA', ML + 3, y + 4.2)
+    pdf.text('PERÍODO', ML + colMaquina + 3, y + 4.2)
+    pdf.text('SITUAÇÃO', ML + colMaquina + colPeriodoMaq + 3, y + 4.2)
+    y += 6
+    for (const m of d.maquinarios) {
+      const alturaLinha = 7
+      precisa(alturaLinha)
+      pdf.setDrawColor('#E0DAD0')
+      pdf.setLineWidth(0.2)
+      pdf.rect(ML, y, LARG, alturaLinha, 'S')
+      pdf.line(ML + colMaquina, y, ML + colMaquina, y + alturaLinha)
+      pdf.line(ML + colMaquina + colPeriodoMaq, y, ML + colMaquina + colPeriodoMaq, y + alturaLinha)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(8.5)
+      pdf.setTextColor('#222222')
+      pdf.text(m.maquina, ML + 3, y + 4.7)
+      pdf.text(m.periodo, ML + colMaquina + 3, y + 4.7)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setTextColor(m.situacao === 'em_operacao' ? '#1e6b2e' : m.situacao === 'manutencao' ? '#a3701f' : CINZA)
+      pdf.text(SITUACAO_MAQUINARIO_LABEL[m.situacao], ML + colMaquina + colPeriodoMaq + 3, y + 4.7)
+      y += alturaLinha
+    }
+    y += 5
   }
 
   // ---------- FVS do dia ----------

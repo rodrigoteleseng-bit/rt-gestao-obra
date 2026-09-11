@@ -188,6 +188,7 @@ function PainelNovoTrabalhador({ funcoes, trabalhador, onFechar, onSucesso }: Pa
   const editando = !!trabalhador
   const [nome, setNome] = useState(trabalhador?.nome ?? '')
   const [funcao, setFuncao] = useState(trabalhador?.funcao ?? '')
+  const [vinculo, setVinculo] = useState<'propria' | 'terceirizado'>(trabalhador?.empresa ? 'terceirizado' : 'propria')
   const [empresa, setEmpresa] = useState(trabalhador?.empresa ?? '')
   const [dataAdmissao, setDataAdmissao] = useState(trabalhador?.data_admissao ?? '')
   const [salvando, setSalvando] = useState(false)
@@ -203,12 +204,16 @@ function PainelNovoTrabalhador({ funcoes, trabalhador, onFechar, onSucesso }: Pa
       setMsg({ tipo: 'erro', texto: 'Informe a função.' })
       return
     }
+    if (vinculo === 'terceirizado' && !empresa.trim()) {
+      setMsg({ tipo: 'erro', texto: 'Informe a empresa terceirizada.' })
+      return
+    }
     setSalvando(true)
     setMsg(null)
     const dados = {
       nome: nome.trim(),
       funcao: funcao.trim(),
-      empresa: empresa.trim() || null,
+      empresa: vinculo === 'terceirizado' ? empresa.trim() : null,
       data_admissao: dataAdmissao || null,
     }
     const { data, error } = editando
@@ -240,10 +245,22 @@ function PainelNovoTrabalhador({ funcoes, trabalhador, onFechar, onSucesso }: Pa
             {funcoes.map(f => <option key={f} value={f} />)}
           </datalist>
         </label>
-        <label className={styles.campo}>
-          Empresa
-          <input value={empresa} onChange={e => setEmpresa(e.target.value)} placeholder="Opcional" />
-        </label>
+        <div className={styles.vinculoLinha}>
+          <button type="button" className={vinculo === 'propria' ? styles.vinculoBtnAtivo : styles.vinculoBtn}
+            onClick={() => { setVinculo('propria'); setEmpresa('') }}>
+            Mão de obra própria
+          </button>
+          <button type="button" className={vinculo === 'terceirizado' ? styles.vinculoBtnAtivo : styles.vinculoBtn}
+            onClick={() => setVinculo('terceirizado')}>
+            Terceirizado
+          </button>
+        </div>
+        {vinculo === 'terceirizado' && (
+          <label className={styles.campo}>
+            Empresa terceirizada *
+            <input value={empresa} onChange={e => setEmpresa(e.target.value)} placeholder="Ex.: Elétrica Silva Ltda" />
+          </label>
+        )}
         <label className={styles.campo}>
           Data de admissão
           <input type="date" value={dataAdmissao} onChange={e => setDataAdmissao(e.target.value)} />

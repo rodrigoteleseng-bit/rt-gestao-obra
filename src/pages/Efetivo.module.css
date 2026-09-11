@@ -258,6 +258,19 @@
 
 .campo input:focus, .campo select:focus, .campo textarea:focus { border-color: var(--navy); outline: none; }
 
+.vinculoLinha { display: flex; gap: 8px; margin-bottom: 12px; }
+
+.vinculoBtn, .vinculoBtnAtivo {
+  flex: 1;
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vinculoBtn { background: var(--branco); color: var(--navy); border: 1.5px solid var(--cinza-200); }
+.vinculoBtnAtivo { background: var(--navy); color: var(--branco); border: 1.5px solid var(--navy); }
+
 .linha2 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
 .linha2 .campo { margin-bottom: 0; }
 

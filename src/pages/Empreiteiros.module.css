@@ -83,9 +83,27 @@
   border-radius: var(--radius-md);
   padding: 12px 16px;
   margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
+.cardInfo { flex: 1; min-width: 0; }
+
 .cardNome { font-weight: 700; color: var(--navy); font-size: 14px; }
+
+.btnSecundario {
+  background: none;
+  border: 1.5px solid var(--cinza-200);
+  color: var(--navy);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
 
 .cardMeta {
   display: flex;

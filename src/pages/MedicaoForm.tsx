@@ -52,6 +52,10 @@ export default function MedicaoForm() {
   const [contrato, setContrato] = useState<Contrato | null>(null)
   const [canceladorNome, setCanceladorNome] = useState<string | null>(null)
   const [empreiteiroNome, setEmpreiteiroNome] = useState('—')
+  const [empreiteiroPix, setEmpreiteiroPix] = useState<string | null>(null)
+  const [empreiteiroBanco, setEmpreiteiroBanco] = useState<string | null>(null)
+  const [empreiteiroAgencia, setEmpreiteiroAgencia] = useState<string | null>(null)
+  const [empreiteiroConta, setEmpreiteiroConta] = useState<string | null>(null)
   const [contratoItens, setContratoItens] = useState<ContratoItem[]>([])
   const [servicos, setServicos] = useState<Servico[]>([])
   const [unidades, setUnidades] = useState<Unidade[]>([])
@@ -82,8 +86,12 @@ export default function MedicaoForm() {
     setMedicoesContrato(todasMedicoes ?? [])
 
     if (c) {
-      const { data: emp } = await supabase.from('empreiteiros').select('nome').eq('id', c.empreiteiro_id).single()
+      const { data: emp } = await supabase.from('empreiteiros').select('nome, pix, banco, agencia, conta').eq('id', c.empreiteiro_id).single()
       setEmpreiteiroNome(emp?.nome ?? '—')
+      setEmpreiteiroPix(emp?.pix ?? null)
+      setEmpreiteiroBanco(emp?.banco ?? null)
+      setEmpreiteiroAgencia(emp?.agencia ?? null)
+      setEmpreiteiroConta(emp?.conta ?? null)
     }
 
     const medicaoIds = (todasMedicoes ?? []).map(m => m.id)
@@ -357,6 +365,10 @@ export default function MedicaoForm() {
       medicao,
       identidade,
       empreiteiroNome,
+      empreiteiroPix,
+      empreiteiroBanco,
+      empreiteiroAgencia,
+      empreiteiroConta,
       obraNome: obraRow?.nome ?? '—',
       nomeEmpreendimento: obraRow?.nome_empreendimento ?? null,
       razaoSocialObra: obraRow?.razao_social ?? null,

@@ -43,6 +43,10 @@ export interface DadosPdfMedicao {
   contrato: Contrato
   medicao: Medicao
   empreiteiroNome: string
+  empreiteiroPix: string | null
+  empreiteiroBanco: string | null
+  empreiteiroAgencia: string | null
+  empreiteiroConta: string | null
   obraNome: string
   nomeEmpreendimento: string | null
   enderecoObra: string | null
@@ -373,6 +377,11 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   // colunas. Cada valor quebra de verdade dentro da largura da coluna
   // (mesmo padrão das tabelas de itens/deduções), então a altura do
   // quadro é sempre a real, nunca corta texto.
+  // "Informações" traz a referência da medição/contrato (rastreabilidade
+  // de a que essa nota fiscal se refere) e os dados bancários do
+  // empreiteiro (pra quem vai processar o pagamento não precisar buscar
+  // em outro lugar).
+  const referenciaContrato = `Nota fiscal referente a ${medXxx} do ${d.contrato.numero}, referente a serviço de ${d.contrato.objeto}`
   const linhasNF: [string, string][][] = [
     [
       ['Empresa', d.razaoSocialObra ?? '—'],
@@ -383,6 +392,13 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     [
       ['CEP', d.cepObra ?? '—'],
       ['E-mail', d.emailObra ?? '—'],
+    ],
+    [['Informações', referenciaContrato]],
+    [
+      ['Banco', d.empreiteiroBanco ?? '—'],
+      ['Agência', d.empreiteiroAgencia ?? '—'],
+      ['Conta', d.empreiteiroConta ?? '—'],
+      ['PIX', d.empreiteiroPix ?? '—'],
     ],
   ]
   // Fonte igual à usada pra desenhar os valores (8.5 normal) — sem isso,

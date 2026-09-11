@@ -739,6 +739,9 @@ export interface Empreiteiro {
   contato: string | null
   especialidade: string | null
   pix: string | null
+  banco: string | null
+  agencia: string | null
+  conta: string | null
   ativo: boolean
   criado_em: string
   criado_por: string

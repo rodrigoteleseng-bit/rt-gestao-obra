@@ -96,7 +96,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const LIMITE_CONTEUDO = 190 // abaixo disso, quebra a tabela pra próxima página
   const LIMITE_RODAPE = 196   // onde a faixa de rodapé começa
   const LARG_DESC_DEDUCAO = 168 // largura da coluna de descrição na tabela de deduções
-  const ALTURA_BLOCO_FINAL = 90 // espaço p/ assinatura física + assinaturas + recap + resumo + acumulado + nota — medido no bloco real (~86mm) + folga
+  const ALTURA_BLOCO_FINAL = 87 // espaço p/ assinatura física + assinaturas + recap + resumo + acumulado + nota — medido no bloco real (~86mm) + folga mínima
   const BLOCO_FINAL_Y = LIMITE_RODAPE - ALTURA_BLOCO_FINAL // sempre ancorado no rodapé, nunca solto no meio da página
   const medXxx = `MED-${String(d.medicao.numero).padStart(3, '0')}`
   let y = 0
@@ -361,7 +361,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     pdf.setTextColor(NAVY)
     pdf.text('Total de Deduções', ML, y)
     pdf.text(`R$ ${formatarMoeda(totalDeducoes)}`, W - MR, y, { align: 'right' })
-    y += 10
+    y += 6
   }
 
   // ---------- dados para emissão de nota fiscal (destacado, em quadro
@@ -403,8 +403,8 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
   const ALTURA_NF_BODY = alturasLinhasNF.reduce((s, h) => s + h, 0) + 6
   const ALTURA_NF = ALTURA_NF_TITULO + ALTURA_NF_BODY
 
-  precisaEspaco(ALTURA_NF + 8)
-  y += 8
+  precisaEspaco(ALTURA_NF + 5)
+  y += 5
 
   pdf.setDrawColor('#E0DAD0')
   pdf.setLineWidth(0.3)
@@ -439,7 +439,7 @@ export function gerarPdfMedicao(d: DadosPdfMedicao): void {
     yLinhaNF += alturasLinhasNF[li]
   })
 
-  y += ALTURA_NF + 8
+  y += ALTURA_NF + 5
 
   // ---------- bloco final: assinaturas + resumo + acumulado (atômico) ----------
   // Sempre ancorado embaixo, colado no rodapé — nunca solto no meio da

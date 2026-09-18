@@ -164,7 +164,8 @@ function PainelExecucao({ item, onFechar, onSucesso }: { item: PedidoCompraItem;
 
 function PainelLocacao({ item, obraId, onFechar, onSucesso }: { item: PedidoCompraItem; obraId: string; onFechar: () => void; onSucesso: (texto: string) => void }) {
   const [locadora, setLocadora] = useState('')
-  const [modalidade, setModalidade] = useState<'diaria' | 'semanal' | 'mensal'>('diaria')
+  const [modalidade, setModalidade] = useState<'horaria' | 'diaria' | 'semanal' | 'mensal'>('diaria')
+  const [quantidade, setQuantidade] = useState(String(item.quantidade_pedida))
   const [chegada, setChegada] = useState(dataHoje())
   const [entrega, setEntrega] = useState('')
   const [observacao, setObservacao] = useState('')
@@ -173,13 +174,13 @@ function PainelLocacao({ item, obraId, onFechar, onSucesso }: { item: PedidoComp
   async function salvar() {
     if (!locadora.trim() || !chegada || !entrega) { setErro('Informe locadora, chegada e entrega prevista.'); return }
     if (entrega < chegada) { setErro('A entrega prevista não pode ser anterior à chegada.'); return }
-    const qtd = Number(item.quantidade_pedida)
-    if (!Number.isInteger(qtd) || qtd <= 0) { setErro('A quantidade da locação deve ser um número inteiro maior que zero.'); return }
+    const qtd = Number(quantidade)
+    if (!Number.isFinite(qtd) || qtd <= 0 || qtd > item.quantidade_pedida || (modalidade !== 'horaria' && !Number.isInteger(qtd))) { setErro(modalidade === 'horaria' ? `Informe horas trabalhadas maior que zero e até o saldo (${item.quantidade_pedida}). Pode usar fração.` : `Informe quantidade inteira maior que zero e até o saldo (${item.quantidade_pedida}).`); return }
     setSalvando(true); setErro('')
     const { error } = await supabase.from('ferramenta_locacoes').insert({ obra_id: obraId, pedido_item_id: item.id, nome_equipamento: item.descricao_item, quantidade: qtd, locadora: locadora.trim(), modalidade, data_chegada: chegada, data_entrega_prevista: entrega, observacao: observacao.trim() || null })
     setSalvando(false)
     if (error) { setErro(error.message); return }
     onSucesso('Locação iniciada e vinculada ao pedido.')
   }
-  return <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="Registrar chegada da locação"><div className={styles.painel}><h2>Registrar chegada</h2><p>{item.descricao_item} · {formatarQuantidade(item.quantidade_pedida, item.und)}</p><label>Locadora<input value={locadora} onChange={e => setLocadora(e.target.value)} /></label><label>Modalidade<select value={modalidade} onChange={e => setModalidade(e.target.value as typeof modalidade)}><option value="diaria">Diária</option><option value="semanal">Semanal</option><option value="mensal">Mensal</option></select></label><label>Chegada real<input type="date" value={chegada} onChange={e => setChegada(e.target.value)} /></label><label>Entrega prevista<input type="date" value={entrega} onChange={e => setEntrega(e.target.value)} /></label><label>Observação<textarea value={observacao} onChange={e => setObservacao(e.target.value)} /></label>{erro && <p className={styles.msgErro}>{erro}</p>}<div className={styles.acoes}><button className={styles.btnSecundario} onClick={onFechar}>Cancelar</button><button className={styles.btnPrincipal} disabled={salvando} onClick={salvar}>{salvando ? 'Iniciando…' : 'Iniciar locação'}</button></div></div></div>
+  return <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="Registrar chegada da locação"><div className={styles.painel}><h2>Registrar chegada</h2><p>{item.descricao_item} · saldo do pedido: {formatarQuantidade(item.quantidade_pedida, item.und)}</p><label>Locadora<input value={locadora} onChange={e => setLocadora(e.target.value)} /></label><label>Modalidade<select value={modalidade} onChange={e => setModalidade(e.target.value as typeof modalidade)}><option value="horaria">Por horas</option><option value="diaria">Diária</option><option value="semanal">Semanal</option><option value="mensal">Mensal</option></select></label><label>{modalidade === 'horaria' ? 'Horas trabalhadas' : 'Quantidade'}<input type="number" min="0.01" max={item.quantidade_pedida} step={modalidade === 'horaria' ? '0.01' : '1'} value={quantidade} onChange={e => setQuantidade(e.target.value)} /></label><label>Chegada real<input type="date" value={chegada} onChange={e => setChegada(e.target.value)} /></label><label>Entrega prevista<input type="date" value={entrega} onChange={e => setEntrega(e.target.value)} /></label><label>Observação<textarea value={observacao} onChange={e => setObservacao(e.target.value)} /></label>{erro && <p className={styles.msgErro}>{erro}</p>}<div className={styles.acoes}><button className={styles.btnSecundario} onClick={onFechar}>Cancelar</button><button className={styles.btnPrincipal} disabled={salvando} onClick={salvar}>{salvando ? 'Iniciando…' : 'Iniciar locação'}</button></div></div></div>
 }

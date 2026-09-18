@@ -23,6 +23,7 @@ const CATEGORIA_LABEL: Record<CategoriaMaterial, string> = {
 }
 
 const MODALIDADE_LOCACAO_LABEL: Record<ModalidadeLocacaoFerramenta, string> = {
+  horaria: 'Por horas',
   diaria: 'Diária',
   semanal: 'Semanal',
   mensal: 'Mensal',
@@ -324,8 +325,8 @@ function PainelLocacao({ locacao, totalDevolvido = 0, onFechar, onSucesso }: Pai
       return
     }
     const qtd = Number(quantidade)
-    if (!Number.isInteger(qtd) || qtd <= 0) {
-      setMsg({ tipo: 'erro', texto: 'Informe uma quantidade inteira maior que zero.' })
+    if (!Number.isFinite(qtd) || qtd <= 0 || (modalidade !== 'horaria' && !Number.isInteger(qtd))) {
+      setMsg({ tipo: 'erro', texto: modalidade === 'horaria' ? 'Informe horas trabalhadas maior que zero (pode ser fracionado, por exemplo 2,5).' : 'Informe uma quantidade inteira maior que zero.' })
       return
     }
     if (!locadora.trim()) {
@@ -382,8 +383,8 @@ function PainelLocacao({ locacao, totalDevolvido = 0, onFechar, onSucesso }: Pai
           <input value={nomeEquipamento} onChange={e => setNomeEquipamento(e.target.value)} placeholder="Ex.: Compactador de solo" />
         </label>
         <label className={styles.campo}>
-          Quantidade *
-          <input type="number" min="1" step="1" value={quantidade}
+          {modalidade === 'horaria' ? 'Horas trabalhadas *' : 'Quantidade *'}
+          <input type="number" min="0.01" step={modalidade === 'horaria' ? '0.01' : '1'} value={quantidade}
             onChange={e => setQuantidade(e.target.value)} disabled={quantidadeTravada} />
           {quantidadeTravada && <span className={styles.linhaDesc}>Já tem devolução registrada - não dá mais pra corrigir a quantidade.</span>}
         </label>
@@ -394,6 +395,7 @@ function PainelLocacao({ locacao, totalDevolvido = 0, onFechar, onSucesso }: Pai
         <label className={styles.campo}>
           Modalidade *
           <select value={modalidade} onChange={e => setModalidade(e.target.value as ModalidadeLocacaoFerramenta)}>
+            <option value="horaria">Por horas</option>
             <option value="diaria">Diária</option>
             <option value="semanal">Semanal</option>
             <option value="mensal">Mensal</option>
@@ -438,8 +440,8 @@ function PainelDevolucao({ locacao, saldoPendente, onFechar, onSucesso }: Painel
   const restante = saldoPendente - (Number.isFinite(qtd) ? qtd : 0)
 
   async function salvar() {
-    if (!Number.isInteger(qtd) || qtd <= 0) {
-      setMsg({ tipo: 'erro', texto: 'Informe uma quantidade inteira maior que zero.' })
+    if (!Number.isFinite(qtd) || qtd <= 0 || (locacao.modalidade !== 'horaria' && !Number.isInteger(qtd))) {
+      setMsg({ tipo: 'erro', texto: locacao.modalidade === 'horaria' ? 'Informe horas trabalhadas maior que zero (pode ser fracionado).' : 'Informe uma quantidade inteira maior que zero.' })
       return
     }
     if (qtd > saldoPendente) {
@@ -468,8 +470,8 @@ function PainelDevolucao({ locacao, saldoPendente, onFechar, onSucesso }: Painel
       </div>
       <div className={styles.linha2}>
         <label className={styles.campo}>
-          Quantidade devolvida agora * (saldo pendente: {saldoPendente})
-          <input type="number" min="1" max={saldoPendente} step="1" value={quantidade}
+          {locacao.modalidade === 'horaria' ? 'Horas devolvidas agora *' : 'Quantidade devolvida agora *'} (saldo pendente: {saldoPendente})
+          <input type="number" min="0.01" max={saldoPendente} step={locacao.modalidade === 'horaria' ? '0.01' : '1'} value={quantidade}
             onChange={e => setQuantidade(e.target.value)} />
         </label>
       </div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useObra } from '../contexts/ObraContext'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase, type Servico, type Unidade, type Etapa, type PedidoCompra, type PedidoCompraItem, type Cotacao, type CotacaoItem, type Fornecedor, type RecebimentoNf } from '../lib/supabase'
+import { supabase, type Servico, type Unidade, type Etapa, type PedidoCompra, type PedidoCompraItem, type Cotacao, type CotacaoItem, type Fornecedor, type RecebimentoNf, type NaturezaItemPedido } from '../lib/supabase'
 import { carregarIdentidadeObra } from '../lib/pdfBranding'
 import { STATUS_LABEL } from './Compras'
 import { formatarMoeda } from '../lib/formato'
@@ -17,6 +17,7 @@ interface ItemNovo {
   und: string
   data_necessaria: string
   urgente: boolean
+  natureza: NaturezaItemPedido
 }
 
 function nomeArquivoStorage(nome: string): string {
@@ -46,6 +47,7 @@ function itemVazio(): ItemNovo {
     und: '',
     data_necessaria: '',
     urgente: false,
+    natureza: 'material',
   }
 }
 
@@ -59,6 +61,7 @@ interface ItemEditavel {
   data_necessaria: string
   urgente: boolean
   removido: boolean
+  natureza: NaturezaItemPedido
 }
 
 // Supabase limita 1000 linhas por consulta — pagina até trazer tudo
@@ -95,6 +98,7 @@ function itemEditVazio(): ItemEditavel {
     data_necessaria: '',
     urgente: false,
     removido: false,
+    natureza: 'material',
   }
 }
 
@@ -204,6 +208,7 @@ export default function CompraForm() {
         und: it.und.trim() || null,
         data_necessaria: it.data_necessaria || null,
         urgente: it.urgente,
+        natureza: it.natureza,
       })),
     })
     if (error || !pedidoId) {
@@ -272,6 +277,14 @@ export default function CompraForm() {
                     })
                   }}
                 />
+                <label className={styles.campo}>
+                  Natureza *
+                  <select value={it.natureza} onChange={e => atualizarItem(it.chave, { natureza: e.target.value as NaturezaItemPedido })}>
+                    <option value="material">Material</option>
+                    <option value="servico">Serviço</option>
+                    <option value="locacao">Locação</option>
+                  </select>
+                </label>
                 <label className={styles.campo}>
                   Quantidade *
                   <input type="number" min="0" step="0.01" value={it.quantidade_pedida}
@@ -354,6 +367,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
       und: it.und ?? '',
       data_necessaria: it.data_necessaria ?? '',
       urgente: it.urgente,
+      natureza: it.natureza,
       removido: false,
     })))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -403,6 +417,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
         und: it.und.trim() || null,
         data_necessaria: it.data_necessaria || null,
         urgente: it.urgente,
+        natureza: it.natureza,
       })),
     })
     if (error) {
@@ -861,6 +876,14 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
                     }}
                   />
                   <label className={styles.campo}>
+                    Natureza *
+                    <select value={it.natureza} onChange={e => atualizarItemEdit(it.chave, { natureza: e.target.value as NaturezaItemPedido })}>
+                      <option value="material">Material</option>
+                      <option value="servico">Serviço</option>
+                      <option value="locacao">Locação</option>
+                    </select>
+                  </label>
+                  <label className={styles.campo}>
                     Quantidade *
                     <input type="number" min="0" step="0.01" value={it.quantidade_pedida}
                       onChange={e => atualizarItemEdit(it.chave, { quantidade_pedida: e.target.value })} />
@@ -896,7 +919,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
           <table className={styles.tabelaComparativa}>
             <thead>
               <tr>
-                <th>Item</th><th>Aplicação</th><th>Qtd.</th><th>Data na Obra</th>
+                <th>Item</th><th>Natureza</th><th>Aplicação</th><th>Qtd.</th><th>Data na Obra</th>
                 {cotacoes.map(c => (
                   <th key={c.id}>
                     {nomeFornecedor(c.fornecedor_id)}
@@ -920,6 +943,7 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
               {itens.map(it => (
                 <tr key={it.id}>
                   <td data-label="Item">{it.urgente && '⚡ '}{it.descricao_item}</td>
+                  <td data-label="Natureza">{it.natureza === 'material' ? 'Material' : it.natureza === 'servico' ? 'Serviço' : 'Locação'}</td>
                   <td data-label="Aplicação">{codigoAplicacao(it.servico_id)}</td>
                   <td data-label="Quantidade">{it.quantidade_pedida} {it.und}</td>
                   <td data-label="Data na obra">{it.data_necessaria ?? '—'}</td>

@@ -1,0 +1,16 @@
+.page { max-width: 900px; margin: 0 auto; padding-bottom: 40px; }
+.header { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; margin-bottom:16px; }
+.header h1, .card h2, .painel h2 { color:var(--navy); margin:0; }
+.header h1 { font-size:20px; margin-bottom:4px; }
+.sub, .vazio, .card p { color:var(--cinza-600); font-size:13px; }
+.filtros { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.filtros input, .filtros select, .painel input, .painel select, .painel textarea { border:1.5px solid var(--cinza-200); border-radius:var(--radius-sm); padding:10px 12px; font:inherit; background:var(--branco); }
+.filtros input { flex:1; min-width:220px; }.filtros select { min-width:180px; }
+.lista { display:grid; gap:10px; }.card { background:var(--branco); border:1.5px solid var(--cinza-200); border-radius:var(--radius-md); box-shadow:var(--sombra-sm); padding:14px; }
+.cardTopo, .acoes { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }.cardTopo { justify-content:space-between; color:var(--cinza-600); font-size:12px; margin-bottom:7px; }.card h2 { font-size:15px; margin-bottom:5px; }.card p { margin:0 0 12px; }
+.natureza { border-radius:999px; padding:3px 9px; font-size:11px; font-weight:700; }.natureza_material { background:#e3edfa; color:#1a5fa3; }.natureza_servico { background:#fdf3d7; color:#8a6d1a; }.natureza_locacao { background:var(--fundo-nude); color:var(--navy); }
+.btnPrincipal, .btnSecundario { border-radius:var(--radius-sm); padding:10px 13px; font-size:13px; font-weight:700; cursor:pointer; }.btnPrincipal { border:none; background:var(--terracota); color:var(--branco); }.btnPrincipal:disabled { opacity:.6; cursor:default; }.btnSecundario { background:var(--branco); border:1.5px solid var(--navy); color:var(--navy); }.concluido { color:#1e6b2e; font-size:13px; font-weight:700; }.emOperacao { color:var(--navy); font-size:13px; font-weight:700; }
+.msgOk { color:#1e6b2e; font-weight:600; font-size:13px; }.msgErro { color:#a33030; font-weight:600; font-size:13px; }.vazio { padding:14px 0; }
+.overlay { position:fixed; inset:0; z-index:20; padding:16px; display:flex; align-items:flex-end; justify-content:center; background:rgba(26,50,72,.38); }.painel { width:min(560px, 100%); max-height:90dvh; overflow:auto; background:var(--branco); border-radius:var(--radius-md); padding:18px; box-shadow:var(--sombra-lg); }.painel h2 { font-size:17px; margin-bottom:5px; }.painel > p { font-size:13px; color:var(--cinza-600); margin:0 0 14px; }.painel label { display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:700; color:var(--cinza-600); margin-bottom:11px; }.painel textarea { min-height:76px; resize:vertical; }.painel .acoes { justify-content:flex-end; margin-top:14px; }
+@media (min-width:641px) { .overlay { align-items:center; } }
+@media (max-width:640px) { .filtros input, .filtros select { width:100%; min-width:0; }.painel .acoes > * { flex:1; }.card .acoes .btnPrincipal { width:100%; } }

@@ -8,6 +8,7 @@ export const supabase = createClient(url, key)
 export type PapelUsuario = 'admin' | 'equipe' | 'cliente'
 export type ModuloApp =
   | 'rdo' | 'avanco' | 'pendencias' | 'almoxarifado' | 'financeiro' | 'compras'
+  | 'atendimento_pedidos'
   | 'medicoes' | 'contratos' | 'fvs' | 'galeria' | 'efetivo' | 'alertas' | 'definicoes' | 'tarefas' | 'projetos' | 'planejamento'
   | 'controle_tecnologico'
 export type StatusObra = 'ativa' | 'pausada' | 'concluida' | 'arquivada'
@@ -583,10 +584,27 @@ export interface PedidoCompraItem {
   urgente: boolean
   cotacao_item_vencedora_id: string | null
   quantidade_recebida: number
+  natureza: NaturezaItemPedido
+  quantidade_executada: number
   valor_recebido: number | null
   ativo: boolean
   criado_em: string
   criado_por: string
+}
+
+export type NaturezaItemPedido = 'material' | 'servico' | 'locacao'
+export interface PedidoItemExecucao {
+  id: string
+  pedido_item_id: string
+  data_execucao: string
+  quantidade: number
+  observacao: string | null
+  ativo: boolean
+  cancelado_por: string | null
+  cancelado_em: string | null
+  motivo_cancelamento: string | null
+  criado_por: string
+  criado_em: string
 }
 
 export interface Cotacao {
@@ -702,6 +720,7 @@ export interface FerramentaLocacao {
   entregue_em: string | null
   editado_por: string | null
   editado_em: string | null
+  pedido_item_id: string | null
 }
 
 export interface FerramentaLocacaoDevolucao {

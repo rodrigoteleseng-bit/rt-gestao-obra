@@ -90,7 +90,7 @@
 
 .itemGrid {
   display: grid;
-  grid-template-columns: 1.6fr 1.6fr 0.9fr 0.9fr 1fr;
+  grid-template-columns: 1.6fr 1.6fr 0.9fr 0.9fr 0.9fr 1fr;
   gap: 10px;
 }
 

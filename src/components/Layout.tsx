@@ -45,6 +45,7 @@ const MODULOS: NavItem[] = [
   {
     type: 'group', key: 'suprimentos', label: 'Suprimentos', icon: '📦', items: [
       { type: 'link', key: 'compras', label: 'Compras', icon: '🛒', path: '/compras' },
+      { type: 'link', key: 'atendimento_pedidos', label: 'Atendimento', icon: '✅', path: '/atendimento' },
       { type: 'link', key: 'almoxarifado', label: 'Almoxarifado', icon: '📦', path: '/almoxarifado' },
     ],
   },

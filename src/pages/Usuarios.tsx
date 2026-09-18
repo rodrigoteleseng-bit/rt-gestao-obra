@@ -13,6 +13,7 @@ const MODULOS_LABELS: Record<ModuloApp, string> = {
   almoxarifado: 'Almoxarifado',
   financeiro: 'Financeiro',
   compras: 'Compras',
+  atendimento_pedidos: 'Atendimento de pedidos',
   medicoes: 'Medições',
   contratos: 'Contratos',
   fvs: 'Qualidade (FVS)',

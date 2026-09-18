@@ -33,3 +33,13 @@ Não existe exclusão pelo app (por desenho — rastreabilidade, §6 do CLAUDE.m
 ## Onde estão as regras de negócio
 
 RLS e triggers em `supabase/migrations/20260710_fase6_compras.sql`. Ver `docs/superpowers/specs/2026-07-10-fase6-compras-design.md` para o desenho completo e as decisões tomadas com o Rodrigo.
+
+## Evolução — Atendimento de pedidos (18/09/2026)
+
+- Cada item de pedido passa a ser classificado como **Material**, **Serviço** ou **Locação**. Pedidos anteriores são preservados como Material.
+- A nova tela `/atendimento` é a fila operacional de itens de pedidos enviados: Material mantém o atalho para o Almoxarifado; Serviço aceita execução parcial ou total; Locação registra a chegada e cria o vínculo com a aba Aluguéis.
+- Serviço registra evento imutável com quantidade, data efetiva, observação, autor e data/hora. Erros não são sobrescritos: somente o autor ou admin pode cancelar o evento, com motivo obrigatório.
+- Locação só é considerada atendida quando devolvida integralmente no controle existente de Aluguéis. Chegada, devolução parcial e encerramento permanecem com uma única fonte de verdade nessa aba.
+- Novo módulo de acesso: **Atendimento de pedidos**. Deve ser marcado na tela Usuários para Almoxarife e Encarregado. Ele não concede acesso a cotações, preços, aprovação ou NF; Compras e Admin preservam esses acessos.
+- A situação `recebido parcial/total` do pedido passa a considerar: entrada no Almoxarifado para materiais, execução acumulada para serviços e encerramento para locações.
+- Banco: `20260918_atendimento_pedidos.sql` (enum, RLS, eventos, vínculos e triggers). [em validação técnica e pendente de aplicação no projeto Supabase]

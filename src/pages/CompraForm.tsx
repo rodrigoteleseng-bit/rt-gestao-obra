@@ -1138,14 +1138,14 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
 
       {perfil?.papel !== 'cliente' && ['recebido_parcial', 'recebido_total', 'conferido_nf', 'encerrado'].includes(pedido.status) && (
         <div className={styles.bloco}>
-          <h2>Conferência tripla (aprovado × almoxarifado × NF)</h2>
+          <h2>Conferência tripla (aprovado × entrada/atendimento × NF)</h2>
           <div className={styles.tabelaWrap}>
           <table className={styles.tabelaComparativa}>
             <thead>
               <tr>
                 <th>Item</th>
                 <th>Aprovado</th>
-                <th>Almoxarifado</th>
+                <th>Almoxarifado / atendimento</th>
                 <th>NF</th>
                 <th>Conferência</th>
               </tr>
@@ -1154,13 +1154,17 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
               {itens.map(it => {
                 const preco = precoVencedorDoItem(it)
                 const valorAprovado = preco !== null ? it.quantidade_pedida * preco : null
-                const qtdAlmoxarifado = somaAlmoxarifado.get(it.id) ?? 0
-                const valorAlmoxarifado = preco !== null ? qtdAlmoxarifado * preco : null
+                // Material vem do almoxarifado; servico/locacao vem do atendimento.
+                const qtdConferida = it.natureza === 'material'
+                  ? (somaAlmoxarifado.get(it.id) ?? 0)
+                  : it.quantidade_executada
+                const valorAlmoxarifado = preco !== null ? qtdConferida * preco : null
                 const nfAnexada = recebimentos.length > 0
 
                 const avisos: string[] = []
-                if (qtdAlmoxarifado !== it.quantidade_pedida) {
-                  avisos.push(`recebido no almoxarifado (${qtdAlmoxarifado} ${it.und}) ≠ aprovado (${it.quantidade_pedida} ${it.und})`)
+                if (qtdConferida !== it.quantidade_pedida) {
+                  const origem = it.natureza === 'material' ? 'recebido no almoxarifado' : 'atendido'
+                  avisos.push(`${origem} (${qtdConferida} ${it.und}) ≠ aprovado (${it.quantidade_pedida} ${it.und})`)
                 }
                 if (it.valor_recebido !== null && valorAprovado !== null && it.valor_recebido !== valorAprovado) {
                   avisos.push(`valor da NF (R$ ${formatarMoeda(it.valor_recebido)}) ≠ valor aprovado (R$ ${formatarMoeda(valorAprovado)})`)
@@ -1175,8 +1179,8 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
                       {preco !== null ? <div>R$ {formatarMoeda(preco)}/{it.und} — total R$ {formatarMoeda(valorAprovado!)}</div>
                         : <div className={styles.msgInfo}>preço vencedor não definido</div>}
                     </td>
-                    <td data-label="Almoxarifado">
-                      {qtdAlmoxarifado} {it.und}
+                    <td data-label="Almoxarifado / atendimento">
+                      {qtdConferida} {it.und}
                       {valorAlmoxarifado !== null && <div>~R$ {formatarMoeda(valorAlmoxarifado)} (a preço aprovado)</div>}
                     </td>
                     <td data-label="Nota fiscal">

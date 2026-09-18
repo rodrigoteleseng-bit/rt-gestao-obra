@@ -150,7 +150,7 @@ function PainelExecucao({ item, onFechar, onSucesso }: { item: PedidoCompraItem;
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   async function salvar() {
-    const qtd = Number(quantidade)
+    const qtd = Number(quantidade.replace(',', '.'))
     if (!Number.isFinite(qtd) || qtd <= 0 || qtd > saldo) { setErro(`Informe quantidade maior que zero e até o saldo (${saldo}).`); return }
     if (!data) { setErro('Informe a data da execução.'); return }
     setSalvando(true); setErro('')

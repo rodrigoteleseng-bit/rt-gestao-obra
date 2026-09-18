@@ -324,7 +324,7 @@ function PainelLocacao({ locacao, totalDevolvido = 0, onFechar, onSucesso }: Pai
       setMsg({ tipo: 'erro', texto: 'Informe o equipamento alugado.' })
       return
     }
-    const qtd = Number(quantidade)
+    const qtd = Number(quantidade.replace(',', '.'))
     if (!Number.isFinite(qtd) || qtd <= 0 || (modalidade !== 'horaria' && !Number.isInteger(qtd))) {
       setMsg({ tipo: 'erro', texto: modalidade === 'horaria' ? 'Informe horas trabalhadas maior que zero (pode ser fracionado, por exemplo 2,5).' : 'Informe uma quantidade inteira maior que zero.' })
       return
@@ -436,7 +436,7 @@ function PainelDevolucao({ locacao, saldoPendente, onFechar, onSucesso }: Painel
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
-  const qtd = Number(quantidade)
+  const qtd = Number(quantidade.replace(',', '.'))
   const restante = saldoPendente - (Number.isFinite(qtd) ? qtd : 0)
 
   async function salvar() {

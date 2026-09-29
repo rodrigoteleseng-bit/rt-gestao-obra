@@ -6,6 +6,7 @@ import { calcularSolucao, parametrosPadrao, solucoesPadrao, type ParametrosEstud
 import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import { gerarPdfEstudoViabilidade } from '../lib/estudosViabilidadePdf'
 import styles from './EstudosViabilidade.module.css'
+import dashboardStyles from './EstudosViabilidadeDashboard.module.css'
 
 type Status = 'rascunho' | 'aguardando_aprovacao' | 'aprovado'
 type Estudo = {
@@ -128,6 +129,41 @@ function Resumo({ resultados, area, menor }: { resultados: ReturnType<typeof cal
 }
 
 function Dashboard({ resultados, area, menor, modalidade }: { resultados: ReturnType<typeof calcularSolucao>[]; area: number; menor: number | null; modalidade: 'local' | 'usina' }) {
-  const validos = resultados.filter(r => r.totalM2 !== null); const maior = validos.length ? Math.max(...validos.map(r => r.totalM2 ?? 0)) : 0; const vencedor = validos.find(r => r.totalM2 === menor)
-  return <section className={styles.dashboard}><div className={styles.kpis}><div><span>Menor custo</span><strong>{menor === null ? 'Pendente' : `${moeda.format(menor)}/m²`}</strong></div><div><span>Alternativa econômica</span><strong>{vencedor?.nome ?? '—'}</strong></div><div><span>Economia máxima</span><strong>{menor === null ? '—' : `${moeda.format(maior - menor)}/m²`}</strong></div><div><span>Modalidade</span><strong>{modalidade === 'local' ? 'Feita na obra' : 'Usinada entregue'}</strong></div></div><section className={styles.card}><p className={styles.eyebrow}>VISÃO COMPARATIVA</p><h2>Composição de custos</h2>{validos.map(r => <div className={styles.barRow}><div><strong>{r.nome}</strong><span>{moeda.format(r.totalM2 ?? 0)}/m² · {moeda.format((r.totalM2 ?? 0) * area)} na área</span></div><div className={styles.bar}><i className={styles.barBloco} style={{ width: `${r.custoBloco / maior * 100}%` }} /><i className={styles.barArgamassa} style={{ width: `${(r.custoArgamassa ?? 0) / maior * 100}%` }} /><i className={styles.barMao} style={{ width: `${r.custoAplicacao / maior * 100}%` }} /></div></div>)}{validos.length ? <p className={styles.help}>Blocos · Argamassa/preparo ou entrega · Aplicação</p> : <p className={styles.pendente}>Complete os dados da modalidade selecionada para visualizar o dashboard.</p>}</section></section>
+  const validos = resultados.filter(r => r.totalM2 !== null)
+  const maior = validos.length ? Math.max(...validos.map(r => r.totalM2 ?? 0)) : 0
+  const vencedor = validos.find(r => r.totalM2 === menor)
+
+  return <section className={styles.dashboard}>
+    <div className={styles.kpis}>
+      <div><span>Menor custo</span><strong>{menor === null ? 'Pendente' : `${moeda.format(menor)}/m²`}</strong></div>
+      <div><span>Alternativa econômica</span><strong>{vencedor?.nome ?? '—'}</strong></div>
+      <div><span>Economia máxima</span><strong>{menor === null ? '—' : `${moeda.format(maior - menor)}/m²`}</strong></div>
+      <div><span>Modalidade</span><strong>{modalidade === 'local' ? 'Feita na obra' : 'Usinada entregue'}</strong></div>
+    </div>
+    <section className={styles.card}>
+      <div className={dashboardStyles.dashboardHead}>
+        <div><p className={styles.eyebrow}>VISÃO COMPARATIVA</p><h2>Insumos × mão de obra</h2><p className={dashboardStyles.dashboardSubtitle}>Compare o custo por m² e identifique o componente que mais pesa em cada solução.</p></div>
+        <div className={dashboardStyles.dashboardLegend} aria-label="Legenda do gráfico"><span><i className={dashboardStyles.dotInsumos} />Insumos</span><span><i className={dashboardStyles.dotMaoObra} />Mão de obra</span></div>
+      </div>
+      {validos.length ? <div className={dashboardStyles.decisionGrid}>{validos.map((r, indice) => {
+        const insumos = r.custoBloco + (r.custoArgamassa ?? 0)
+        const maoObra = r.custoAplicacao
+        const total = r.totalM2 ?? 0
+        const insumosPercentual = total ? insumos / total * 100 : 0
+        const maoObraPercentual = total ? maoObra / total * 100 : 0
+        const maiorComponente = maoObra > insumos ? 'Mão de obra' : 'Insumos'
+        const maiorPercentual = Math.max(insumosPercentual, maoObraPercentual)
+        const eVencedora = r.totalM2 === menor
+        return <article className={`${dashboardStyles.decisionCard} ${eVencedora ? dashboardStyles.decisionWinner : ''}`} key={r.id}>
+          <header className={dashboardStyles.decisionCardHead}><small>{eVencedora ? '✓ MENOR CUSTO' : `SOLUÇÃO ${String(indice + 1).padStart(2, '0')}`}</small><h3>{r.nome}</h3></header>
+          <div className={dashboardStyles.decisionTotal}><strong>{moeda.format(total)}</strong><span>por m²<br />{moeda.format(total * area)} na área</span></div>
+          <div className={dashboardStyles.costRows}>
+            <div className={`${dashboardStyles.costRow} ${dashboardStyles.insumosRow}`}><label>Insumos</label><div className={dashboardStyles.miniTrack}><i className={dashboardStyles.miniInsumos} style={{ width: `${insumosPercentual}%` }} /></div><b>{moeda.format(insumos)}</b></div>
+            <div className={`${dashboardStyles.costRow} ${dashboardStyles.maoObraRow}`}><label>Mão de obra</label><div className={dashboardStyles.miniTrack}><i className={dashboardStyles.miniMaoObra} style={{ width: `${maoObraPercentual}%` }} /></div><b>{moeda.format(maoObra)}</b></div>
+          </div>
+          <footer className={dashboardStyles.decisionFooter}><span>Maior impacto</span><strong>{maiorComponente} · {numero.format(maiorPercentual)}%</strong></footer>
+        </article>
+      })}</div> : <p className={styles.pendente}>Complete os dados da modalidade selecionada para visualizar o dashboard.</p>}
+    </section>
+  </section>
 }

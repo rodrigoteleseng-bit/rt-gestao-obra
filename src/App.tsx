@@ -41,6 +41,7 @@ const Planejamento = lazy(() => import('./pages/Planejamento'))
 const Projetos = lazy(() => import('./pages/Projetos'))
 const ProducaoMedicaoForm = lazy(() => import('./pages/ProducaoMedicaoForm'))
 const Financeiro = lazy(() => import('./pages/Financeiro'))
+const EstudosViabilidade = lazy(() => import('./pages/EstudosViabilidade'))
 const EmConstrucao = lazy(() => import('./pages/EmConstrucao'))
 
 const carregandoPagina = (
@@ -70,6 +71,7 @@ function AppRoutes() {
         <Route path="usuarios" element={<Usuarios />} />
         <Route path="dados-obra" element={<DadosObra />} />
         <Route path="orcamento" element={<Orcamento />} />
+        <Route path="estudos-viabilidade" element={<EstudosViabilidade />} />
         <Route path="cronograma" element={<Cronograma />} />
         <Route path="avanco" element={<Avanco />} />
         <Route path="rdo" element={<RDO />} />

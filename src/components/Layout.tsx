@@ -29,6 +29,7 @@ type NavItem = NavLinkItem | NavGroupItem
 const MODULOS: NavItem[] = [
   { type: 'link', key: 'dashboard', label: 'Início', icon: '🏠', path: '/dashboard', sempre: true },
   { type: 'link', key: 'orcamento', label: 'Orçamento', icon: '📐', path: '/orcamento', sempre: true },
+  { type: 'link', key: 'estudos_viabilidade', label: 'Estudos de viabilidade', icon: '🧠', path: '/estudos-viabilidade' },
   {
     type: 'group', key: 'avanco', label: 'Avanço Físico', icon: '📊', items: [
       { type: 'link', key: 'cronograma', label: 'Cronograma', icon: '📅', path: '/cronograma', sempre: true },

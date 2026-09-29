@@ -77,9 +77,12 @@ BEGIN
   RETURN jsonb_build_object('modalidade',p->>'modalidade','calculado_em',now(),'solucoes',rs);
 END $$;
 
-CREATE OR REPLACE FUNCTION validar_estudo_viabilidade() RETURNS trigger LANGUAGE plpgsql SET search_path=public AS $$
+CREATE OR REPLACE FUNCTION validar_estudo_viabilidade() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE pendente BOOLEAN;
 BEGIN
+  IF TG_OP='UPDATE' AND OLD.status='aguardando_aprovacao' AND NEW.status<>OLD.status THEN
+    NEW.obra_id:=OLD.obra_id; NEW.etapa_id:=OLD.etapa_id; NEW.servico_id:=OLD.servico_id; NEW.titulo:=OLD.titulo; NEW.area_m2:=OLD.area_m2; NEW.observacao_tecnica:=OLD.observacao_tecnica; NEW.fonte_custos:=OLD.fonte_custos; NEW.data_referencia_custos:=OLD.data_referencia_custos; NEW.parametros:=OLD.parametros; NEW.solucoes:=OLD.solucoes; NEW.resultados:=OLD.resultados; NEW.ativo:=OLD.ativo;
+  END IF;
   NEW.titulo:=NULLIF(btrim(COALESCE(NEW.titulo,'')),''); NEW.observacao_tecnica:=NULLIF(btrim(COALESCE(NEW.observacao_tecnica,'')),''); NEW.fonte_custos:=NULLIF(btrim(COALESCE(NEW.fonte_custos,'')),''); NEW.decisao:=NULLIF(btrim(COALESCE(NEW.decisao,'')),''); NEW.motivo_devolucao:=NULLIF(btrim(COALESCE(NEW.motivo_devolucao,'')),'');
   IF NEW.titulo IS NULL OR NEW.area_m2<=0 THEN RAISE EXCEPTION 'Informe título e área maior que zero.'; END IF;
   NEW.etapa_id:=validar_vinculo_estudo_viabilidade(NEW.obra_id,NEW.etapa_id,NEW.servico_id); NEW.resultados:=calcular_resultados_estudo_viabilidade(NEW.parametros,NEW.solucoes,NEW.area_m2); SELECT EXISTS(SELECT 1 FROM jsonb_array_elements(NEW.resultados->'solucoes') s WHERE s->>'motivoPendente' IS NOT NULL) INTO pendente; NEW.atualizado_por:=auth.uid(); NEW.atualizado_em:=now();
@@ -98,3 +101,4 @@ CREATE POLICY estudos_viabilidade_select ON estudos_viabilidade FOR SELECT TO au
 CREATE POLICY estudos_viabilidade_insert ON estudos_viabilidade FOR INSERT TO authenticated WITH CHECK(pode_editar_estudos_viabilidade());
 CREATE POLICY estudos_viabilidade_update ON estudos_viabilidade FOR UPDATE TO authenticated USING(pode_editar_estudos_viabilidade()) WITH CHECK(pode_editar_estudos_viabilidade());
 REVOKE ALL ON FUNCTION validar_vinculo_estudo_viabilidade(UUID,UUID,UUID) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION validar_estudo_viabilidade() FROM PUBLIC,anon,authenticated;

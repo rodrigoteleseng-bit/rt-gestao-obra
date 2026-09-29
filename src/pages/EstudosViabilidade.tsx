@@ -10,7 +10,7 @@ import styles from './EstudosViabilidade.module.css'
 type Status = 'rascunho' | 'aguardando_aprovacao' | 'aprovado'
 type Estudo = {
   id: string; obra_id: string; servico_id: string | null; titulo: string; area_m2: number; observacao_tecnica: string | null; fonte_custos: string | null; data_referencia_custos: string | null
-  parametros: ParametrosEstudo; solucoes: SolucaoEstudo[]; resultados: unknown; status: Status; decisao: string | null
+  parametros: ParametrosEstudo; solucoes: SolucaoEstudo[]; resultados: { solucoes?: ReturnType<typeof calcularSolucao>[] }; status: Status; decisao: string | null
   motivo_devolucao: string | null; criado_em: string
 }
 type Rascunho = { titulo: string; area: number; servicoId: string; observacao: string; fonteCustos: string; dataReferencia: string; parametros: ParametrosEstudo; solucoes: SolucaoEstudo[] }
@@ -68,7 +68,7 @@ export default function EstudosViabilidade() {
   function adicionarSolucao() { setRascunho(atual => ({ ...atual, solucoes: [...atual.solucoes, { id: crypto.randomUUID(), nome: 'Nova solução', bloco: '9', panos: 1, paulistaCm: 1.5, maoAssentamento: 0, maoChapisco: 0, maoPaulista: 0, observacao: '' }] })) }
   function removerSolucao(id: string) { setRascunho(atual => ({ ...atual, solucoes: atual.solucoes.length > 1 ? atual.solucoes.filter(s => s.id !== id) : atual.solucoes })) }
 
-  const resultados = useMemo(() => rascunho.solucoes.map(s => calcularSolucao(s, rascunho.parametros, rascunho.area)), [rascunho])
+  const resultados = useMemo(() => selecionado?.status === 'aprovado' && Array.isArray(selecionado.resultados?.solucoes) ? selecionado.resultados.solucoes : rascunho.solucoes.map(s => calcularSolucao(s, rascunho.parametros, rascunho.area)), [rascunho, selecionado])
   const resultadosValidos = resultados.filter(r => r.totalM2 !== null)
   const menor = resultadosValidos.length ? Math.min(...resultadosValidos.map(r => r.totalM2 ?? Infinity)) : null
   const podeEditar = acessoModulo && (selecionado === null || selecionado.status === 'rascunho')
@@ -79,7 +79,7 @@ export default function EstudosViabilidade() {
     const payload = {
       obra_id: obraAtiva.id, servico_id: rascunho.servicoId || null, titulo: rascunho.titulo.trim(), area_m2: rascunho.area,
       observacao_tecnica: rascunho.observacao || null, fonte_custos: rascunho.fonteCustos || null, data_referencia_custos: rascunho.dataReferencia || null, parametros: rascunho.parametros, solucoes: rascunho.solucoes,
-      resultados: { modalidade: rascunho.parametros.modalidade, calculado_em: new Date().toISOString(), solucoes: resultados }, status,
+      status,
       ...(decisao !== undefined ? { decisao: decisao || null } : {}), ...(motivoDevolucao !== undefined ? { motivo_devolucao: motivoDevolucao || null } : {}),
     }
     const resposta = selecionado ? await supabase.from('estudos_viabilidade').update(payload).eq('id', selecionado.id).select().single() : await supabase.from('estudos_viabilidade').insert(payload).select().single()

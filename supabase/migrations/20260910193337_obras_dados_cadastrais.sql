@@ -1,0 +1,4 @@
+ALTER TABLE obras ADD COLUMN cnpj TEXT;
+ALTER TABLE obras ADD COLUMN cno_obra TEXT;
+ALTER TABLE obras ADD COLUMN endereco_escritorio TEXT;
+ALTER TABLE obras ADD COLUMN email TEXT;;

@@ -27,6 +27,7 @@ ALTER FUNCTION pode_editar_efetivo() SET search_path = public;
 ALTER FUNCTION pode_editar_definicoes() SET search_path = public;
 ALTER FUNCTION pode_editar_contratos() SET search_path = public;
 ALTER FUNCTION pode_editar_medicoes() SET search_path = public;
+
 ALTER FUNCTION restringir_vencedor_item() SET search_path = public;
 ALTER FUNCTION recalcular_status_pedido() SET search_path = public;
 ALTER FUNCTION saldo_material(UUID) SET search_path = public;

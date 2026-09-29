@@ -7,14 +7,16 @@ import { useConfirmDialog } from '../components/ConfirmDialogContext'
 import { gerarPdfEstudoViabilidade } from '../lib/estudosViabilidadePdf'
 import styles from './EstudosViabilidade.module.css'
 import dashboardStyles from './EstudosViabilidadeDashboard.module.css'
+import approvalStyles from './EstudosViabilidadeAprovacao.module.css'
 
 type Status = 'rascunho' | 'aguardando_aprovacao' | 'aprovado'
 type Estudo = {
   id: string; obra_id: string; servico_id: string | null; titulo: string; area_m2: number; observacao_tecnica: string | null; fonte_custos: string | null; data_referencia_custos: string | null
   parametros: ParametrosEstudo; solucoes: SolucaoEstudo[]; resultados: { solucoes?: ReturnType<typeof calcularSolucao>[] }; status: Status; decisao: string | null
-  motivo_devolucao: string | null; criado_em: string
+  motivo_devolucao: string | null; solucao_escolhida_id: string | null; solucao_escolhida_nome: string | null; aprovado_em: string | null; aprovado_por_nome: string | null; criado_em: string
 }
 type Rascunho = { titulo: string; area: number; servicoId: string; observacao: string; fonteCustos: string; dataReferencia: string; parametros: ParametrosEstudo; solucoes: SolucaoEstudo[] }
+type EscolhaAprovacao = { id: string; nome: string }
 
 const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 })
@@ -36,6 +38,9 @@ export default function EstudosViabilidade() {
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [visao, setVisao] = useState<'editor' | 'dashboard'>('editor')
+  const [confirmandoAprovacao, setConfirmandoAprovacao] = useState(false)
+  const [solucaoEscolhidaId, setSolucaoEscolhidaId] = useState('')
+  const [justificativaEscolha, setJustificativaEscolha] = useState('')
   const admin = perfil?.papel === 'admin'
   const acessoModulo = admin || temModulo('estudos_viabilidade')
 
@@ -58,23 +63,23 @@ export default function EstudosViabilidade() {
     setCarregando(false)
   }
 
-  function novo() { setSelecionado(null); setRascunho(vazio()); setVisao('editor'); setErro('') }
+  function novo() { setSelecionado(null); setRascunho(vazio()); setVisao('editor'); setErro(''); setConfirmandoAprovacao(false); setSolucaoEscolhidaId(''); setJustificativaEscolha('') }
   function abrir(estudo: Estudo) {
     setSelecionado(estudo)
     setRascunho({ titulo: estudo.titulo, area: Number(estudo.area_m2), servicoId: estudo.servico_id ?? '', observacao: estudo.observacao_tecnica ?? '', fonteCustos: estudo.fonte_custos ?? '', dataReferencia: estudo.data_referencia_custos ?? '', parametros: { ...parametrosPadrao, ...estudo.parametros }, solucoes: estudo.solucoes })
-    setVisao('editor'); setErro('')
+    setVisao('editor'); setErro(''); setConfirmandoAprovacao(false); setSolucaoEscolhidaId(''); setJustificativaEscolha('')
   }
   function alterarParametro(campo: keyof ParametrosEstudo, valor: number | 'local' | 'usina') { setRascunho(atual => ({ ...atual, parametros: { ...atual.parametros, [campo]: valor } })) }
   function alterarSolucao(id: string, campo: keyof SolucaoEstudo, valor: string | number) { setRascunho(atual => ({ ...atual, solucoes: atual.solucoes.map(s => s.id === id ? { ...s, [campo]: valor } : s) })) }
   function adicionarSolucao() { setRascunho(atual => ({ ...atual, solucoes: [...atual.solucoes, { id: crypto.randomUUID(), nome: 'Nova solução', bloco: '9', panos: 1, paulistaCm: 1.5, maoAssentamento: 0, maoChapisco: 0, maoPaulista: 0, observacao: '' }] })) }
   function removerSolucao(id: string) { setRascunho(atual => ({ ...atual, solucoes: atual.solucoes.length > 1 ? atual.solucoes.filter(s => s.id !== id) : atual.solucoes })) }
 
-  const resultados = useMemo(() => selecionado?.status === 'aprovado' && Array.isArray(selecionado.resultados?.solucoes) ? selecionado.resultados.solucoes : rascunho.solucoes.map(s => calcularSolucao(s, rascunho.parametros, rascunho.area)), [rascunho, selecionado])
+  const resultados = useMemo(() => selecionado?.status !== 'rascunho' && selecionado && Array.isArray(selecionado.resultados?.solucoes) ? selecionado.resultados.solucoes : rascunho.solucoes.map(s => calcularSolucao(s, rascunho.parametros, rascunho.area)), [rascunho, selecionado])
   const resultadosValidos = resultados.filter(r => r.totalM2 !== null)
   const menor = resultadosValidos.length ? Math.min(...resultadosValidos.map(r => r.totalM2 ?? Infinity)) : null
   const podeEditar = acessoModulo && (selecionado === null || selecionado.status === 'rascunho')
 
-  async function salvar(status: Status = 'rascunho', decisao?: string, motivoDevolucao?: string) {
+  async function salvar(status: Status = 'rascunho', decisao?: string, motivoDevolucao?: string, escolha?: EscolhaAprovacao) {
     if (!obraAtiva || !rascunho.titulo.trim() || rascunho.area <= 0) { setErro('Informe título e área maior que zero.'); return }
     setSalvando(true); setErro('')
     const payload = {
@@ -82,6 +87,7 @@ export default function EstudosViabilidade() {
       observacao_tecnica: rascunho.observacao || null, fonte_custos: rascunho.fonteCustos || null, data_referencia_custos: rascunho.dataReferencia || null, parametros: rascunho.parametros, solucoes: rascunho.solucoes,
       status,
       ...(decisao !== undefined ? { decisao: decisao || null } : {}), ...(motivoDevolucao !== undefined ? { motivo_devolucao: motivoDevolucao || null } : {}),
+      ...(escolha !== undefined ? { solucao_escolhida_id: escolha?.id ?? null, solucao_escolhida_nome: escolha?.nome ?? null } : {}),
     }
     const resposta = selecionado ? await supabase.from('estudos_viabilidade').update(payload).eq('id', selecionado.id).select().single() : await supabase.from('estudos_viabilidade').insert(payload).select().single()
     if (resposta.error) setErro(resposta.error.message)
@@ -89,7 +95,19 @@ export default function EstudosViabilidade() {
     setSalvando(false)
   }
   async function enviarAprovacao() { await salvar('aguardando_aprovacao') }
-  async function aprovar() { const decisao = await solicitarTexto({ titulo: 'Aprovar decisão técnica', mensagem: 'O estudo aprovado ficará imutável.', confirmarTexto: 'Aprovar', campo: { rotulo: 'Decisão técnica' } }); if (decisao) await salvar('aprovado', decisao) }
+  function abrirAprovacao() {
+    const economica = resultadosValidos.find(r => r.totalM2 === menor)
+    setSolucaoEscolhidaId(economica?.id ?? '')
+    setJustificativaEscolha('')
+    setConfirmandoAprovacao(true)
+    setErro('')
+  }
+  async function aprovar() {
+    const escolha = resultadosValidos.find(r => r.id === solucaoEscolhidaId)
+    if (!escolha || !justificativaEscolha.trim()) { setErro('Escolha uma solução com custos completos e registre a justificativa técnica.'); return }
+    await salvar('aprovado', justificativaEscolha.trim(), undefined, { id: escolha.id, nome: escolha.nome })
+    setConfirmandoAprovacao(false)
+  }
   async function devolver() { const motivo = await solicitarTexto({ titulo: 'Devolver para correção', mensagem: 'O estudo voltará a rascunho.', confirmarTexto: 'Devolver', campo: { rotulo: 'Motivo da devolução' } }); if (motivo) await salvar('rascunho', undefined, motivo) }
 
   if (carregando) return <div className={styles.page}><p>Carregando estudos de viabilidade…</p></div>
@@ -97,11 +115,13 @@ export default function EstudosViabilidade() {
   return <div className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>ORÇAMENTO · ESTUDO SEM IMPACTO FINANCEIRO</p><h1>Estudos de viabilidade</h1><p>Compare alternativas técnicas e registre a decisão aprovada. Nenhum valor é enviado ao orçamento, compras ou financeiro.</p></div><button className={styles.primary} onClick={novo}>+ Novo estudo</button></header>
     {erro ? <div className={styles.error}>{erro}</div> : null}
-    {selecionado?.status === 'aprovado' ? <p><button className={styles.secondary} onClick={() => gerarPdfEstudoViabilidade({ titulo: rascunho.titulo, area: rascunho.area, fonte: rascunho.fonteCustos, data: rascunho.dataReferencia, decisao: selecionado.decisao, resultados })}>Baixar PDF do estudo aprovado</button></p> : null}
+    {selecionado?.status === 'aprovado' ? <p><button className={styles.secondary} onClick={() => void gerarPdfEstudoViabilidade({ obra: obraAtiva, titulo: rascunho.titulo, area: rascunho.area, fonte: rascunho.fonteCustos, data: rascunho.dataReferencia, decisao: selecionado.decisao, solucaoEscolhidaNome: selecionado.solucao_escolhida_nome, aprovadoEm: selecionado.aprovado_em, aprovadoPorNome: selecionado.aprovado_por_nome, resultados })}>Baixar PDF do estudo aprovado</button></p> : null}
     <div className={styles.layout}>
       <aside className={styles.lista}><h2>Estudos da obra</h2>{estudos.length === 0 ? <p className={styles.vazio}>Ainda não há estudos cadastrados.</p> : estudos.map(e => <button key={e.id} className={`${styles.estudoItem} ${selecionado?.id === e.id ? styles.selecionado : ''}`} onClick={() => abrir(e)}><strong>{e.titulo}</strong><span>{statusTexto(e.status)}</span><small>{numero.format(Number(e.area_m2))} m²</small></button>)}</aside>
       <section className={styles.conteudo}>
-        <div className={styles.toolbar}><div><span className={`${styles.status} ${styles[selecionado?.status ?? 'rascunho']}`}>{statusTexto(selecionado?.status ?? 'rascunho')}</span>{selecionado?.motivo_devolucao ? <p className={styles.devolucao}>Devolvido: {selecionado.motivo_devolucao}</p> : null}</div><div className={styles.actions}><button className={styles.secondary} onClick={() => setVisao(visao === 'editor' ? 'dashboard' : 'editor')}>{visao === 'editor' ? 'Ver dashboard' : 'Editar estudo'}</button>{podeEditar ? <button className={styles.secondary} disabled={salvando} onClick={() => void salvar()}>Salvar rascunho</button> : null}{selecionado?.status === 'rascunho' ? <button className={styles.primary} disabled={salvando} onClick={() => void enviarAprovacao()}>Enviar para aprovação</button> : null}{admin && selecionado?.status === 'aguardando_aprovacao' ? <><button className={styles.secondary} disabled={salvando} onClick={() => void devolver()}>Devolver para correção</button><button className={styles.primary} disabled={salvando} onClick={() => void aprovar()}>Aprovar decisão</button></> : null}</div></div>
+        <div className={styles.toolbar}><div><span className={`${styles.status} ${styles[selecionado?.status ?? 'rascunho']}`}>{statusTexto(selecionado?.status ?? 'rascunho')}</span>{selecionado?.motivo_devolucao ? <p className={styles.devolucao}>Devolvido: {selecionado.motivo_devolucao}</p> : null}</div><div className={styles.actions}><button className={styles.secondary} onClick={() => setVisao(visao === 'editor' ? 'dashboard' : 'editor')}>{visao === 'editor' ? 'Ver dashboard' : 'Editar estudo'}</button>{podeEditar ? <button className={styles.secondary} disabled={salvando} onClick={() => void salvar()}>Salvar rascunho</button> : null}{selecionado?.status === 'rascunho' ? <button className={styles.primary} disabled={salvando} onClick={() => void enviarAprovacao()}>Enviar para aprovação</button> : null}{admin && selecionado?.status === 'aguardando_aprovacao' ? <><button className={styles.secondary} disabled={salvando} onClick={() => void devolver()}>Devolver para correção</button><button className={styles.primary} disabled={salvando} onClick={abrirAprovacao}>Escolher e aprovar</button></> : null}</div></div>
+        {confirmandoAprovacao ? <AprovacaoEscolha resultados={resultadosValidos} menor={menor} solucaoEscolhidaId={solucaoEscolhidaId} justificativa={justificativaEscolha} aoEscolher={setSolucaoEscolhidaId} aoJustificar={setJustificativaEscolha} aoCancelar={() => setConfirmandoAprovacao(false)} aoConfirmar={() => void aprovar()} salvando={salvando} /> : null}
+        {selecionado?.status === 'aprovado' ? <section className={approvalStyles.decisionRegistered}><p>DECISÃO APROVADA</p><strong>{selecionado.solucao_escolhida_nome ?? 'Solução não registrada'}</strong><span>{selecionado.decisao ?? 'Sem justificativa registrada.'}</span><small>{selecionado.aprovado_por_nome ? `Aprovado por ${selecionado.aprovado_por_nome}` : 'Aprovador não registrado'}{selecionado.aprovado_em ? ` · ${new Date(selecionado.aprovado_em).toLocaleString('pt-BR')}` : ''}</small></section> : null}
         {visao === 'dashboard' ? <Dashboard resultados={resultados} area={rascunho.area} menor={menor} modalidade={rascunho.parametros.modalidade} /> : <>
           <section className={styles.card}><div className={styles.gridTopo}><label>Título do estudo<input disabled={!podeEditar} value={rascunho.titulo} onChange={e => setRascunho(a => ({ ...a, titulo: e.target.value }))} /></label><label>Serviço vinculado<select disabled={!podeEditar} value={rascunho.servicoId} onChange={e => setRascunho(a => ({ ...a, servicoId: e.target.value }))}><option value="">Sem vínculo específico</option>{servicos.map(s => <option key={s.id} value={s.id}>{s.codigo ? `${s.codigo} · ` : ''}{s.nome}</option>)}</select></label><label>Área do estudo (m²)<input disabled={!podeEditar} type="number" min="0" value={rascunho.area} onChange={e => setRascunho(a => ({ ...a, area: Number(e.target.value) }))} /></label></div><label>Observação técnica<input disabled={!podeEditar} value={rascunho.observacao} placeholder="Ex.: validar desempenho acústico e detalhamento de amarração" onChange={e => setRascunho(a => ({ ...a, observacao: e.target.value }))} /></label></section>
           <section className={styles.card}><div className={styles.gridTopo}><label>Fonte dos custos<input disabled={!podeEditar} value={rascunho.fonteCustos} placeholder="Ex.: Cotação Fornecedor X nº 123" onChange={e => setRascunho(a => ({ ...a, fonteCustos: e.target.value }))} /></label><label>Data de referência<input disabled={!podeEditar} type="date" value={rascunho.dataReferencia} onChange={e => setRascunho(a => ({ ...a, dataReferencia: e.target.value }))} /></label></div><p className={styles.help}>Fonte e data são obrigatórias para enviar o estudo à aprovação.</p></section>
@@ -126,6 +146,22 @@ function SolucaoCard({ solucao, numero: indice, editar, alterar, remover, result
 
 function Resumo({ resultados, area, menor }: { resultados: ReturnType<typeof calcularSolucao>[]; area: number; menor: number | null }) {
   return <section className={styles.card}><div className={styles.sectionHead}><div><p className={styles.eyebrow}>RESULTADO</p><h2>Comparativo por m²</h2></div></div><div className={styles.tableWrap}><table><thead><tr><th>Solução</th><th>Blocos</th><th>Argamassa</th><th>Aplicação</th><th>Total/m²</th><th>Total da área</th></tr></thead><tbody>{resultados.map(r => <tr className={r.totalM2 === menor ? styles.winner : ''}><td>{r.nome}</td><td>{moeda.format(r.custoBloco)}</td><td>{r.custoArgamassa === null ? 'Pendente' : moeda.format(r.custoArgamassa)}</td><td>{moeda.format(r.custoAplicacao)}</td><td><strong>{r.totalM2 === null ? '—' : moeda.format(r.totalM2)}</strong></td><td><strong>{r.totalArea === null ? '—' : moeda.format(r.totalArea)}</strong></td></tr>)}</tbody></table></div><p className={styles.help}>A alternativa destacada é apenas a de menor custo entre as soluções com dados completos. Confirme requisitos de projeto, desempenho e execução antes de aprovar.</p></section>
+}
+
+function AprovacaoEscolha({ resultados, menor, solucaoEscolhidaId, justificativa, aoEscolher, aoJustificar, aoCancelar, aoConfirmar, salvando }: { resultados: ReturnType<typeof calcularSolucao>[]; menor: number | null; solucaoEscolhidaId: string; justificativa: string; aoEscolher: (id: string) => void; aoJustificar: (valor: string) => void; aoCancelar: () => void; aoConfirmar: () => void; salvando: boolean }) {
+  return <section className={approvalStyles.approvalCard}>
+    <div><p className={styles.eyebrow}>DECISÃO DE EXECUÇÃO</p><h2>Escolha a solução a executar</h2><p>O menor custo permanece destacado como referência. Você pode aprovar qualquer alternativa completa, desde que registre a justificativa técnica.</p></div>
+    <div className={approvalStyles.options}>{resultados.map(r => {
+      const eEconomica = r.totalM2 === menor
+      const insumos = r.custoBloco + (r.custoArgamassa ?? 0)
+      return <label className={`${approvalStyles.option} ${solucaoEscolhidaId === r.id ? approvalStyles.optionSelected : ''}`} key={r.id}>
+        <input type="radio" name="solucao-escolhida" value={r.id} checked={solucaoEscolhidaId === r.id} onChange={() => aoEscolher(r.id)} />
+        <span><strong>{r.nome}</strong><small>{moeda.format(r.totalM2 ?? 0)}/m² · Insumos {moeda.format(insumos)} · Mão de obra {moeda.format(r.custoAplicacao)}</small>{eEconomica ? <b>Menor custo</b> : null}</span>
+      </label>
+    })}</div>
+    <label className={approvalStyles.justification}>Justificativa técnica da escolha<textarea value={justificativa} onChange={event => aoJustificar(event.target.value)} rows={4} placeholder="Ex.: solução escolhida pelo desempenho acústico previsto em projeto, apesar do custo maior." /></label>
+    <div className={approvalStyles.actions}><button className={styles.secondary} onClick={aoCancelar}>Cancelar</button><button className={styles.primary} disabled={salvando || !solucaoEscolhidaId || !justificativa.trim()} onClick={aoConfirmar}>Confirmar aprovação</button></div>
+  </section>
 }
 
 function Dashboard({ resultados, area, menor, modalidade }: { resultados: ReturnType<typeof calcularSolucao>[]; area: number; menor: number | null; modalidade: 'local' | 'usina' }) {

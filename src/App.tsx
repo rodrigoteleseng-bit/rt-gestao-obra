@@ -22,6 +22,7 @@ const Empreiteiros = lazy(() => import('./pages/Empreiteiros'))
 const DadosObra = lazy(() => import('./pages/DadosObra'))
 const Definicoes = lazy(() => import('./pages/Definicoes'))
 const Compras = lazy(() => import('./pages/Compras'))
+const OrdensServico = lazy(() => import('./pages/OrdensServico'))
 const AtendimentoPedidos = lazy(() => import('./pages/AtendimentoPedidos'))
 const Contratos = lazy(() => import('./pages/Contratos'))
 const ContratoForm = lazy(() => import('./pages/ContratoForm'))
@@ -78,6 +79,7 @@ function AppRoutes() {
         <Route path="rdo/:id" element={<RDOForm />} />
         <Route path="financeiro" element={<Financeiro />} />
         <Route path="compras" element={<Compras />} />
+        <Route path="ordens-servico" element={<OrdensServico />} />
         <Route path="atendimento" element={<AtendimentoPedidos />} />
         <Route path="compras/:id" element={<CompraForm />} />
         <Route path="almoxarifado" element={<Almoxarifado />} />

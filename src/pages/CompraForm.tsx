@@ -839,7 +839,8 @@ function DetalhePedido({ pedido, itens, cotacoes, cotacoesItens, fornecedores, r
     <div className={styles.page}>
       <button className={styles.voltar} onClick={() => navigate('/compras')}>← Compras</button>
       <div className={styles.header}>
-        <h1>Pedido {String(pedido.numero).padStart(3, '0')}</h1>
+        <h1>Pedido de Compra</h1>
+        <p className={styles.metaLista}>OC-{String(pedido.numero).padStart(3, '0')}</p>
         <span className={`${styles.chip} ${styles[`chip_${pedido.status}`]}`}>{STATUS_LABEL[pedido.status]}</span>
       </div>
       {pedido.descricao && <p className={styles.metaLista}>{pedido.descricao}</p>}

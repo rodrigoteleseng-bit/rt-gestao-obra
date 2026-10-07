@@ -554,6 +554,8 @@ export interface Fornecedor {
   id: string
   nome: string
   contato: string | null
+  telefone: string | null
+  email: string | null
   cnpj: string | null
   ativo: boolean
   criado_em: string
@@ -654,6 +656,7 @@ export interface LancamentoFinanceiro {
   valor: number
   medicao_item_id: string | null
   pedido_item_id: string | null
+  ordem_servico_id: string | null
   status: StatusLancamentoFinanceiro
   data_vencimento: string | null
   data_pagamento: string | null
@@ -666,6 +669,29 @@ export interface LancamentoFinanceiro {
   criado_em: string
   pago_por: string | null
   pago_em: string | null
+}
+
+export type StatusOrdemServico = 'emitida' | 'executada' | 'cancelada'
+export interface OrdemServico {
+  id: string
+  obra_id: string
+  numero: number
+  fornecedor_id: string
+  unidade_id: string | null
+  etapa_id: string | null
+  servico_id: string | null
+  descricao: string
+  valor: number
+  data_emissao: string
+  data_execucao: string | null
+  data_vencimento: string | null
+  servico_ja_executado: boolean
+  justificativa_regularizacao: string | null
+  status: StatusOrdemServico
+  motivo_cancelamento: string | null
+  ativo: boolean
+  criado_em: string
+  criado_por: string
 }
 
 // Retorno da RPC financeiro_realizado_agregado — totais pagos por dia/etapa/servico,

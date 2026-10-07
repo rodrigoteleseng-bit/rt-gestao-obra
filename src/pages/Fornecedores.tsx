@@ -13,6 +13,8 @@ export default function Fornecedores() {
   const [carregando, setCarregando] = useState(true)
   const [nome, setNome] = useState('')
   const [contato, setContato] = useState('')
+  const [telefone, setTelefone] = useState('')
+  const [email, setEmail] = useState('')
   const [cnpj, setCnpj] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
@@ -35,6 +37,8 @@ export default function Fornecedores() {
     const { error } = await supabase.from('fornecedores').insert({
       nome: nome.trim(),
       contato: contato.trim() || null,
+      telefone: telefone.trim() || null,
+      email: email.trim() || null,
       cnpj: cnpj.trim() || null,
     })
     setSalvando(false)
@@ -42,7 +46,7 @@ export default function Fornecedores() {
       setMsg({ tipo: 'erro', texto: `Erro ao criar: ${error.message}` })
       return
     }
-    setNome(''); setContato(''); setCnpj('')
+    setNome(''); setContato(''); setTelefone(''); setEmail(''); setCnpj('')
     setMsg({ tipo: 'ok', texto: 'Fornecedor cadastrado.' })
     carregar()
   }
@@ -68,6 +72,14 @@ export default function Fornecedores() {
               <label className={styles.campo}>
                 Contato
                 <input value={contato} onChange={e => setContato(e.target.value)} placeholder="Telefone, e-mail…" />
+              </label>
+              <label className={styles.campo}>
+                Telefone
+                <input value={telefone} onChange={e => setTelefone(e.target.value)} placeholder="(62) 99999-9999" />
+              </label>
+              <label className={styles.campo}>
+                E-mail
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="compras@fornecedor.com.br" />
               </label>
               <label className={styles.campo}>
                 CNPJ

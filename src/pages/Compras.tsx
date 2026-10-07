@@ -74,6 +74,7 @@ export default function Compras() {
         </div>
         <div className={styles.acoesHeader}>
           <button className={styles.btnSecundario} onClick={() => navigate('/fornecedores')}>Fornecedores</button>
+          <button className={styles.btnSecundario} onClick={() => navigate('/ordens-servico')}>Pedidos de serviço</button>
           {podeEditar && (
             <button className={styles.btnNova} onClick={() => navigate('/compras/novo')}>+ Novo pedido</button>
           )}
@@ -104,7 +105,7 @@ export default function Compras() {
         <button key={p.id} className={`${styles.card} ${temItemUrgente(p.id) ? styles.cardUrgente : ''}`}
           onClick={() => navigate(`/compras/${p.id}`)}>
           <div className={styles.cardTopo}>
-            <span className={styles.cardNumero}>Pedido {String(p.numero).padStart(3, '0')}</span>
+            <span className={styles.cardNumero}>OC-{String(p.numero).padStart(3, '0')}</span>
             <span className={`${styles.chip} ${styles[`chip_${p.status}`]}`}>{STATUS_LABEL[p.status]}</span>
           </div>
           <div className={styles.cardDesc}>{p.descricao || '(sem descrição)'}</div>

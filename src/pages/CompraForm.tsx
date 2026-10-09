@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useObra } from '../contexts/ObraContext'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase, type Servico, type Unidade, type Etapa, type PedidoCompra, type PedidoCompraItem, type Cotacao, type CotacaoItem, type Fornecedor, type RecebimentoNf, type NaturezaItemPedido } from '../lib/supabase'
@@ -38,7 +38,7 @@ function nomeArquivoStorage(nome: string): string {
   return `${base}${extLimpa}`.toLowerCase()
 }
 
-function itemVazio(): ItemNovo {
+function itemVazio(natureza: NaturezaItemPedido = 'material'): ItemNovo {
   return {
     chave: crypto.randomUUID(),
     descricao_item: '',
@@ -47,7 +47,7 @@ function itemVazio(): ItemNovo {
     und: '',
     data_necessaria: '',
     urgente: false,
-    natureza: 'material',
+    natureza,
   }
 }
 
@@ -104,7 +104,9 @@ function itemEditVazio(): ItemEditavel {
 
 export default function CompraForm() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const novo = id === 'novo'
+  const orcarServico = novo && searchParams.get('tipo') === 'servico'
   const navigate = useNavigate()
   const { obraAtiva } = useObra()
   const { perfil } = useAuth()
@@ -113,7 +115,7 @@ export default function CompraForm() {
   const [unidades, setUnidades] = useState<Unidade[]>([])
   const [etapas, setEtapas] = useState<Etapa[]>([])
   const [descricao, setDescricao] = useState('')
-  const [itens, setItens] = useState<ItemNovo[]>([itemVazio()])
+  const [itens, setItens] = useState<ItemNovo[]>([itemVazio(orcarServico ? 'servico' : 'material')])
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
@@ -237,7 +239,7 @@ export default function CompraForm() {
   return (
     <div className={styles.page}>
       <button className={styles.voltar} onClick={() => navigate('/compras')}>← Compras</button>
-      <h1>Novo pedido de compra</h1>
+      <h1>{orcarServico ? 'Orçar serviço' : 'Novo pedido de compra'}</h1>
 
       <div className={styles.bloco}>
         <label className={styles.campo}>
@@ -308,7 +310,7 @@ export default function CompraForm() {
             </div>
           )
         })}
-        <button className={styles.btnAddItem} onClick={() => setItens(prev => [...prev, itemVazio()])}>
+        <button className={styles.btnAddItem} onClick={() => setItens(prev => [...prev, itemVazio(orcarServico ? 'servico' : 'material')])}>
           + Adicionar item
         </button>
       </div>

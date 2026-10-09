@@ -14,10 +14,13 @@ export default function OrdensServico() {
   const navigate = useNavigate()
   const podeEditar = perfil?.papel === 'admin' || temModulo('compras')
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
+  const [modo, setModo] = useState<'escolha' | 'ordem'>('escolha')
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
   const [servicos, setServicos] = useState<Servico[]>([])
   const [fornecedorId, setFornecedorId] = useState('')
   const [servicoId, setServicoId] = useState('')
+  const [buscaServico, setBuscaServico] = useState('')
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false)
   const [descricao, setDescricao] = useState('')
   const [valor, setValor] = useState('')
   const [vencimento, setVencimento] = useState('')
@@ -38,6 +41,17 @@ export default function OrdensServico() {
     setOrdens(os ?? []); setFornecedores(forn ?? []); setServicos(srv ?? [])
   }
   useEffect(() => { carregar() }, [obraAtiva])
+
+  const sugestoesServico = servicos.filter(s => {
+    const termo = buscaServico.trim().toLowerCase()
+    return termo && (`${s.codigo ?? ''} ${s.nome}`).toLowerCase().includes(termo)
+  }).slice(0, 12)
+
+  function selecionarServico(s: Servico) {
+    setServicoId(s.id)
+    setBuscaServico(`${s.codigo ? `${s.codigo} — ` : ''}${s.nome}`)
+    setMostrarSugestoes(false)
+  }
 
   async function criar() {
     if (!obraAtiva || !fornecedorId || !descricao.trim() || !valor || (executado && !justificativa.trim())) {
@@ -68,11 +82,25 @@ export default function OrdensServico() {
   return <div className={styles.page}>
     <button className={styles.voltar} onClick={() => navigate('/compras')}>← Compras</button>
     <h1>Pedido de Serviço</h1>
-    <p className={styles.sub}>Ordens de serviço (OS) com fornecedor definido e envio automático para o Financeiro.</p>
-    {podeEditar && <div className={styles.bloco}>
+    <p className={styles.sub}>Escolha se o Compras deve cotar o serviço ou se a negociação já está definida.</p>
+    {podeEditar && modo === 'escolha' && <div className={styles.bloco}>
+      <h2>Como deseja seguir?</h2>
+      <div className={styles.linha}>
+        <button className={styles.btnSecundario} onClick={() => navigate('/compras/novo?tipo=servico')}>Orçar serviço</button>
+        <button className={styles.btnPrincipal} onClick={() => setModo('ordem')}>Gerar ordem de compra do serviço</button>
+      </div>
+      <p className={styles.sub}>Orçar serviço não exige fornecedor nem valor contratado. A ordem de compra exige ambos e gera a conta a pagar.</p>
+    </div>}
+    {podeEditar && modo === 'ordem' && <div className={styles.bloco}>
+      <button className={styles.voltar} onClick={() => setModo('escolha')}>← Voltar às opções</button>
+      <h2>Gerar ordem de compra do serviço</h2>
       <div className={styles.campos}>
         <label className={styles.campo}>Fornecedor *<select value={fornecedorId} onChange={e => setFornecedorId(e.target.value)}><option value="">Selecione…</option>{fornecedores.map(f => <option key={f.id} value={f.id}>{f.nome} — {f.telefone || f.contato || 'sem telefone'}{f.email ? ` · ${f.email}` : ''}</option>)}</select></label>
-        <label className={styles.campo}>Item do orçamento <select value={servicoId} onChange={e => setServicoId(e.target.value)}><option value="">A classificar posteriormente</option>{servicos.map(s => <option key={s.id} value={s.id}>{s.codigo ? `${s.codigo} — ` : ''}{s.nome}</option>)}</select></label>
+        <label className={styles.campo}>Item do orçamento
+          <input value={buscaServico} onChange={e => { setBuscaServico(e.target.value); setServicoId(''); setMostrarSugestoes(true) }} onFocus={() => setMostrarSugestoes(true)} placeholder="Comece pelo código ou nome do item" />
+          {mostrarSugestoes && sugestoesServico.length > 0 && <div className={styles.cardMeta}>{sugestoesServico.map(s => <button type="button" key={s.id} className={styles.btnSecundario} onMouseDown={() => selecionarServico(s)}>{s.codigo ? `${s.codigo} — ` : ''}{s.nome}</button>)}</div>}
+          {!servicoId && <small>A classificação é opcional; sem seleção, irá para “a classificar”.</small>}
+        </label>
         <label className={styles.campo}>Descrição / escopo do serviço *<textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={4} placeholder="Ex.: levantamento topográfico planialtimétrico…" /></label>
         <div className={styles.linha}><label className={styles.campo}>Valor contratado (R$) *<input type="number" min="0.01" step="0.01" value={valor} onChange={e => setValor(e.target.value)} /></label><label className={styles.campo}>Data prevista de pagamento<input type="date" value={vencimento} onChange={e => setVencimento(e.target.value)} /></label></div>
         <label className={styles.campo}><input type="checkbox" checked={executado} onChange={e => setExecutado(e.target.checked)} /> Serviço já executado</label>

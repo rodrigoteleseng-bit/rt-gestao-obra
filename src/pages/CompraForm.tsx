@@ -116,6 +116,8 @@ export default function CompraForm() {
   const [etapas, setEtapas] = useState<Etapa[]>([])
   const [descricao, setDescricao] = useState('')
   const [itens, setItens] = useState<ItemNovo[]>([itemVazio(orcarServico ? 'servico' : 'material')])
+  const [buscaServicoOrcamento, setBuscaServicoOrcamento] = useState('')
+  const [sugestoesServicoAbertas, setSugestoesServicoAbertas] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
 
@@ -193,7 +195,7 @@ export default function CompraForm() {
 
   async function criar() {
     if (!obraAtiva || !perfil) return
-    const itensValidos = itens.filter(it => it.descricao_item.trim() && Number(it.quantidade_pedida) > 0)
+    const itensValidos = itens.filter(it => it.descricao_item.trim() && (orcarServico || Number(it.quantidade_pedida) > 0))
     if (itensValidos.length === 0) {
       setMsg({ tipo: 'erro', texto: 'Adicione ao menos um item com descrição e quantidade.' })
       return
@@ -202,12 +204,12 @@ export default function CompraForm() {
     setMsg(null)
     const { data: pedidoId, error } = await supabase.rpc('criar_pedido_compra_com_itens', {
       p_obra: obraAtiva.id,
-      p_descricao: descricao.trim(),
+      p_descricao: orcarServico ? itensValidos[0].descricao_item.trim() : descricao.trim(),
       p_itens: itensValidos.map(it => ({
         servico_id: it.servico_id,
         descricao_item: it.descricao_item.trim(),
-        quantidade_pedida: Number(it.quantidade_pedida),
-        und: it.und.trim() || null,
+        quantidade_pedida: orcarServico ? 1 : Number(it.quantidade_pedida),
+        und: orcarServico ? 'serviço' : (it.und.trim() || null),
         data_necessaria: it.data_necessaria || null,
         urgente: it.urgente,
         natureza: it.natureza,
@@ -241,16 +243,16 @@ export default function CompraForm() {
       <button className={styles.voltar} onClick={() => navigate('/compras')}>← Compras</button>
       <h1>{orcarServico ? 'Orçar serviço' : 'Novo pedido de compra'}</h1>
 
-      <div className={styles.bloco}>
+      {!orcarServico && <div className={styles.bloco}>
         <label className={styles.campo}>
           Descrição do pedido
           <input value={descricao} onChange={e => setDescricao(e.target.value)}
-            placeholder="Ex.: Lista de material — fundação Sobrado 04" />
+            placeholder={orcarServico ? 'Ex.: Solicito orçamento para levantamento topográfico…' : 'Ex.: Lista de material — fundação Sobrado 04'} />
         </label>
-      </div>
+      </div>}
 
       <div className={styles.bloco}>
-        <h2>Itens</h2>
+        <h2>{orcarServico ? 'Serviço a orçar' : 'Itens'}</h2>
         {itens.map(it => {
           return (
             <div key={it.chave} className={styles.itemLinha}>
@@ -259,14 +261,39 @@ export default function CompraForm() {
               )}
               <div className={styles.itemGrid}>
                 <label className={styles.campo}>
-                  Item *
+                  {orcarServico ? 'Descreva o serviço que deseja orçar *' : 'Item *'}
                   <input
                     value={it.descricao_item}
                     onChange={e => atualizarItem(it.chave, { descricao_item: e.target.value })}
-                    placeholder="Ex.: areia"
+                    placeholder={orcarServico ? 'Ex.: levantamento topográfico planialtimétrico do lote…' : 'Ex.: areia'}
                   />
                 </label>
-                <AplicacaoCascata
+                {orcarServico ? (
+                  <label className={styles.campo}>
+                    Referência no orçamento (opcional)
+                    <input value={buscaServicoOrcamento}
+                      onChange={e => {
+                        const texto = e.target.value
+                        setBuscaServicoOrcamento(texto)
+                        setSugestoesServicoAbertas(true)
+                        atualizarItem(it.chave, { servico_id: null })
+                      }}
+                      onFocus={() => setSugestoesServicoAbertas(true)}
+                      onBlur={() => setTimeout(() => setSugestoesServicoAbertas(false), 150)}
+                      placeholder="Digite o código ou nome do serviço" />
+                    {sugestoesServicoAbertas && buscaServicoOrcamento.trim() && (
+                      <div className={styles.sugestoesServico}>
+                        {servicos.filter(s => etapas.some(etapa => etapa.id === s.etapa_id && unidades.some(unidade => unidade.id === etapa.unidade_id && unidade.obra_id === obraAtiva?.id)) && `${s.codigo ?? ''} ${s.nome}`.toLowerCase().includes(buscaServicoOrcamento.trim().toLowerCase())).slice(0, 12).map(s => (
+                          <button type="button" key={s.id} onMouseDown={() => {
+                            atualizarItem(it.chave, { servico_id: s.id })
+                            setBuscaServicoOrcamento(`${s.codigo ? `${s.codigo} — ` : ''}${s.nome}`)
+                            setSugestoesServicoAbertas(false)
+                          }}>{s.codigo ? `${s.codigo} — ` : ''}{s.nome}</button>
+                        ))}
+                      </div>
+                    )}
+                  </label>
+                ) : <AplicacaoCascata
                   unidades={unidades}
                   etapas={etapas}
                   servicos={servicos}
@@ -278,46 +305,46 @@ export default function CompraForm() {
                       ...(s?.und && !it.und.trim() ? { und: s.und } : {}),
                     })
                   }}
-                />
-                <label className={styles.campo}>
+                />}
+                {!orcarServico && <label className={styles.campo}>
                   Natureza *
                   <select value={it.natureza} onChange={e => atualizarItem(it.chave, { natureza: e.target.value as NaturezaItemPedido })}>
                     <option value="material">Material</option>
                     <option value="servico">Serviço</option>
                     <option value="locacao">Locação</option>
                   </select>
-                </label>
-                <label className={styles.campo}>
+                </label>}
+                {!orcarServico && <label className={styles.campo}>
                   Quantidade *
                   <input type="number" min="0" step="0.01" value={it.quantidade_pedida}
                     onChange={e => atualizarItem(it.chave, { quantidade_pedida: e.target.value })} />
-                </label>
-                <label className={styles.campo}>
+                </label>}
+                {!orcarServico && <label className={styles.campo}>
                   Und.
                   <input value={it.und} onChange={e => atualizarItem(it.chave, { und: e.target.value })} placeholder="un, m³, sc…" />
-                </label>
-                <label className={styles.campo}>
+                </label>}
+                {!orcarServico && <label className={styles.campo}>
                   Data na Obra
                   <input type="date" value={it.data_necessaria}
                     onChange={e => atualizarItem(it.chave, { data_necessaria: e.target.value })} />
-                </label>
+                </label>}
               </div>
-              <label className={styles.checkUrgente}>
+              {!orcarServico && <label className={styles.checkUrgente}>
                 <input type="checkbox" checked={it.urgente}
                   onChange={e => atualizarItem(it.chave, { urgente: e.target.checked })} />
                 ⚡ Urgente — precisamos o mais rápido possível
-              </label>
+              </label>}
             </div>
           )
         })}
-        <button className={styles.btnAddItem} onClick={() => setItens(prev => [...prev, itemVazio(orcarServico ? 'servico' : 'material')])}>
+        {!orcarServico && <button className={styles.btnAddItem} onClick={() => setItens(prev => [...prev, itemVazio(orcarServico ? 'servico' : 'material')])}>
           + Adicionar item
-        </button>
+        </button>}
       </div>
 
       {msg && <p className={msg.tipo === 'ok' ? styles.msgOk : styles.msgErro}>{msg.texto}</p>}
       <button className={styles.btnPrincipal} onClick={criar} disabled={salvando}>
-        {salvando ? 'Criando…' : 'Criar pedido'}
+        {salvando ? 'Criando…' : orcarServico ? 'Enviar para o departamento de compras' : 'Criar pedido'}
       </button>
     </div>
   )

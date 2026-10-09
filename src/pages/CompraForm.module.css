@@ -80,6 +80,29 @@
 
 .campo input:focus, .campo select:focus, .campo textarea:focus { border-color: var(--navy); outline: none; }
 
+.sugestoesServico {
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--cinza-200);
+  border-radius: var(--radius-sm);
+  background: var(--branco);
+  box-shadow: var(--sombra-sm);
+}
+
+.sugestoesServico button {
+  text-align: left;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--cinza-100);
+  background: transparent;
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.sugestoesServico button:hover { background: var(--fundo-nude); }
+
 .itemLinha {
   border: 1.5px solid var(--cinza-200);
   border-radius: var(--radius-sm);

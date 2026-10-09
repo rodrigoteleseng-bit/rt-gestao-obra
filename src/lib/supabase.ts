@@ -676,12 +676,13 @@ export interface OrdemServico {
   id: string
   obra_id: string
   numero: number
-  fornecedor_id: string
+  tipo: 'orcamento' | 'ordem_compra'
+  fornecedor_id: string | null
   unidade_id: string | null
   etapa_id: string | null
   servico_id: string | null
   descricao: string
-  valor: number
+  valor: number | null
   data_emissao: string
   data_execucao: string | null
   data_vencimento: string | null
